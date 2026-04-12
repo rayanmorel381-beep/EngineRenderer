@@ -1,0 +1,13 @@
+[package]
+name = "enginerenderer"
+version = "0.0.2"
+edition = "2024"
+repository = "https://github.com/rayanmorel381-beep/EngineRenderer"
+
+[lib]
+name = "enginerenderer"
+path = "src/lib.rs"
+
+[profile.dev]
+opt-level = 3
+debug = 1
