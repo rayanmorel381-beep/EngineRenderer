@@ -1,17 +1,19 @@
-//! Hardware abstraction layer — bridges the `hardware` crate into the
-//! rendering engine for GPU compute, memory management, CPU topology,
-//! and high-precision timing.
+mod arch;
 
-pub mod capabilities;
 pub mod cpu;
-pub mod dma;
 pub mod gpu;
-pub mod gpu_render;
+pub mod ram;
+pub mod display;
+pub mod dma;
 pub mod timer;
 
-pub use capabilities::HardwareCapabilities;
+pub use arch::capabilities::HardwareCapabilities;
+pub use arch::compute_dispatch::{
+    CommandBuffer, ComputeCapabilities, ComputeDeviceKind, ComputeJobBatch, ComputeQueue, KernelConfig,
+};
 pub use cpu::{CpuProfile, pin_thread_to_core};
-pub use dma::{alloc_dma_framebuffer, DmaFramebuffer};
-pub use gpu::gpu_dispatch_tiles;
-pub use gpu_render::GpuRenderBackend;
-pub use timer::{elapsed_ms, precise_timestamp_ns, HwInstant};
+pub use gpu::{DrmDriver, GpuRenderBackend, GpuSubmitter, arch_optimal_workgroup, gpu_dispatch_tiles};
+pub use display::{NativeWindow, pixels_from_vec3};
+pub use dma::{DmaFramebuffer, alloc_dma_framebuffer};
+pub use arch::native_calls::{native_cpu_call, native_gpu_call};
+pub use timer::{HwInstant, elapsed_ms, precise_timestamp_ns};

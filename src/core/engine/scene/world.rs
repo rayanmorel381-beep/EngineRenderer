@@ -5,7 +5,7 @@ use crate::core::engine::rendering::{
 
 use super::{
     objects::{append_car, append_house, append_tree},
-    primitives::{append_box, append_ring},
+    primitives::{append_box, append_ring, RingSpec},
 };
 
 pub(crate) fn append_showcase_world(scene: &mut Scene, anchor: Vec3) {
@@ -87,28 +87,26 @@ pub(crate) fn append_celestial_panorama(scene: &mut Scene, focus: Vec3) {
         },
     ]);
 
-    append_ring(
-        &mut scene.triangles,
-        planet_center,
-        2.9,
-        4.0,
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 0.12, 1.0).normalize(),
-        64,
-        Material::new(Vec3::new(0.66, 0.60, 0.48), 0.72, 0.04, 0.06, Vec3::ZERO)
+    append_ring(&mut scene.triangles, RingSpec {
+        center: planet_center,
+        inner_radius: 2.9,
+        outer_radius: 4.0,
+        axis_u: Vec3::new(1.0, 0.0, 0.0),
+        axis_v: Vec3::new(0.0, 0.12, 1.0).normalize(),
+        segments: 64,
+        material: Material::new(Vec3::new(0.66, 0.60, 0.48), 0.72, 0.04, 0.06, Vec3::ZERO)
             .with_layers(0.94, 0.03, Vec3::new(0.03, 0.03, 0.02))
             .with_optics(0.12, 0.05, 0.02),
-    );
-    append_ring(
-        &mut scene.triangles,
-        black_hole_center,
-        3.4,
-        6.1,
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 0.26, 1.0).normalize(),
-        96,
-        MaterialLibrary::accretion_disk(),
-    );
+    });
+    append_ring(&mut scene.triangles, RingSpec {
+        center: black_hole_center,
+        inner_radius: 3.4,
+        outer_radius: 6.1,
+        axis_u: Vec3::new(1.0, 0.0, 0.0),
+        axis_v: Vec3::new(0.0, 0.26, 1.0).normalize(),
+        segments: 96,
+        material: MaterialLibrary::accretion_disk(),
+    });
 
     scene.area_lights.extend([
         AreaLight {
@@ -126,4 +124,60 @@ pub(crate) fn append_celestial_panorama(scene: &mut Scene, focus: Vec3) {
             intensity: 4.8,
         },
     ]);
+
+    let background_stars: &[((f64, f64, f64), f64)] = &[
+        ((-52.0,  18.0, -70.0), 0.45),
+        (( 44.0,  31.0, -85.0), 0.38),
+        ((-18.0,  55.0, -92.0), 0.52),
+        (( 78.0, -12.0, -60.0), 0.41),
+        ((-65.0,  42.0, -50.0), 0.36),
+        (( 28.0,  68.0, -78.0), 0.48),
+        ((-38.0, -20.0, -88.0), 0.43),
+        (( 60.0,  24.0, -95.0), 0.50),
+    ];
+    for &((x, y, z), r) in background_stars {
+        scene.objects.push(Sphere {
+            center: focus + Vec3::new(x, y, z),
+            radius: r,
+            material: MaterialLibrary::stellar_surface(),
+        });
+    }
+
+    let distant_planets: &[((f64, f64, f64), f64, u8)] = &[
+        ((-30.0, 12.0, -48.0), 1.85, 0),
+        (( 38.0, -8.0, -42.0), 1.42, 1),
+        ((-44.0, 22.0, -35.0), 1.60, 2),
+        (( 22.0, 16.0, -55.0), 1.25, 3),
+    ];
+    for &((x, y, z), r, kind) in distant_planets {
+        let material = match kind {
+            0 => MaterialLibrary::rocky_world(Vec3::new(0.62, 0.44, 0.30)),
+            1 => MaterialLibrary::ocean_world(),
+            2 => MaterialLibrary::icy_world(),
+            _ => MaterialLibrary::lush_planet(),
+        };
+        scene.objects.push(Sphere {
+            center: focus + Vec3::new(x, y, z),
+            radius: r,
+            material,
+        });
+    }
+
+    let rogue_moons: &[((f64, f64, f64), f64)] = &[
+        ((-22.0,  6.0, -32.0), 0.68),
+        (( 26.0, -4.0, -28.0), 0.54),
+        ((-14.0, 18.0, -38.0), 0.72),
+        (( 34.0, 10.0, -44.0), 0.60),
+        ((-40.0, -6.0, -26.0), 0.58),
+        (( 18.0, 22.0, -50.0), 0.65),
+        ((-26.0, 14.0, -24.0), 0.48),
+        (( 42.0, -2.0, -34.0), 0.55),
+    ];
+    for &((x, y, z), r) in rogue_moons {
+        scene.objects.push(Sphere {
+            center: focus + Vec3::new(x, y, z),
+            radius: r,
+            material: MaterialLibrary::metallic_moon(),
+        });
+    }
 }

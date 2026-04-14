@@ -1,231 +1,299 @@
-//! CPU topology, features, affinity, and vector capabilities.
+use std::thread::available_parallelism;
 
-use std::fs;
+use super::arch::compute_dispatch;
 
-use hardware::sys;
-
-/// Detailed CPU information for render scheduling decisions.
-#[derive(Debug, Clone)]
-pub struct CpuProfile {
-    /// Vendor name (Intel, AMD, ARM, …).
-    pub vendor: &'static str,
-    /// Model name string.
-    pub model_name: String,
-    /// Base frequency in MHz.
-    pub frequency_mhz: u64,
-    /// Physical core count.
-    pub physical_cores: u8,
-    /// Logical core count.
-    pub logical_cores: u8,
-    /// Threads per physical core.
-    pub threads_per_core: u8,
-    /// Number of CPU sockets.
-    pub sockets: u8,
-    /// L1 cache size in KB.
-    pub l1_cache_kb: u16,
-    /// L2 cache size in KB.
-    pub l2_cache_kb: u16,
-    /// L3 cache size in KB.
-    pub l3_cache_kb: u16,
-    /// Hyper-Threading / SMT enabled.
-    pub has_ht: bool,
-    /// SIMD vector width in bits (e.g. 256 for AVX2).
-    pub vector_width_bits: u32,
-    /// Available SIMD features.
-    pub simd_features: SimdFeatures,
-}
-
-/// SIMD instruction-set availability.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct SimdFeatures {
-    pub sse2: bool,
-    pub sse4_2: bool,
-    pub avx: bool,
-    pub avx2: bool,
     pub avx512f: bool,
+    pub avx2: bool,
+    pub avx: bool,
     pub fma: bool,
+    pub sse4_2: bool,
+    pub sse2: bool,
     pub neon: bool,
 }
 
-fn fallback_proc_cpu_info() -> Option<(&'static str, String, u64)> {
-    let cpuinfo = fs::read_to_string("/proc/cpuinfo").ok()?;
-    let mut vendor = "unknown";
-    let mut model_name = None;
-    let mut frequency_mhz = None;
-
-    for line in cpuinfo.lines() {
-        if let Some(value) = line.split(':').nth(1) {
-            if line.starts_with("vendor_id") {
-                let raw = value.trim();
-                vendor = if raw.contains("AMD") {
-                    "AMD"
-                } else if raw.contains("Intel") {
-                    "Intel"
-                } else {
-                    "unknown"
-                };
-            } else if line.starts_with("model name") && model_name.is_none() {
-                model_name = Some(value.trim().to_string());
-            } else if line.starts_with("cpu MHz") && frequency_mhz.is_none() {
-                frequency_mhz = value
-                    .trim()
-                    .parse::<f64>()
-                    .ok()
-                    .map(|mhz| mhz.round() as u64);
-            }
-        }
-    }
-
-    Some((vendor, model_name.unwrap_or_default(), frequency_mhz.unwrap_or(0)))
+#[derive(Debug, Clone)]
+pub struct CpuProfile {
+    pub logical_cores: u8,
+    pub l2_cache_kb: u32,
+    pub has_ht: bool,
+    pub simd_features: SimdFeatures,
+    pub vector_width_bits: u32,
 }
 
 impl CpuProfile {
-    /// Probes the CPU via the hardware crate.
     pub fn detect() -> Self {
-        let topo = sys::cpu::topology::detect();
-
-        let (vendor, model_name, freq_hz, l1, l2, l3, has_ht) =
-            match sys::cpu::detect_cpu_info() {
-                Some(info) => {
-                    let name = sys::cpu::info::model_name_str(&info).to_string();
-                    (
-                        info.vendor,
-                        name,
-                        info.frequency_hz,
-                        info.l1_cache_kb,
-                        info.l2_cache_kb,
-                        info.l3_cache_kb,
-                        info.has_ht,
-                    )
-                }
-                None => ("unknown", String::new(), 0, 0, 0, 0, false),
-            };
-
-        let fallback = fallback_proc_cpu_info();
-        let vendor = if vendor == "unknown" {
-            fallback.as_ref().map(|(value, _, _)| *value).unwrap_or(vendor)
-        } else {
-            vendor
+        let cfg = compute_dispatch::default_cpu_config();
+        let simd = detect_simd();
+        let vendor_scale = match cfg.vendor {
+            compute_dispatch::Vendor::Amd => 1usize,
+            compute_dispatch::Vendor::Intel => 1usize,
+            compute_dispatch::Vendor::Apple => 1usize,
+            compute_dispatch::Vendor::Unknown => 1usize,
         };
-        let model_name = if model_name.trim().is_empty() {
-            fallback
-                .as_ref()
-                .map(|(_, value, _)| value.clone())
-                .unwrap_or_default()
-        } else {
-            model_name
-        };
-        let frequency_mhz = (freq_hz / 1_000_000)
-            .max(fallback.as_ref().map(|(_, _, mhz)| *mhz).unwrap_or(0));
-        let logical_cores = if topo.logical_cores == 0 {
-            std::thread::available_parallelism()
-                .map(|value| value.get().min(u8::MAX as usize) as u8)
-                .unwrap_or(1)
-        } else {
-            topo.logical_cores
-        }
-        .max(1);
-        let physical_cores = topo.physical_cores.max(1).min(logical_cores);
-        let threads_per_core = if topo.threads_per_core == 0 {
-            (logical_cores / physical_cores.max(1)).max(1)
-        } else {
-            topo.threads_per_core.max(1)
-        };
-
-        let vec = sys::cpu::vector::detect();
-
-        let simd_features = SimdFeatures {
-            sse2: sys::cpu::features::has_feature("sse2"),
-            sse4_2: sys::cpu::features::has_feature("sse4.2"),
-            avx: sys::cpu::features::has_feature("avx"),
-            avx2: sys::cpu::features::has_feature("avx2"),
-            avx512f: sys::cpu::features::has_feature("avx512f"),
-            fma: sys::cpu::features::has_feature("fma"),
-            neon: sys::cpu::features::has_feature("neon"),
-        };
-
-        Self {
-            vendor,
-            model_name,
-            frequency_mhz,
-            physical_cores,
-            logical_cores,
-            threads_per_core,
-            sockets: topo.sockets.max(1),
-            l1_cache_kb: l1,
-            l2_cache_kb: l2,
-            l3_cache_kb: l3,
-            has_ht,
-            vector_width_bits: vec.width_bits,
-            simd_features,
-        }
+        let power_scale = 1usize;
+        let budget_scale = ((cfg.frame_budget_us / 8_333).max(1)) as usize;
+        let requested = available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1)
+            .max(cfg.worker_hint.max(1))
+            .saturating_mul(vendor_scale)
+            .saturating_mul(power_scale)
+            .saturating_mul(budget_scale);
+        let logical_cores = compute_dispatch::clamp_cpu_workers(
+            requested.min(cfg.render_workers.max(1))
+        ) as u8;
+        let l2_cache_kb = detect_l2_cache_kb();
+        let physical = detect_physical_cores();
+        let has_ht = (logical_cores as usize) > physical;
+        let vector_width_bits = if simd.avx512f { 512 }
+            else if simd.avx2 || simd.avx { 256 }
+            else if simd.sse4_2 || simd.sse2 || simd.neon { 128 }
+            else { 64 };
+        Self { logical_cores, l2_cache_kb, has_ht, simd_features: simd, vector_width_bits }
     }
 
-    /// Optimal tile width in pixels based on vector register width.
-    ///
-    /// Aligns tiles to SIMD boundaries so the inner loop can process
-    /// multiple pixels per instruction without remainder.
     pub fn optimal_tile_width(&self) -> usize {
-        // Each pixel = 3×f64 = 24 bytes; vector register holds N bytes.
-        let vec_bytes = (self.vector_width_bits / 8) as usize;
-        // Number of f64 lanes per register.
-        let lanes = vec_bytes / 8;
-        // Round up to nearest multiple of lanes, minimum 8.
-        (lanes * 4).max(8)
+        if self.simd_features.avx512f { 16 }
+        else if self.simd_features.avx2 || self.simd_features.avx { 8 }
+        else if self.simd_features.sse4_2 || self.simd_features.sse2 || self.simd_features.neon { 4 }
+        else { 2 }
     }
 
-    /// Log CPU profile to stderr.
     pub fn log_summary(&self) {
         eprintln!(
-            "cpu: {} {} @ {}MHz | {}C/{}T ({}s) | L1={}K L2={}K L3={}K | vec={}bit",
-            self.vendor,
-            self.model_name,
-            self.frequency_mhz,
-            self.physical_cores,
-            self.logical_cores,
-            self.sockets,
-            self.l1_cache_kb,
-            self.l2_cache_kb,
-            self.l3_cache_kb,
-            self.vector_width_bits,
+            "cpu: cores={} l2={}KB ht={} vec={}bit",
+            self.logical_cores, self.l2_cache_kb, self.has_ht, self.vector_width_bits,
         );
+    }
+
+    pub fn schedule(&self, work_items: usize) -> compute_dispatch::Schedule {
+        compute_dispatch::build_cpu_schedule(work_items)
     }
 }
 
-// ─── Thread affinity ────────────────────────────────────────────────────
-
-/// Pins the calling thread to a specific physical core.
-///
-/// Useful for render workers to avoid cache-thrashing from OS migration.
-pub fn pin_thread_to_core(core_id: usize) {
-    sys::cpu::affinity::pin_to_core(core_id);
+fn detect_simd() -> SimdFeatures {
+    let mut f = SimdFeatures::default();
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    {
+        f.avx512f = std::is_x86_feature_detected!("avx512f");
+        f.avx2 = std::is_x86_feature_detected!("avx2");
+        f.avx = std::is_x86_feature_detected!("avx");
+        f.fma = std::is_x86_feature_detected!("fma");
+        f.sse4_2 = std::is_x86_feature_detected!("sse4.2");
+        f.sse2 = std::is_x86_feature_detected!("sse2");
+    }
+    #[cfg(target_arch = "aarch64")]
+    {
+        f.neon = true;
+    }
+    #[cfg(target_arch = "arm")]
+    {
+        f.neon = cfg!(target_feature = "neon");
+    }
+    f
 }
 
-/// Returns the current thread's affinity mask.
-pub fn thread_affinity_mask() -> usize {
-    sys::cpu::affinity::get_affinity()
+fn detect_l2_cache_kb() -> u32 {
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(s) = std::fs::read_to_string("/sys/devices/system/cpu/cpu0/cache/index2/size") {
+            let s = s.trim();
+            if let Some(stripped) = s.strip_suffix('K')
+                && let Ok(n) = stripped.parse::<u32>()
+            {
+                return n;
+            }
+            if let Ok(n) = s.parse::<u32>() { return n / 1024; }
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(v) = sysctl_u64("hw.l2cachesize") { return (v / 1024) as u32; }
+    }
+    256
 }
 
-/// Per-core frequency and temperature snapshot.
+fn detect_physical_cores() -> usize {
+    #[cfg(target_os = "linux")]
+    {
+        let mut ids = std::collections::HashSet::new();
+        for cpu in 0usize..512 {
+            let path = format!("/sys/devices/system/cpu/cpu{}/topology/core_id", cpu);
+            match std::fs::read_to_string(&path) {
+                Ok(s) => {
+                    if let Ok(id) = s.trim().parse::<u32>() { ids.insert(id); } else { break; }
+                }
+                Err(_) => break,
+            }
+        }
+        if !ids.is_empty() { return ids.len(); }
+    }
+    available_parallelism().map(|n| n.get()).unwrap_or(1)
+}
+
+#[cfg(target_os = "macos")]
+unsafe extern "C" {
+    fn sysctlbyname(
+        name: *const core::ffi::c_char,
+        oldp: *mut core::ffi::c_void,
+        oldlenp: *mut usize,
+        newp: *const core::ffi::c_void,
+        newlen: usize,
+    ) -> i32;
+}
+
+#[cfg(target_os = "macos")]
+fn sysctl_u64(name: &str) -> Option<u64> {
+    use std::ffi::CString;
+    let cname = CString::new(name).ok()?;
+    let mut val: u64 = 0;
+    let mut sz = core::mem::size_of::<u64>();
+    let ret = unsafe {
+        sysctlbyname(
+            cname.as_ptr(),
+            &mut val as *mut u64 as *mut core::ffi::c_void,
+            &mut sz,
+            core::ptr::null(),
+            0,
+        )
+    };
+    if ret == 0 { Some(val) } else { None }
+}
+
 #[derive(Debug, Clone)]
 pub struct CoreSnapshot {
     pub core_id: u32,
     pub frequency_hz: u64,
 }
 
-/// Detect individual core frequencies for load-aware scheduling.
 pub fn detect_core_frequencies() -> Vec<CoreSnapshot> {
-    let mut cores = [sys::cpu::cores::CoreInfo {
-        core_id: 0,
-        frequency_hz: 0,
-        raw_temp: None,
-    }; 128];
-    let count = sys::cpu::cores::detect_cores(&mut cores);
-    cores[..count]
-        .iter()
-        .map(|c| CoreSnapshot {
-            core_id: c.core_id,
-            frequency_hz: c.frequency_hz,
-        })
-        .collect()
+    #[cfg(target_os = "linux")]
+    {
+        let mut result = Vec::new();
+        for cpu in 0u32..512 {
+            let path = format!("/sys/devices/system/cpu/cpu{}/cpufreq/cpuinfo_max_freq", cpu);
+            match std::fs::read_to_string(&path) {
+                Ok(s) => {
+                    let khz: u64 = s.trim().parse().unwrap_or(0);
+                    result.push(CoreSnapshot { core_id: cpu, frequency_hz: khz * 1000 });
+                }
+                Err(_) => break,
+            }
+        }
+        if !result.is_empty() { return result; }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(hz) = sysctl_u64("hw.cpufrequency") {
+            let n = available_parallelism().map(|n| n.get() as u32).unwrap_or(1);
+            return (0..n).map(|id| CoreSnapshot { core_id: id, frequency_hz: hz }).collect();
+        }
+    }
+    let n = available_parallelism().map(|n| n.get() as u32).unwrap_or(1);
+    (0..n).map(|id| CoreSnapshot { core_id: id, frequency_hz: 2_000_000_000 }).collect()
+}
+
+pub fn thread_affinity_mask() -> usize {
+    #[cfg(all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64")))]
+    {
+        let mut set = [0u8; 128];
+        let ret = raw_sched_getaffinity(0, 128, set.as_mut_ptr());
+        if ret == 0 {
+            let mut mask: usize = 0;
+            for (i, byte) in set.iter().enumerate().take(core::mem::size_of::<usize>()) {
+                mask |= (*byte as usize) << (i * 8);
+            }
+            return mask;
+        }
+    }
+    usize::MAX
+}
+
+pub fn pin_thread_to_core(core_id: usize) {
+    #[cfg(all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64")))]
+    {
+        let mut set = [0u8; 128];
+        let byte = core_id / 8;
+        let bit = core_id % 8;
+        if byte < 128 {
+            set[byte] = 1 << bit;
+            raw_sched_setaffinity(0, 128, set.as_ptr());
+        }
+    }
+    #[cfg(not(all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64"))))]
+    {
+        if core_id == usize::MAX {
+            return;
+        }
+    }
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+fn raw_sched_setaffinity(pid: i32, cpusetsize: usize, mask: *const u8) -> i32 {
+    let ret: i64;
+    unsafe {
+        core::arch::asm!(
+            "syscall",
+            inlateout("rax") 203_i64 => ret,
+            in("rdi") pid as i64,
+            in("rsi") cpusetsize,
+            in("rdx") mask as u64,
+            out("rcx") _,
+            out("r11") _,
+            options(nostack),
+        );
+    }
+    ret as i32
+}
+
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+fn raw_sched_setaffinity(pid: i32, cpusetsize: usize, mask: *const u8) -> i32 {
+    let ret: i64;
+    unsafe {
+        core::arch::asm!(
+            "svc #0",
+            inlateout("x0") pid as i64 => ret,
+            in("x1") cpusetsize as u64,
+            in("x2") mask as u64,
+            in("x8") 122_u64,
+            options(nostack),
+        );
+    }
+    ret as i32
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+fn raw_sched_getaffinity(pid: i32, cpusetsize: usize, mask: *mut u8) -> i32 {
+    let ret: i64;
+    unsafe {
+        core::arch::asm!(
+            "syscall",
+            inlateout("rax") 204_i64 => ret,
+            in("rdi") pid as i64,
+            in("rsi") cpusetsize,
+            in("rdx") mask as u64,
+            out("rcx") _,
+            out("r11") _,
+            options(nostack),
+        );
+    }
+    ret as i32
+}
+
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+fn raw_sched_getaffinity(pid: i32, cpusetsize: usize, mask: *mut u8) -> i32 {
+    let ret: i64;
+    unsafe {
+        core::arch::asm!(
+            "svc #0",
+            inlateout("x0") pid as i64 => ret,
+            in("x1") cpusetsize as u64,
+            in("x2") mask as u64,
+            in("x8") 123_u64,
+            options(nostack),
+        );
+    }
+    ret as i32
 }

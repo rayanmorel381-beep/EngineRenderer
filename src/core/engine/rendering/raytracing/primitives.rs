@@ -196,26 +196,38 @@ pub struct Triangle {
     pub material: Material,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct TrianglePatch {
+    pub positions: [Vec3; 3],
+    pub normals: [Vec3; 3],
+    pub uvs: [(f64, f64); 3],
+    pub material: Material,
+}
+
 impl Triangle {
-    pub fn new(
-        a: Vec3, b: Vec3, c: Vec3,
-        na: Vec3, nb: Vec3, nc: Vec3,
-        ta: (f64, f64), tb: (f64, f64), tc: (f64, f64),
-        material: Material,
-    ) -> Self {
+    pub fn new(patch: TrianglePatch) -> Self {
         Self {
-            a, b, c,
-            na: na.normalize(),
-            nb: nb.normalize(),
-            nc: nc.normalize(),
-            ta, tb, tc,
-            material,
+            a: patch.positions[0],
+            b: patch.positions[1],
+            c: patch.positions[2],
+            na: patch.normals[0].normalize(),
+            nb: patch.normals[1].normalize(),
+            nc: patch.normals[2].normalize(),
+            ta: patch.uvs[0],
+            tb: patch.uvs[1],
+            tc: patch.uvs[2],
+            material: patch.material,
         }
     }
 
     pub fn flat(a: Vec3, b: Vec3, c: Vec3, material: Material) -> Self {
         let face_normal = (b - a).cross(c - a).normalize();
-        Self::new(a, b, c, face_normal, face_normal, face_normal, (0.0, 0.0), (1.0, 0.0), (0.5, 1.0), material)
+        Self::new(TrianglePatch {
+            positions: [a, b, c],
+            normals: [face_normal, face_normal, face_normal],
+            uvs: [(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)],
+            material,
+        })
     }
 
     pub fn centroid(&self) -> Vec3 {

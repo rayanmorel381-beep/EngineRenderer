@@ -180,17 +180,17 @@ pub struct AdaptiveQualitySettings {
 impl AdaptiveQualitySettings {
     pub fn from_analysis(analysis: &SceneAnalysis, target_ms: f64) -> Self {
         let complexity = analysis.total_primitives as f64
-            + analysis.emissive_count as f64 * 8.0
-            + analysis.transmissive_count as f64 * 12.0
-            + analysis.high_detail_count as f64 * 4.0;
+            + analysis.emissive_count as f64 * 2.0
+            + analysis.transmissive_count as f64 * 4.0
+            + analysis.high_detail_count as f64 * 1.5;
 
         let normalized_budget = (target_ms / 16.0).max(1.0);
-        let pressure = complexity / (normalized_budget * 900.0);
-        let budget_factor = (1.02 - pressure * 0.18).clamp(0.55, 1.10);
+        let pressure = complexity / (normalized_budget * 4800.0);
+        let budget_factor = (1.02 - pressure * 0.08).clamp(0.55, 1.10);
 
         Self {
-            sample_multiplier: budget_factor.clamp(0.60, 1.10),
-            bounce_limit: if budget_factor > 0.95 { 4 } else if budget_factor > 0.70 { 3 } else { 2 },
+            sample_multiplier: budget_factor.clamp(0.82, 1.10),
+            bounce_limit: if budget_factor > 0.85 { 4 } else if budget_factor > 0.60 { 3 } else { 2 },
             shadow_quality: budget_factor.clamp(0.55, 1.0),
             ao_quality: budget_factor.clamp(0.50, 1.0),
             volumetric_quality: (budget_factor * 0.90).clamp(0.45, 1.0),

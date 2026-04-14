@@ -19,8 +19,10 @@ use crate::core::engine::rendering::{
     postprocessing::processor::{PostProcessor, reinhard_tonemap},
     preprocessing::scene_preprocessor::ScenePreprocessor,
     raytracing::{Camera, Scene},
+    raytracing::acceleration::BvhNode,
     utils::{ev100_from_luminance, exposure_from_ev100},
 };
+use crate::core::scheduler::adaptive::TileScheduler;
 use super::super::scene_builder::build_realistic_scene;
 
 use super::super::types::{RenderPreset, RenderReport};
@@ -48,11 +50,12 @@ impl Renderer {
     ) -> Result<RenderReport, Box<dyn Error>> {
         let mut config = self.config_for(preset);
         let is_preview = matches!(preset, RenderPreset::PreviewCpu);
+        let input_scene_objects = scene.objects.len() + scene.triangles.len();
 
         // ── Scene preprocessing ─────────────────────────────────────────
         let preprocessed = ScenePreprocessor::analyze(scene, camera);
         let adaptive_budget_ms = match preset {
-            RenderPreset::PreviewCpu => 16.0,
+            RenderPreset::AnimationFast | RenderPreset::PreviewCpu => 16.0,
             RenderPreset::UltraHdCpu => 120.0,
             RenderPreset::ProductionReference => 260.0,
         };
@@ -61,6 +64,7 @@ impl Renderer {
             adaptive_budget_ms,
         );
         let minimum_spp = match preset {
+            RenderPreset::AnimationFast => 1,
             RenderPreset::PreviewCpu => 2,
             RenderPreset::UltraHdCpu => 8,
             RenderPreset::ProductionReference => 16,
@@ -128,6 +132,17 @@ impl Renderer {
             render_scene.volume = render_scene.volume.with_density_multiplier(0.35);
         }
 
+        let pixel_work = config.width * config.height * config.base_samples_per_pixel as usize;
+        let bvh_factor = ((input_scene_objects.max(1) as f64).log2() / 10.0).clamp(0.3, 1.0);
+        let work_estimate = pixel_work as f64 * bvh_factor;
+        let max_threads = self.hw_caps.optimal_render_threads_for_input(pixel_work);
+        config.thread_count = (work_estimate / 5_000_000.0).ceil().clamp(1.0, max_threads as f64) as usize;
+        eprintln!(
+            "adaptive-threads: {} objects, {}x{} @{}spp → {} threads (max={})",
+            input_scene_objects, config.width, config.height,
+            config.base_samples_per_pixel, config.thread_count, max_threads,
+        );
+
         // ── Ray trace (with precise per-phase timing) ───────────────────
         let t_frame = precise_timestamp_ns();
         let start = HwInstant::now();
@@ -138,10 +153,9 @@ impl Renderer {
             .render(&render_scene, camera, &config, &self.lod_manager);
         let trace_ms = hw_elapsed_ms(t_trace, precise_timestamp_ns());
 
-        // ── GPU fence + sync ────────────────────────────────────────────
-        let t_gpu = precise_timestamp_ns();
-        let gpu_fence_ms = self.gpu_fence_and_sync();
-        let gpu_sync_ms = gpu_fence_ms.unwrap_or_else(|| hw_elapsed_ms(t_gpu, precise_timestamp_ns()));
+        if let Some(sync_ms) = self.gpu_fence_and_sync() {
+            eprintln!("gpu-sync: {:.2}ms", sync_ms);
+        }
 
         // ── FrameBuffer ─────────────────────────────────────────────────
         let t_post = precise_timestamp_ns();
@@ -230,8 +244,8 @@ impl Renderer {
         // ── Per-phase timing summary ────────────────────────────────────
         let total_frame_ms = hw_elapsed_ms(t_frame, precise_timestamp_ns());
         eprintln!(
-            "pipeline: total={:.1}ms trace={:.1} gpu_sync={:.1} post={:.1} complexity={} | {} simd={}",
-            total_frame_ms, trace_ms, gpu_sync_ms, post_ms,
+            "pipeline: total={:.1}ms trace={:.1} post={:.1} complexity={} | {} simd={}",
+            total_frame_ms, trace_ms, post_ms,
             scene_complexity,
             self.gpu_info_tag(),
             self.simd_tag(),
@@ -268,19 +282,359 @@ impl Renderer {
         })
     }
 
+    pub fn render_animation_frame<P: AsRef<Path>>(
+        &self,
+        scene: &Scene,
+        camera: &Camera,
+        bvh: Option<&BvhNode>,
+        scheduler: &TileScheduler,
+        output_path: P,
+        preset: RenderPreset,
+    ) -> Result<RenderReport, Box<dyn Error>> {
+        let mut config = self.config_for(preset);
+        let is_preview = matches!(preset, RenderPreset::PreviewCpu | RenderPreset::AnimationFast);
+
+        let preprocessed = ScenePreprocessor::analyze(scene, camera);
+        let adaptive_budget_ms = match preset {
+            RenderPreset::AnimationFast | RenderPreset::PreviewCpu => 16.0,
+            RenderPreset::UltraHdCpu => 120.0,
+            RenderPreset::ProductionReference => 260.0,
+        };
+        let quality = crate::core::engine::rendering::preprocessing::scene_preprocessor::AdaptiveQualitySettings::from_analysis(
+            &preprocessed.analysis,
+            adaptive_budget_ms,
+        );
+        let minimum_spp = match preset {
+            RenderPreset::AnimationFast => 1,
+            RenderPreset::PreviewCpu => 2,
+            RenderPreset::UltraHdCpu => 8,
+            RenderPreset::ProductionReference => 16,
+        };
+        config.base_samples_per_pixel = ((config.base_samples_per_pixel as f64 * quality.sample_multiplier)
+            .round() as u32)
+            .max(minimum_spp);
+        config.max_bounces = config.max_bounces.min(quality.bounce_limit.max(2));
+        let cam_near = preprocessed.camera_info.near_plane;
+        let cam_far  = preprocessed.camera_info.far_plane;
+        let scene_radius = preprocessed.analysis.scene_radius;
+
+        let frustum = self.build_frustum(camera, &config, cam_near, cam_far);
+
+        let contribution_threshold = if is_preview {
+            (quality.ao_quality * 0.18).clamp(0.08, 0.20)
+        } else {
+            (quality.ao_quality * 0.08).clamp(0.02, 0.08)
+        };
+        let culler = SceneCuller::new(config.max_distance)
+            .with_screen_params(60.0_f64.to_radians(), config.height as f64)
+            .with_contribution_threshold(contribution_threshold)
+            .with_backface_culling(is_preview);
+
+        let (distance_culled, _cull_stats) = culler.cull_scene_with_stats(scene, camera);
+        let mut render_scene = culler.cull_with_frustum(&distance_culled, &frustum);
+
+        let total_cascade_bias = self.apply_shadow_cascade(
+            &mut render_scene, camera, cam_near, cam_far, &config,
+        );
+
+        let rayleigh_blue = rayleigh_scatter(440.0);
+        let rayleigh_red  = rayleigh_scatter(680.0);
+        let scatter_ratio = rayleigh_blue / rayleigh_red.max(1.0);
+        render_scene.exposure *= 1.0 + (scatter_ratio - 8.0).abs() * 0.001;
+
+        self.apply_cloud_layer(&mut render_scene, camera);
+        self.apply_shadow_sampling(&mut render_scene, camera);
+
+        if render_scene.objects.len() >= 2 {
+            let occluded = sphere_occludes(
+                &render_scene.objects[0],
+                render_scene.objects[1].center,
+                render_scene.objects[1].radius,
+                camera.origin,
+            );
+            if occluded {
+                render_scene.exposure *= 1.02;
+            }
+        }
+
+        if is_preview {
+            render_scene.volume = render_scene.volume.with_density_multiplier(0.35);
+        }
+
+        let t_frame = precise_timestamp_ns();
+        let start = HwInstant::now();
+
+        let t_trace = precise_timestamp_ns();
+        let (image, bvh_stats) = self
+            .tracer
+            .render_with_scheduler(&render_scene, camera, &config, &self.lod_manager, bvh, scheduler);
+        let trace_ms = hw_elapsed_ms(t_trace, precise_timestamp_ns());
+
+        let t_post = precise_timestamp_ns();
+        let mut framebuffer = FrameBuffer::from(image);
+
+        let (depth_min, depth_max) = framebuffer.depth_range();
+        if (depth_max - depth_min) > 1.0 {
+            self.apply_depth_fog(&mut framebuffer);
+        }
+
+        let avg_luma = framebuffer.average_luminance();
+        let bloom_threshold = (1.0 + quality.shadow_quality * 0.2).max(avg_luma * 2.0);
+        let pixel_count = config.width * config.height;
+        let bloom_radius = if pixel_count > 2_000_000 { 3 } else { 2 };
+        let post = PostProcessor::cinematic()
+            .with_bloom_threshold(bloom_threshold)
+            .with_bloom_radius(bloom_radius)
+            .with_bloom_intensity(if matches!(preset, RenderPreset::ProductionReference) { 0.16 } else { 0.10 })
+            .with_grain(0.0)
+            .with_aberration(0.0)
+            .with_sharpen(if is_preview { 0.0 } else { 0.14 })
+            .with_exposure(1.0);
+        post.apply(&mut framebuffer);
+
+        let sun_dir = (-render_scene.sun.direction).normalize();
+        let sun_dot = camera.direction.normalize().dot(sun_dir);
+        if sun_dot > 0.0 {
+            let sun_screen_x = 0.5 + sun_dot * 0.3;
+            let intensity = sun_dot.clamp(0.0, 1.0);
+            self.apply_god_rays(&mut framebuffer, sun_screen_x, intensity);
+        }
+
+        if matches!(preset, RenderPreset::ProductionReference) {
+            let focus_dist = scene_radius.max(10.0);
+            let dof = DepthOfField::new(focus_dist, 0.0035, 1.0);
+            let max_coc = dof.max_coc_for_range(depth_min, depth_max);
+            if max_coc >= 1.25 {
+                dof.apply(&mut framebuffer);
+            }
+        }
+
+        self.apply_tone_mapping_and_grading(&mut framebuffer);
+
+        let brightest = framebuffer.brightest_pixel();
+        if brightest.length() > 1.2 {
+            let bloom_only = PostProcessor::cinematic().with_bloom_threshold(1.2);
+            bloom_only.apply_bloom_only(&mut framebuffer);
+        }
+        let post_ms = hw_elapsed_ms(t_post, precise_timestamp_ns());
+
+        let total_frame_ms = hw_elapsed_ms(t_frame, precise_timestamp_ns());
+        eprintln!(
+            "anim-frame: total={:.1}ms trace={:.1} post={:.1} threads={} cascade_bias={:.4}",
+            total_frame_ms, trace_ms, post_ms, scheduler.worker_count(), total_cascade_bias,
+        );
+
+        let average_luminance = framebuffer.average_luminance();
+        let (min_luminance, max_luminance) = framebuffer.luminance_range();
+        let brightest_pixel = framebuffer.brightest_pixel();
+
+        let image = framebuffer.into_image();
+        image.save(output_path.as_ref())?;
+
+        let end = HwInstant::now();
+
+        Ok(RenderReport {
+            width: image.width,
+            height: image.height,
+            rendered_pixels: image.width * image.height,
+            duration_ms: end.duration_since_ms(&start),
+            output_path: output_path.as_ref().to_path_buf(),
+            object_count: render_scene.objects.len(),
+            triangle_count: render_scene.triangles.len(),
+            average_luminance,
+            min_luminance,
+            max_luminance,
+            brightest_pixel,
+            estimated_samples_per_pixel: config.base_samples_per_pixel as usize,
+            bvh: bvh_stats,
+        })
+    }
+
+    pub fn render_animation_frame_to_buffer(
+        &self,
+        scene: &Scene,
+        camera: &Camera,
+        bvh: Option<&BvhNode>,
+        scheduler: &TileScheduler,
+        preset: RenderPreset,
+    ) -> Result<(Vec<crate::core::engine::rendering::raytracing::Vec3>, RenderReport), Box<dyn Error>> {
+        let mut config = self.config_for(preset);
+        let is_preview = matches!(preset, RenderPreset::PreviewCpu | RenderPreset::AnimationFast);
+
+        let preprocessed = ScenePreprocessor::analyze(scene, camera);
+        let adaptive_budget_ms = match preset {
+            RenderPreset::AnimationFast | RenderPreset::PreviewCpu => 16.0,
+            RenderPreset::UltraHdCpu => 120.0,
+            RenderPreset::ProductionReference => 260.0,
+        };
+        let quality = crate::core::engine::rendering::preprocessing::scene_preprocessor::AdaptiveQualitySettings::from_analysis(
+            &preprocessed.analysis,
+            adaptive_budget_ms,
+        );
+        let minimum_spp = match preset {
+            RenderPreset::AnimationFast => 1,
+            RenderPreset::PreviewCpu => 2,
+            RenderPreset::UltraHdCpu => 8,
+            RenderPreset::ProductionReference => 16,
+        };
+        config.base_samples_per_pixel = ((config.base_samples_per_pixel as f64 * quality.sample_multiplier)
+            .round() as u32)
+            .max(minimum_spp);
+        config.max_bounces = config.max_bounces.min(quality.bounce_limit.max(2));
+        let cam_near = preprocessed.camera_info.near_plane;
+        let cam_far  = preprocessed.camera_info.far_plane;
+        let scene_radius = preprocessed.analysis.scene_radius;
+
+        let frustum = self.build_frustum(camera, &config, cam_near, cam_far);
+
+        let contribution_threshold = if is_preview {
+            (quality.ao_quality * 0.18).clamp(0.08, 0.20)
+        } else {
+            (quality.ao_quality * 0.08).clamp(0.02, 0.08)
+        };
+        let culler = SceneCuller::new(config.max_distance)
+            .with_screen_params(60.0_f64.to_radians(), config.height as f64)
+            .with_contribution_threshold(contribution_threshold)
+            .with_backface_culling(is_preview);
+
+        let (distance_culled, _cull_stats) = culler.cull_scene_with_stats(scene, camera);
+        let mut render_scene = culler.cull_with_frustum(&distance_culled, &frustum);
+
+        let total_cascade_bias = self.apply_shadow_cascade(
+            &mut render_scene, camera, cam_near, cam_far, &config,
+        );
+
+        let rayleigh_blue = rayleigh_scatter(440.0);
+        let rayleigh_red  = rayleigh_scatter(680.0);
+        let scatter_ratio = rayleigh_blue / rayleigh_red.max(1.0);
+        render_scene.exposure *= 1.0 + (scatter_ratio - 8.0).abs() * 0.001;
+
+        self.apply_cloud_layer(&mut render_scene, camera);
+        self.apply_shadow_sampling(&mut render_scene, camera);
+
+        if render_scene.objects.len() >= 2 {
+            let occluded = sphere_occludes(
+                &render_scene.objects[0],
+                render_scene.objects[1].center,
+                render_scene.objects[1].radius,
+                camera.origin,
+            );
+            if occluded {
+                render_scene.exposure *= 1.02;
+            }
+        }
+
+        if is_preview {
+            render_scene.volume = render_scene.volume.with_density_multiplier(0.35);
+        }
+
+        let t_frame = precise_timestamp_ns();
+        let start = HwInstant::now();
+
+        let t_trace = precise_timestamp_ns();
+        let (image, bvh_stats) = self
+            .tracer
+            .render_with_scheduler(&render_scene, camera, &config, &self.lod_manager, bvh, scheduler);
+        let trace_ms = hw_elapsed_ms(t_trace, precise_timestamp_ns());
+
+        let t_post = precise_timestamp_ns();
+        let mut framebuffer = FrameBuffer::from(image);
+
+        let (depth_min, depth_max) = framebuffer.depth_range();
+        if (depth_max - depth_min) > 1.0 {
+            self.apply_depth_fog(&mut framebuffer);
+        }
+
+        let avg_luma = framebuffer.average_luminance();
+        let bloom_threshold = (1.0 + quality.shadow_quality * 0.2).max(avg_luma * 2.0);
+        let pixel_count = config.width * config.height;
+        let bloom_radius = if pixel_count > 2_000_000 { 3 } else { 2 };
+        let post = PostProcessor::cinematic()
+            .with_bloom_threshold(bloom_threshold)
+            .with_bloom_radius(bloom_radius)
+            .with_bloom_intensity(if matches!(preset, RenderPreset::ProductionReference) { 0.16 } else { 0.10 })
+            .with_grain(0.0)
+            .with_aberration(0.0)
+            .with_sharpen(if is_preview { 0.0 } else { 0.14 })
+            .with_exposure(1.0);
+        post.apply(&mut framebuffer);
+
+        let sun_dir = (-render_scene.sun.direction).normalize();
+        let sun_dot = camera.direction.normalize().dot(sun_dir);
+        if sun_dot > 0.0 {
+            let sun_screen_x = 0.5 + sun_dot * 0.3;
+            let intensity = sun_dot.clamp(0.0, 1.0);
+            self.apply_god_rays(&mut framebuffer, sun_screen_x, intensity);
+        }
+
+        if matches!(preset, RenderPreset::ProductionReference) {
+            let focus_dist = scene_radius.max(10.0);
+            let dof = DepthOfField::new(focus_dist, 0.0035, 1.0);
+            let max_coc = dof.max_coc_for_range(depth_min, depth_max);
+            if max_coc >= 1.25 {
+                dof.apply(&mut framebuffer);
+            }
+        }
+
+        self.apply_tone_mapping_and_grading(&mut framebuffer);
+
+        let brightest = framebuffer.brightest_pixel();
+        if brightest.length() > 1.2 {
+            let bloom_only = PostProcessor::cinematic().with_bloom_threshold(1.2);
+            bloom_only.apply_bloom_only(&mut framebuffer);
+        }
+        let post_ms = hw_elapsed_ms(t_post, precise_timestamp_ns());
+
+        let total_frame_ms = hw_elapsed_ms(t_frame, precise_timestamp_ns());
+        eprintln!(
+            "anim-frame-buf: total={:.1}ms trace={:.1} post={:.1} threads={} cascade_bias={:.4}",
+            total_frame_ms, trace_ms, post_ms, scheduler.worker_count(), total_cascade_bias,
+        );
+
+        let average_luminance = framebuffer.average_luminance();
+        let (min_luminance, max_luminance) = framebuffer.luminance_range();
+        let brightest_pixel = framebuffer.brightest_pixel();
+
+        let pixels = framebuffer.color.clone();
+        let w = framebuffer.width;
+        let h = framebuffer.height;
+
+        let end = HwInstant::now();
+
+        let report = RenderReport {
+            width: w,
+            height: h,
+            rendered_pixels: w * h,
+            duration_ms: end.duration_since_ms(&start),
+            output_path: PathBuf::new(),
+            object_count: render_scene.objects.len(),
+            triangle_count: render_scene.triangles.len(),
+            average_luminance,
+            min_luminance,
+            max_luminance,
+            brightest_pixel,
+            estimated_samples_per_pixel: config.base_samples_per_pixel as usize,
+            bvh: bvh_stats,
+        };
+
+        Ok((pixels, report))
+    }
+
     /// Renders a scene without writing to disk.
     pub fn render(&self, scene: &Scene, camera: &Camera, preset: RenderPreset) -> RenderReport {
         let mut config = self.config_for(preset);
         let is_preview = matches!(preset, RenderPreset::PreviewCpu);
+        let input_scene_objects = scene.objects.len() + scene.triangles.len();
 
         let preprocessed = ScenePreprocessor::analyze(scene, camera);
         let adaptive_budget_ms = match preset {
-            RenderPreset::PreviewCpu => 16.0,
+            RenderPreset::AnimationFast | RenderPreset::PreviewCpu => 16.0,
             RenderPreset::UltraHdCpu => 120.0,
             RenderPreset::ProductionReference => 260.0,
         };
         let quality = crate::core::engine::rendering::preprocessing::scene_preprocessor::AdaptiveQualitySettings::from_analysis(&preprocessed.analysis, adaptive_budget_ms);
         let minimum_spp = match preset {
+            RenderPreset::AnimationFast => 1,
             RenderPreset::PreviewCpu => 2,
             RenderPreset::UltraHdCpu => 8,
             RenderPreset::ProductionReference => 16,
@@ -323,16 +677,23 @@ impl Renderer {
             - shadow_cascade.occlusion_estimate * shadow_cascade.shadow_strength * 0.26;
         render_scene.exposure *= 1.0 + shadow_cascade.occlusion_estimate * 0.06;
 
+        let pixel_work = config.width * config.height * config.base_samples_per_pixel as usize;
+        let bvh_factor = ((input_scene_objects.max(1) as f64).log2() / 10.0).clamp(0.3, 1.0);
+        let work_estimate = pixel_work as f64 * bvh_factor;
+        let max_threads = self.hw_caps.optimal_render_threads_for_input(pixel_work);
+        config.thread_count = (work_estimate / 5_000_000.0).ceil().clamp(1.0, max_threads as f64) as usize;
+        eprintln!(
+            "adaptive-threads: {} objects, {}x{} @{}spp → {} threads (max={})",
+            input_scene_objects, config.width, config.height,
+            config.base_samples_per_pixel, config.thread_count, max_threads,
+        );
+
         let start = HwInstant::now();
         let t_trace = precise_timestamp_ns();
         let (image, bvh_stats) = self
             .tracer
             .render(&render_scene, camera, &config, &self.lod_manager);
         let trace_ms = hw_elapsed_ms(t_trace, precise_timestamp_ns());
-
-        // GPU fence + sync
-        let gpu_fence_ms = self.gpu_fence_and_sync();
-        let gpu_ms = gpu_fence_ms.unwrap_or(0.0);
 
         let t_post = precise_timestamp_ns();
         let mut framebuffer = FrameBuffer::from(image);
@@ -354,8 +715,8 @@ impl Renderer {
         }
         let post_ms = hw_elapsed_ms(t_post, precise_timestamp_ns());
         eprintln!(
-            "render: trace={:.1}ms gpu={:.1}ms post={:.1}ms | {} simd={}",
-            trace_ms, gpu_ms, post_ms, self.gpu_info_tag(), self.simd_tag(),
+            "render: trace={:.1}ms post={:.1}ms | {} simd={}",
+            trace_ms, post_ms, self.gpu_info_tag(), self.simd_tag(),
         );
 
         let average_luminance = framebuffer.average_luminance();

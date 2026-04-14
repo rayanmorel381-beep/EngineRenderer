@@ -1,0 +1,62 @@
+name: CI x86 Matrix
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-tests:
+    name: Native tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-13]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run unit/integration tests
+        run: cargo test
+
+      - name: Native CPU/GPU smoke call
+        run: cargo run -- test
+
+  cross-check-x86:
+    name: Cross-check x86 targets (Ubuntu)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install x86 targets
+        run: |
+          rustup target add i686-unknown-linux-gnu
+          rustup target add i686-unknown-linux-musl
+          rustup target add i686-pc-windows-gnu
+          rustup target add x86_64-unknown-linux-musl
+          rustup target add x86_64-pc-windows-gnu
+          rustup target add x86_64-apple-darwin
+
+      - name: Check x86/x86_64 targets
+        run: |
+          cargo check --target i686-unknown-linux-gnu
+          cargo check --target i686-unknown-linux-musl
+          cargo check --target i686-pc-windows-gnu
+          cargo check --target x86_64-unknown-linux-gnu
+          cargo check --target x86_64-unknown-linux-musl
+          cargo check --target x86_64-pc-windows-gnu
+          cargo check --target x86_64-apple-darwin

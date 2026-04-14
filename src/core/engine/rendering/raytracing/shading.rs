@@ -8,18 +8,44 @@ use crate::core::engine::rendering::{
     texture::procedural_texture::ProceduralTexture,
 };
 
-pub fn shade_hit(
-    scene: &Scene,
-    ray: Ray,
-    hit: &super::primitives::HitRecord,
-    lod_manager: &LodManager,
-    depth: u32,
-    global_bounce_limit: u32,
-    seed: u32,
-    bvh: Option<&BvhNode>,
-) -> Vec3 {
-    let lod = lod_manager.select(hit.distance, hit.radius);
-    let local_limit = global_bounce_limit.min(lod.max_bounces.max(1));
+#[derive(Debug, Clone, Copy)]
+pub struct TraceContext<'a> {
+    pub scene: &'a Scene,
+    pub lod_manager: &'a LodManager,
+    pub global_bounce_limit: u32,
+    pub seed: u32,
+    pub bvh: Option<&'a BvhNode>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct AreaLightSample<'a> {
+    pub scene: &'a Scene,
+    pub point: Vec3,
+    pub normal: Vec3,
+    pub view_direction: Vec3,
+    pub base_color: Vec3,
+    pub material: Material,
+    pub lod: LodSelection,
+    pub seed: u32,
+    pub bvh: Option<&'a BvhNode>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct IndirectDiffuseInput<'a> {
+    pub scene: &'a Scene,
+    pub point: Vec3,
+    pub normal: Vec3,
+    pub lod_manager: &'a LodManager,
+    pub depth: u32,
+    pub global_bounce_limit: u32,
+    pub samples: u32,
+    pub seed: u32,
+    pub bvh: Option<&'a BvhNode>,
+}
+
+pub fn shade_hit(ray: Ray, hit: &super::primitives::HitRecord, depth: u32, trace: TraceContext<'_>) -> Vec3 {
+    let lod = trace.lod_manager.select(hit.distance, hit.radius);
+    let local_limit = trace.global_bounce_limit.min(lod.max_bounces.max(1));
     let tex = hit.material.surface_texture();
     let normal = perturb_normal(hit.point, hit.uv, hit.normal, hit.material, lod, &tex);
     let base_color = hit.material.textured_albedo(hit.point, hit.uv, lod);
@@ -30,13 +56,13 @@ pub fn shade_hit(
     );
     let effective_roughness = (hit.material.roughness * 0.68 + micro_roughness * 0.32).clamp(0.02, 0.98);
 
-    let light_direction = (-scene.sun.direction).normalize();
+    let light_direction = (-trace.scene.sun.direction).normalize();
     let n_dot_l = normal.dot(light_direction).max(0.0);
     let shadow_samples = if depth == 0 { lod.shadow_samples } else { 1 };
     let visibility = if shadow_samples == 0 {
         1.0
     } else {
-        soft_shadow(scene, hit.point, normal, scene.sun, shadow_samples, seed, bvh)
+        soft_shadow(trace.scene, hit.point, normal, trace.scene.sun, shadow_samples, trace.seed, trace.bvh)
     };
     let view_direction = -ray.direction;
 
@@ -45,33 +71,59 @@ pub fn shade_hit(
 
     let diffuse = base_color * (1.0 - hit.material.metallic.clamp(0.0, 1.0)) * (1.0 - hit.material.transmission * 0.35);
     let specular_term = fresnel * specular_strength * lod.reflection_boost + Vec3::splat(clearcoat_highlight);
-    let direct_light = ((diffuse * n_dot_l) + specular_term) * scene.sun.color * scene.sun.intensity * visibility;
+    let direct_light = ((diffuse * n_dot_l) + specular_term) * trace.scene.sun.color * trace.scene.sun.intensity * visibility;
 
-    let subsurface_light = compute_subsurface(normal, light_direction, base_color, hit.material, scene, visibility);
+    let subsurface_light = compute_subsurface(normal, light_direction, base_color, hit.material, trace.scene, visibility);
 
-    let area_light = if depth == 0 && !scene.area_lights.is_empty() && lod.shadow_samples > 0 {
-        area_light_contribution(scene, hit.point, normal, view_direction, base_color, hit.material, lod, seed, bvh)
+    let area_light = if depth == 0 && !trace.scene.area_lights.is_empty() && lod.shadow_samples > 0 {
+        area_light_contribution(AreaLightSample {
+            scene: trace.scene,
+            point: hit.point,
+            normal,
+            view_direction,
+            base_color,
+            material: hit.material,
+            lod,
+            seed: trace.seed,
+            bvh: trace.bvh,
+        })
     } else {
         Vec3::ZERO
     };
 
     let ao = if depth == 0 && lod.ao_samples > 0 && hit.material.ambient_occlusion > 0.01 {
-        ambient_occlusion(scene, hit.point, normal, lod.ao_samples, seed, bvh) * hit.material.ambient_occlusion
+        ambient_occlusion(trace.scene, hit.point, normal, lod.ao_samples, trace.seed, trace.bvh) * hit.material.ambient_occlusion
     } else {
         1.0
     };
-    let ambient = sky_color(scene, normal, lod_manager) * (0.16 + 0.52 * ao);
-    let indirect = if depth == 0 && lod.ao_samples > 0 && global_bounce_limit > 1 {
-        indirect_diffuse(scene, hit.point, normal, lod_manager, depth, global_bounce_limit, lod.ao_samples, seed, bvh) * diffuse
+    let ambient = sky_color(trace.scene, normal, trace.lod_manager) * (0.16 + 0.52 * ao);
+    let indirect = if depth == 0 && lod.ao_samples > 0 && trace.global_bounce_limit > 1 {
+        indirect_diffuse(IndirectDiffuseInput {
+            scene: trace.scene,
+            point: hit.point,
+            normal,
+            lod_manager: trace.lod_manager,
+            depth,
+            global_bounce_limit: trace.global_bounce_limit,
+            samples: lod.ao_samples,
+            seed: trace.seed,
+            bvh: trace.bvh,
+        }) * diffuse
     } else {
         Vec3::ZERO
     };
 
-    let caustics = caustic_estimate(scene, hit.point, normal, view_direction) * (0.45 + ao * 0.55);
+    let caustics = if depth == 0 {
+        caustic_estimate(trace.scene, hit.point, normal, view_direction) * (0.45 + ao * 0.55)
+    } else {
+        Vec3::ZERO
+    };
     let rim_factor = (1.0 - normal.dot(view_direction).max(0.0)).powf(4.0);
     let rim = hit.material.sheen * rim_factor;
-    let volume_light = scene.volume.inscattering(ray, hit.distance.max(0.0), scene.sun);
-    let transmittance = scene.volume.transmittance(ray.at(hit.distance * 0.5), hit.distance.max(0.0));
+    let volume_light = trace.scene.volume.inscattering(ray, hit.distance.max(0.0), trace.scene.sun);
+    let fast_density = trace.scene.volume.local_density_fast(ray.at(hit.distance * 0.5));
+    let sigma = fast_density * (1.0 + trace.scene.volume.absorption);
+    let transmittance = (-sigma * hit.distance.max(0.0) * 0.18).exp().clamp(0.0, 1.0);
 
     let mut shaded = (hit.material.emission + direct_light + subsurface_light + area_light + diffuse * ambient + indirect + rim + caustics)
         * transmittance
@@ -80,7 +132,7 @@ pub fn shade_hit(
     if hit.material.transmission > 0.01 && depth + 1 < local_limit {
         let refracted_direction = ray.direction.refract(normal, 1.0 / hit.material.ior.max(1.01)).normalize();
         let refracted_ray = Ray::new(hit.point - normal * EPSILON * 3.0, refracted_direction);
-        let transmitted = trace_ray(scene, refracted_ray, lod_manager, depth + 1, global_bounce_limit, seed ^ 0x51ED_270B, bvh);
+        let transmitted = trace_ray(refracted_ray, depth + 1, TraceContext { seed: trace.seed ^ 0x51ED_270B, ..trace });
         shaded = shaded.lerp(transmitted + ambient * 0.25, hit.material.transmission.clamp(0.0, 0.85));
     }
 
@@ -88,9 +140,9 @@ pub fn shade_hit(
         let reflection_weight = (hit.material.reflectivity + hit.material.clearcoat * 0.18).clamp(0.0, 1.2);
         if reflection_weight > 0.01 {
             let reflected = ray.direction.reflect(normal).normalize();
-            let glossy_direction = (reflected + random_in_unit_sphere(seed ^ 0x9E37_79B9) * effective_roughness).normalize();
+            let glossy_direction = (reflected + random_in_unit_sphere(trace.seed ^ 0x9E37_79B9) * effective_roughness).normalize();
             let reflected_ray = Ray::new(hit.point + normal * EPSILON * 3.0, glossy_direction);
-            let reflected_light = trace_ray(scene, reflected_ray, lod_manager, depth + 1, global_bounce_limit, seed ^ 0x85EB_CA6B, bvh);
+            let reflected_light = trace_ray(reflected_ray, depth + 1, TraceContext { seed: trace.seed ^ 0x85EB_CA6B, ..trace });
             shaded += reflected_light * reflection_weight * lod.reflection_boost;
         }
     }
@@ -98,22 +150,16 @@ pub fn shade_hit(
     shaded
 }
 
-pub fn trace_ray(
-    scene: &Scene,
-    ray: Ray,
-    lod_manager: &LodManager,
-    depth: u32,
-    global_bounce_limit: u32,
-    seed: u32,
-    bvh: Option<&BvhNode>,
-) -> Vec3 {
-    if let Some(hit) = BvhNode::hit_scene(scene, &ray, EPSILON, f64::INFINITY, bvh) {
-        shade_hit(scene, ray, &hit, lod_manager, depth, global_bounce_limit, seed, bvh)
+pub fn trace_ray(ray: Ray, depth: u32, trace: TraceContext<'_>) -> Vec3 {
+    if let Some(hit) = BvhNode::hit_scene(trace.scene, &ray, EPSILON, f64::INFINITY, trace.bvh) {
+        shade_hit(ray, &hit, depth, trace)
     } else {
-        let horizon = lod_manager.horizon_detail(100.0);
-        let sky = sky_color(scene, ray.direction, lod_manager) * (0.7 + horizon * 0.3);
-        let volume_light = scene.volume.inscattering(ray, 120.0, scene.sun);
-        let transmittance = scene.volume.transmittance(ray.at(42.0), 120.0);
+        let horizon = trace.lod_manager.horizon_detail(100.0);
+        let sky = sky_color(trace.scene, ray.direction, trace.lod_manager) * (0.7 + horizon * 0.3);
+        let volume_light = trace.scene.volume.inscattering(ray, 120.0, trace.scene.sun);
+        let fast_density = trace.scene.volume.local_density_fast(ray.at(42.0));
+        let sigma = fast_density * (1.0 + trace.scene.volume.absorption);
+        let transmittance = (-sigma * 120.0 * 0.18).exp().clamp(0.0, 1.0);
         (sky * transmittance + volume_light).clamp(0.0, 12.0)
     }
 }
@@ -202,55 +248,45 @@ pub fn soft_shadow(
     vis / total as f64
 }
 
-pub fn area_light_contribution(
-    scene: &Scene,
-    point: Vec3,
-    normal: Vec3,
-    view_direction: Vec3,
-    base_color: Vec3,
-    material: Material,
-    lod: LodSelection,
-    seed: u32,
-    bvh: Option<&BvhNode>,
-) -> Vec3 {
+pub fn area_light_contribution(input: AreaLightSample<'_>) -> Vec3 {
     let mut contribution = Vec3::ZERO;
 
-    for (li, light) in scene.area_lights.iter().enumerate() {
-        let sample_count = lod.shadow_samples.clamp(1, 2) as usize;
+    for (li, light) in input.scene.area_lights.iter().enumerate() {
+        let sample_count = input.lod.shadow_samples.clamp(1, 2) as usize;
         let mut light_total = Vec3::ZERO;
 
         for si in 0..sample_count {
-            let ss = seed ^ ((li as u32 + 1).wrapping_mul(0x7FEB_352D)) ^ ((si as u32 + 1).wrapping_mul(0x846C_A68B));
+            let ss = input.seed ^ ((li as u32 + 1).wrapping_mul(0x7FEB_352D)) ^ ((si as u32 + 1).wrapping_mul(0x846C_A68B));
             let su = random_scalar(ss ^ 0xA24B_AED4);
             let sv = random_scalar(ss ^ 0x9FB2_1C65);
             let lp = light.sample_point(su, sv);
-            let to_light = lp - point;
+            let to_light = lp - input.point;
             let dist_sq = to_light.length_squared().max(0.01);
             let dist = dist_sq.sqrt();
             let ld = to_light / dist;
-            let ndl = normal.dot(ld).max(0.0);
+            let ndl = input.normal.dot(ld).max(0.0);
 
             if ndl <= 0.0 { continue; }
 
-            let sr = Ray::new(point + normal * EPSILON * 4.0, ld);
-            if BvhNode::any_hit(scene, &sr, (dist - EPSILON * 6.0).max(EPSILON), bvh) { continue; }
+            let sr = Ray::new(input.point + input.normal * EPSILON * 4.0, ld);
+            if BvhNode::any_hit(input.scene, &sr, (dist - EPSILON * 6.0).max(EPSILON), input.bvh) { continue; }
 
-            let hv = (ld + view_direction).normalize();
-            let th = if normal.x.abs() > normal.z.abs() { Vec3::new(-normal.y, normal.x, 0.0) } else { Vec3::new(0.0, -normal.z, normal.y) };
+            let hv = (ld + input.view_direction).normalize();
+            let th = if input.normal.x.abs() > input.normal.z.abs() { Vec3::new(-input.normal.y, input.normal.x, 0.0) } else { Vec3::new(0.0, -input.normal.z, input.normal.y) };
             let t = th.normalize();
-            let bt = normal.cross(t).normalize();
-            let aniso = material.anisotropy.clamp(0.0, 1.0);
+            let bt = input.normal.cross(t).normalize();
+            let aniso = input.material.anisotropy.clamp(0.0, 1.0);
             let ab = (hv.dot(t).abs() * (1.0 + aniso * 1.5) + hv.dot(bt).abs() * (1.0 - aniso * 0.5)).clamp(0.4, 2.0);
-            let sp = 24.0 + (1.0 - material.roughness.clamp(0.02, 0.98)) * 160.0;
-            let spec = normal.dot(hv).max(0.0).powf(sp) * (0.22 + material.reflectivity * 0.78 + material.clearcoat * 0.35) * ab;
-            let fresnel = Vec3::splat(0.04).lerp(base_color, material.metallic.clamp(0.0, 1.0));
-            let rf = (1.0 - normal.dot(view_direction).max(0.0)).powf(3.0);
+            let sp = 24.0 + (1.0 - input.material.roughness.clamp(0.02, 0.98)) * 160.0;
+            let spec = input.normal.dot(hv).max(0.0).powf(sp) * (0.22 + input.material.reflectivity * 0.78 + input.material.clearcoat * 0.35) * ab;
+            let fresnel = Vec3::splat(0.04).lerp(input.base_color, input.material.metallic.clamp(0.0, 1.0));
+            let rf = (1.0 - input.normal.dot(input.view_direction).max(0.0)).powf(3.0);
             let irid = Vec3::new((rf * 7.0).sin() * 0.5 + 0.5, (rf * 7.0 + 2.1).sin() * 0.5 + 0.5, (rf * 7.0 + 4.2).sin() * 0.5 + 0.5);
-            let fresnel = fresnel.lerp(fresnel * (Vec3::splat(0.7) + irid * 0.95), material.iridescence);
-            let diff = base_color * (1.0 - material.metallic.clamp(0.0, 1.0)) * ndl;
-            let sss = base_color * material.subsurface * (0.12 + rf * 0.35);
+            let fresnel = fresnel.lerp(fresnel * (Vec3::splat(0.7) + irid * 0.95), input.material.iridescence);
+            let diff = input.base_color * (1.0 - input.material.metallic.clamp(0.0, 1.0)) * ndl;
+            let sss = input.base_color * input.material.subsurface * (0.12 + rf * 0.35);
             let atten = light.intensity / (1.0 + dist_sq * 0.08);
-            light_total += (diff + sss + fresnel * spec * lod.reflection_boost) * light.color * atten;
+            light_total += (diff + sss + fresnel * spec * input.lod.reflection_boost) * light.color * atten;
         }
 
         contribution += light_total / sample_count as f64;
@@ -259,41 +295,31 @@ pub fn area_light_contribution(
     contribution
 }
 
-pub fn indirect_diffuse(
-    scene: &Scene,
-    point: Vec3,
-    normal: Vec3,
-    _lod_manager: &LodManager,
-    depth: u32,
-    global_bounce_limit: u32,
-    samples: u32,
-    seed: u32,
-    bvh: Option<&BvhNode>,
-) -> Vec3 {
-    if samples == 0 || depth + 1 >= global_bounce_limit.max(1) {
+pub fn indirect_diffuse(input: IndirectDiffuseInput<'_>) -> Vec3 {
+    if input.samples == 0 || input.depth + 1 >= input.global_bounce_limit.max(1) {
         return Vec3::ZERO;
     }
 
-    let total = samples.clamp(1, 3);
+    let total = input.samples.clamp(1, 2);
     let mut indirect = Vec3::ZERO;
-    let sun_dir = (-scene.sun.direction).normalize();
+    let sun_dir = (-input.scene.sun.direction).normalize();
 
     for i in 0..total {
-        let ds = seed ^ i.wrapping_mul(0x94D0_49BB);
-        let rd = random_hemisphere(normal, ds);
-        let id = (normal * 0.55 + sun_dir * 0.30 + random_in_unit_sphere(ds ^ 0xA24B_AED4) * 0.15).normalize();
+        let ds = input.seed ^ i.wrapping_mul(0x94D0_49BB);
+        let rd = random_hemisphere(input.normal, ds);
+        let id = (input.normal * 0.55 + sun_dir * 0.30 + random_in_unit_sphere(ds ^ 0xA24B_AED4) * 0.15).normalize();
         let dir = if i % 3 == 0 { id } else { rd };
-        let br = Ray::new(point + normal * EPSILON * 3.0, dir);
-        let cosine = normal.dot(dir).max(0.0);
+        let br = Ray::new(input.point + input.normal * EPSILON * 3.0, dir);
+        let cosine = input.normal.dot(dir).max(0.0);
 
-        let bounced = if let Some(hit) = BvhNode::hit_scene(scene, &br, EPSILON, 16.0, bvh) {
+        let bounced = if let Some(hit) = BvhNode::hit_scene(input.scene, &br, EPSILON, 16.0, input.bvh) {
             let ba = hit.material.albedo;
             let bndl = hit.normal.dot(sun_dir).max(0.0);
             let sr = Ray::new(hit.point + hit.normal * EPSILON * 4.0, sun_dir);
-            let bv = if BvhNode::any_hit(scene, &sr, 200.0, bvh) { 0.3 } else { 1.0 };
-            (ba * bndl * bv * 0.60 + hit.material.emission * 0.24 + sky_color(scene, dir, _lod_manager) * 0.16) * cosine
+            let bv = if BvhNode::any_hit(input.scene, &sr, 200.0, input.bvh) { 0.3 } else { 1.0 };
+            (ba * bndl * bv * 0.60 + hit.material.emission * 0.24 + sky_color(input.scene, dir, input.lod_manager) * 0.16) * cosine
         } else {
-            sky_color(scene, dir, _lod_manager) * cosine * 0.48
+            sky_color(input.scene, dir, input.lod_manager) * cosine * 0.48
         };
 
         indirect += bounced;

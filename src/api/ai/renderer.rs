@@ -98,6 +98,16 @@ impl AiRenderer {
         })
     }
 
+    /// Render directly from a natural-language prompt.
+    pub fn render_prompt(
+        &self,
+        prompt: &str,
+        request: &RenderRequest,
+    ) -> Result<RenderResult, Box<dyn Error>> {
+        let builder = self.scene_from_prompt(prompt).auto_frame();
+        self.render_scene_builder(builder, request)
+    }
+
     /// Build a [`SceneBuilder`] from a natural-language prompt.
     pub fn scene_from_prompt(&self, prompt: &str) -> SceneBuilder {
         prompt::scene_from_prompt(prompt)

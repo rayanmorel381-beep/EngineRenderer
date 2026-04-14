@@ -1,0 +1,75 @@
+<div align="center">
+
+# 🗂️ EngineRenderer Tree
+
+Project structure overview and module map.
+
+</div>
+
+## 🌲 Project Overview
+
+```text
+EngineRenderer/
+├── .github/
+│   └── workflows/
+│       ├── ci-arm.yml
+│       └── ci-x86.yml
+├── Cargo.toml
+├── Cargo.lock
+├── ReadMe.md
+├── quickstat.md
+├── ChangeLog.md
+├── License
+├── arborescence.md
+├── src/
+│   ├── main.rs
+│   ├── lib.rs
+│   ├── api/
+│   │   ├── mod.rs
+│   │   ├── scene_descriptor.rs
+│   │   ├── ai/
+│   │   ├── animation/
+│   │   ├── camera/
+│   │   ├── engine/
+│   │   ├── materials/
+│   │   ├── objects/
+│   │   ├── scenes/
+│   │   └── types/
+│   ├── core/
+│   │   ├── mod.rs
+│   │   ├── animation/
+│   │   ├── coremanager/
+│   │   ├── debug/
+│   │   │   ├── mod.rs
+│   │   │   ├── logger.rs
+│   │   │   ├── profiling.rs
+│   │   │   ├── serialization.rs
+│   │   │   └── tools.rs
+│   │   ├── engine/
+│   │   │   ├── mod.rs
+│   │   │   ├── acces_hardware/
+│   │   │   ├── config/
+│   │   │   ├── engineloop/
+│   │   │   ├── event/
+│   │   │   ├── physics/
+│   │   │   ├── rendering/
+│   │   │   └── scene/
+│   │   ├── input/
+│   │   ├── scheduler/
+│   │   └── simulation/
+│   └── utils/
+│       ├── mod.rs
+│       └── terminal_mode.rs
+```
+
+## 🧭 Main Directory Roles
+
+- src/api: High-level API for building scenes, materials, cameras, animation, and AI integration.
+- src/core: Internal engine systems (rendering, physics, simulation, scheduler, and managers).
+- src/utils: Utility layer, including the interactive terminal mode.
+- .github/workflows: CI pipelines for x86 and ARM architectures.
+
+## 🚪 Entry Points
+
+- src/main.rs: CLI mode and interactive terminal mode.
+- src/lib.rs: Public library exports.

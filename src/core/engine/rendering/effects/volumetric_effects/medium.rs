@@ -137,6 +137,24 @@ impl VolumetricMedium {
         self.local_density_at_time(point, 0.0)
     }
 
+    #[inline]
+    pub fn local_density_fast(&self, point: Vec3) -> f64 {
+        if self.density <= f64::EPSILON {
+            return 0.0;
+        }
+        let height_term = (-point.y.abs() * self.height_falloff).exp();
+        let noise = 0.72
+            + ((point.x * self.noise_scale).sin()
+                * (point.z * self.noise_scale * 0.61).cos())
+            .abs()
+                * 0.58
+            + ((point.x + point.y) * self.noise_scale * 0.33)
+                .sin()
+                .abs()
+                * 0.15;
+        (self.density * height_term * noise.max(0.0)).clamp(0.0, 1.5)
+    }
+
     /// Evaluates density at `point` with wind-driven noise scrolling.
     ///
     /// Returns a clamped density in `[0, 1.5]`.
@@ -244,10 +262,11 @@ impl VolumetricMedium {
         }
 
         let sample_point = ray.at(distance * 0.35);
-        let density = self.local_density(sample_point);
+        let density = self.local_density_fast(sample_point);
         let sun_dir = (-sun.direction).normalize();
         let phase = self.henyey_greenstein(ray.direction.dot(sun_dir).max(0.0));
-        let absorption = 1.0 - self.transmittance(sample_point, distance);
+        let sigma = density * (1.0 + self.absorption);
+        let absorption = 1.0 - (-sigma * distance * 0.18).exp().clamp(0.0, 1.0);
 
         (self.color * density * sun.intensity * 0.32 * phase + self.emission * density * 0.75)
             * absorption

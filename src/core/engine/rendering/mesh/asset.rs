@@ -2,6 +2,7 @@
 //! transform, bounding info, and triangle extraction.
 
 use crate::core::engine::rendering::raytracing::{Material, Triangle, Vec3};
+use crate::core::engine::rendering::raytracing::primitives::TrianglePatch;
 
 use super::vertex::{MeshDescriptor, Vertex};
 
@@ -84,14 +85,16 @@ impl MeshAsset {
                 let nb = self.vertices[tri[1]].normal.normalize();
                 let nc = self.vertices[tri[2]].normal.normalize();
 
-                Triangle::new(
-                    a, b, c,
-                    na, nb, nc,
-                    self.vertices[tri[0]].uv_tuple(),
-                    self.vertices[tri[1]].uv_tuple(),
-                    self.vertices[tri[2]].uv_tuple(),
+                Triangle::new(TrianglePatch {
+                    positions: [a, b, c],
+                    normals: [na, nb, nc],
+                    uvs: [
+                        self.vertices[tri[0]].uv_tuple(),
+                        self.vertices[tri[1]].uv_tuple(),
+                        self.vertices[tri[2]].uv_tuple(),
+                    ],
                     material,
-                )
+                })
             })
             .collect()
     }

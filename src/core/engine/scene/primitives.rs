@@ -1,5 +1,16 @@
 use crate::core::engine::rendering::raytracing::{Material, Triangle, Vec3};
 
+#[derive(Debug, Clone, Copy)]
+pub struct RingSpec {
+    pub center: Vec3,
+    pub inner_radius: f64,
+    pub outer_radius: f64,
+    pub axis_u: Vec3,
+    pub axis_v: Vec3,
+    pub segments: usize,
+    pub material: Material,
+}
+
 pub fn append_box(triangles: &mut Vec<Triangle>, center: Vec3, half: Vec3, material: Material) {
     let p000 = center + Vec3::new(-half.x, -half.y, -half.z);
     let p001 = center + Vec3::new(-half.x, -half.y, half.z);
@@ -23,19 +34,10 @@ pub fn append_quad(triangles: &mut Vec<Triangle>, a: Vec3, b: Vec3, c: Vec3, d: 
     triangles.push(Triangle::flat(a, c, d, material));
 }
 
-pub fn append_ring(
-    triangles: &mut Vec<Triangle>,
-    center: Vec3,
-    inner_radius: f64,
-    outer_radius: f64,
-    axis_u: Vec3,
-    axis_v: Vec3,
-    segments: usize,
-    material: Material,
-) {
-    let u = axis_u.normalize();
-    let v = axis_v.normalize();
-    let segment_count = segments.max(12);
+pub fn append_ring(triangles: &mut Vec<Triangle>, ring: RingSpec) {
+    let u = ring.axis_u.normalize();
+    let v = ring.axis_v.normalize();
+    let segment_count = ring.segments.max(12);
 
     for segment in 0..segment_count {
         let start = std::f64::consts::TAU * segment as f64 / segment_count as f64;
@@ -43,11 +45,11 @@ pub fn append_ring(
         let dir_start = u * start.cos() + v * start.sin();
         let dir_end = u * end.cos() + v * end.sin();
 
-        let inner_start = center + dir_start * inner_radius;
-        let outer_start = center + dir_start * outer_radius;
-        let inner_end = center + dir_end * inner_radius;
-        let outer_end = center + dir_end * outer_radius;
-        append_quad(triangles, inner_start, outer_start, outer_end, inner_end, material);
+        let inner_start = ring.center + dir_start * ring.inner_radius;
+        let outer_start = ring.center + dir_start * ring.outer_radius;
+        let inner_end = ring.center + dir_end * ring.inner_radius;
+        let outer_end = ring.center + dir_end * ring.outer_radius;
+        append_quad(triangles, inner_start, outer_start, outer_end, inner_end, ring.material);
     }
 }
 

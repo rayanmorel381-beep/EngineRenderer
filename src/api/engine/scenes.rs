@@ -1,4 +1,3 @@
-use crate::api::ai::prompt;
 use crate::api::objects::scene_object::SceneObject;
 use crate::api::scenes::builder::SceneBuilder;
 
@@ -20,10 +19,6 @@ impl EngineApi {
 
     pub fn scene(&self) -> SceneBuilder {
         SceneBuilder::new()
-    }
-
-    pub fn scene_from_prompt(&self, prompt: &str) -> SceneBuilder {
-        prompt::scene_from_prompt(prompt)
     }
 
     pub fn scene_from_objects(&self, objects: Vec<SceneObject>) -> SceneBuilder {

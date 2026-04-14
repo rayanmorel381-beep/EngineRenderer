@@ -10,5 +10,6 @@ pub mod postprocessing;
 pub mod preprocessing;
 pub mod raytracing;
 pub mod renderer;
+pub mod shader_dispatcher;
 pub mod texture;
 pub mod utils;

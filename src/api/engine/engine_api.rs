@@ -1,4 +1,3 @@
-use crate::api::ai::capabilities::{self, Capabilities};
 use crate::api::materials::catalog::MaterialCatalog;
 
 /// The single entry point to the rendering engine.
@@ -23,10 +22,6 @@ impl EngineApi {
     }
 
     // -- introspection ------------------------------------------------------
-
-    pub fn capabilities(&self) -> Capabilities {
-        capabilities::discover()
-    }
 
     pub fn materials(&self) -> &MaterialCatalog {
         &self.catalog

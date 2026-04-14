@@ -156,16 +156,16 @@ impl EngineLoop {
         let summary = self.profiler.finish_frame(profile, &report, engine_scene.node_count());
         let event_summary = self.events.summarize_history();
         let network_status = self.network.status();
-        let overlay = self.debug.capture(
-            &summary,
-            &report,
-            network_status,
-            audio_mix,
-            &event_summary,
-            self.logger.warning_count(),
-            self.physics.total_momentum(),
-            self.logger.len(),
-        );
+        let overlay = self.debug.capture(crate::core::debug::tools::DebugCaptureInput {
+            summary: &summary,
+            report: &report,
+            network: network_status,
+            audio: audio_mix,
+            event_summary: &event_summary,
+            warning_count: self.logger.warning_count(),
+            momentum_hint: self.physics.total_momentum(),
+            log_depth: self.logger.len(),
+        });
 
         // ── serialization ───────────────────────────────────────────
         self.logger.debug(format!(

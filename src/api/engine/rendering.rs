@@ -78,15 +78,6 @@ impl EngineApi {
         })
     }
 
-    pub fn render_prompt(
-        &self,
-        prompt: &str,
-        request: &RenderRequest,
-    ) -> Result<RenderResult, Box<dyn Error>> {
-        let builder = self.scene_from_prompt(prompt).auto_frame();
-        self.render(builder, request)
-    }
-
     pub fn render_showcase(
         &self,
         request: &RenderRequest,

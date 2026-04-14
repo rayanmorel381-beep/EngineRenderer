@@ -1,4 +1,4 @@
-use crate::core::engine::acces_hardware::timer::HwInstant;
+use crate::core::engine::acces_hardware::HwInstant;
 
 use crate::core::engine::rendering::renderer::types::RenderReport;
 

@@ -1,0 +1,25 @@
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct VendorBackendConfig {
+    pub(crate) worker_hint: usize,
+    pub(crate) render_workers: usize,
+    pub(crate) frame_budget_us: u64,
+    pub(crate) low_power: bool,
+}
+
+pub(crate) fn default_backend_config() -> VendorBackendConfig {
+    let total = std::thread::available_parallelism()
+        .map(|v| v.get()).unwrap_or(1).max(1);
+    let render_workers = total.saturating_sub(1).max(1);
+    VendorBackendConfig {
+        worker_hint: total,
+        render_workers,
+        frame_budget_us: 8_333,
+        low_power: false,
+    }
+}
+
+pub(crate) fn clamp_workers(requested: usize) -> usize {
+    let max_workers = std::thread::available_parallelism()
+        .map(|v| v.get()).unwrap_or(1).max(1);
+    requested.max(1).min(max_workers)
+}

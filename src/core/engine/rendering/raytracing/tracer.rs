@@ -20,7 +20,7 @@ use super::math::Vec3;
 use super::primitives::{Ray, EPSILON};
 use super::scene::Scene;
 use super::shading::{
-    luminance_estimate, make_seed, random_scalar, trace_ray,
+    luminance_estimate, make_seed, random_scalar, trace_ray, TraceContext,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -35,6 +35,15 @@ pub struct RenderConfig {
     pub adaptive_sampling: bool,
     pub firefly_threshold: f64,
     pub denoise_radius: usize,
+}
+
+#[derive(Clone, Copy)]
+struct PixelSampleContext<'a> {
+    scene: &'a Scene,
+    camera: &'a super::camera::Camera,
+    config: &'a RenderConfig,
+    lod_manager: &'a LodManager,
+    bvh: Option<&'a BvhNode>,
 }
 
 #[derive(Debug, Clone)]
@@ -288,18 +297,13 @@ impl CpuRayTracer {
         config: &RenderConfig,
         lod_manager: &LodManager,
     ) -> (Image, BvhStats) {
-        let t_start = precise_timestamp_ns();
-
-        // ── BVH build (timed) ───────────────────────────────────────
         let t_bvh = precise_timestamp_ns();
         let bvh = BvhNode::build(scene);
         let bvh_stats = bvh.as_ref().map(|n| n.stats()).unwrap_or_default();
-        let bvh_ref = bvh.as_ref();
         let bvh_ms = hw_elapsed_ms(t_bvh, precise_timestamp_ns());
         eprintln!("tracer: BVH build {:.2}ms (nodes={} leaves={})",
             bvh_ms, bvh_stats.node_count, bvh_stats.leaf_count);
 
-        // ── Core frequency snapshot for diagnostics ─────────────────
         let core_freqs = detect_core_frequencies();
         if !core_freqs.is_empty() {
             let max_freq = core_freqs.iter().map(|c| c.frequency_hz).max().unwrap_or(0);
@@ -308,18 +312,34 @@ impl CpuRayTracer {
                 core_freqs.len(), min_freq / 1_000_000, max_freq / 1_000_000);
         }
 
-        // ── Tile dispatch ───────────────────────────────────────────
-        let t_dispatch = precise_timestamp_ns();
-        let scheduler = TileScheduler::new(config.width, config.height, config.thread_count);
+        self.render_with_bvh(scene, camera, config, lod_manager, bvh.as_ref())
+    }
 
+    pub fn render_with_scheduler(
+        &self,
+        scene: &Scene,
+        camera: &super::camera::Camera,
+        config: &RenderConfig,
+        lod_manager: &LodManager,
+        bvh: Option<&BvhNode>,
+        scheduler: &TileScheduler,
+    ) -> (Image, BvhStats) {
+        let t_start = precise_timestamp_ns();
+        let bvh_stats = bvh.map(|n| n.stats()).unwrap_or_default();
+
+        let t_dispatch = precise_timestamp_ns();
         let (tile_results, sched_report) = scheduler.dispatch(|tile| {
             let mut pixels = Vec::with_capacity(tile.width * tile.height);
+            let context = PixelSampleContext {
+                scene,
+                camera,
+                config,
+                lod_manager,
+                bvh,
+            };
             for dy in 0..tile.height {
                 for dx in 0..tile.width {
-                    pixels.push(self.render_pixel(
-                        scene, camera, config, lod_manager,
-                        tile.x + dx, tile.y + dy, bvh_ref,
-                    ));
+                    pixels.push(self.render_pixel(context, tile.x + dx, tile.y + dy));
                 }
             }
             pixels
@@ -327,7 +347,6 @@ impl CpuRayTracer {
         sched_report.log_summary();
         let dispatch_ms = hw_elapsed_ms(t_dispatch, precise_timestamp_ns());
 
-        // ── Tile reassembly (timed) ─────────────────────────────────
         let t_assemble = precise_timestamp_ns();
         let mut pixels = vec![Vec3::ZERO; config.width * config.height];
         for (idx, chunk) in tile_results {
@@ -348,7 +367,6 @@ impl CpuRayTracer {
             pixels,
         };
 
-        // ── Parallel denoise (timed) ────────────────────────────────
         let t_denoise = precise_timestamp_ns();
         let denoised = self.parallel_denoise(
             image,
@@ -361,44 +379,111 @@ impl CpuRayTracer {
 
         let total_ms = hw_elapsed_ms(t_start, precise_timestamp_ns());
         eprintln!(
-            "tracer: total={:.1}ms (bvh={:.1} dispatch={:.1} assemble={:.1} denoise={:.1})",
-            total_ms, bvh_ms, dispatch_ms, assemble_ms, denoise_ms,
+            "tracer: total={:.1}ms (dispatch={:.1} assemble={:.1} denoise={:.1})",
+            total_ms, dispatch_ms, assemble_ms, denoise_ms,
         );
 
         (denoised, bvh_stats)
     }
 
-    fn render_pixel(
+    pub fn render_with_bvh(
         &self,
         scene: &Scene,
         camera: &super::camera::Camera,
         config: &RenderConfig,
         lod_manager: &LodManager,
-        x: usize,
-        y: usize,
         bvh: Option<&BvhNode>,
-    ) -> Vec3 {
-        let center_u = (x as f64 + 0.5) / config.width as f64;
-        let center_v = 1.0 - (y as f64 + 0.5) / config.height as f64;
+    ) -> (Image, BvhStats) {
+        let t_start = precise_timestamp_ns();
+        let bvh_stats = bvh.map(|n| n.stats()).unwrap_or_default();
+
+        let t_dispatch = precise_timestamp_ns();
+        let scheduler = TileScheduler::new(config.width, config.height, config.thread_count);
+
+        let (tile_results, sched_report) = scheduler.dispatch(|tile| {
+            let mut pixels = Vec::with_capacity(tile.width * tile.height);
+            let context = PixelSampleContext {
+                scene,
+                camera,
+                config,
+                lod_manager,
+                bvh,
+            };
+            for dy in 0..tile.height {
+                for dx in 0..tile.width {
+                    pixels.push(self.render_pixel(context, tile.x + dx, tile.y + dy));
+                }
+            }
+            pixels
+        });
+        sched_report.log_summary();
+        let dispatch_ms = hw_elapsed_ms(t_dispatch, precise_timestamp_ns());
+
+        let t_assemble = precise_timestamp_ns();
+        let mut pixels = vec![Vec3::ZERO; config.width * config.height];
+        for (idx, chunk) in tile_results {
+            let tile = scheduler.tile_at(idx);
+            for dy in 0..tile.height {
+                let src_start = dy * tile.width;
+                let dst_start = (tile.y + dy) * config.width + tile.x;
+                let row_len = tile.width;
+                pixels[dst_start..dst_start + row_len]
+                    .copy_from_slice(&chunk[src_start..src_start + row_len]);
+            }
+        }
+        let assemble_ms = hw_elapsed_ms(t_assemble, precise_timestamp_ns());
+
+        let image = Image {
+            width: config.width,
+            height: config.height,
+            pixels,
+        };
+
+        let t_denoise = precise_timestamp_ns();
+        let denoised = self.parallel_denoise(
+            image,
+            config.denoise_strength,
+            config.denoise_radius,
+            config.firefly_threshold,
+            config.thread_count,
+        );
+        let denoise_ms = hw_elapsed_ms(t_denoise, precise_timestamp_ns());
+
+        let total_ms = hw_elapsed_ms(t_start, precise_timestamp_ns());
+        eprintln!(
+            "tracer: total={:.1}ms (dispatch={:.1} assemble={:.1} denoise={:.1})",
+            total_ms, dispatch_ms, assemble_ms, denoise_ms,
+        );
+
+        (denoised, bvh_stats)
+    }
+
+    fn render_pixel(&self, context: PixelSampleContext<'_>, x: usize, y: usize) -> Vec3 {
+        let center_u = (x as f64 + 0.5) / context.config.width as f64;
+        let center_v = 1.0 - (y as f64 + 0.5) / context.config.height as f64;
         let center_bias = (1.0 - (((center_u - 0.5).abs() + (center_v - 0.5).abs()) * 1.35)).clamp(0.0, 1.0);
-        let distance_hint = camera.focus_distance() * (1.25 - center_bias * 0.35);
+        let distance_hint = context.camera.focus_distance() * (1.25 - center_bias * 0.35);
         let radius_hint = 0.40 + center_bias * 1.40;
-        let lod = if config.adaptive_sampling {
-            lod_manager.select(distance_hint.max(0.001), radius_hint)
+        let lod = if context.config.adaptive_sampling {
+            context.lod_manager.select(distance_hint.max(0.001), radius_hint)
         } else {
             LodSelection::background()
         };
 
-        let base_samples = config.base_samples_per_pixel.max(1) as usize;
-        let probe_ray = camera.ray(center_u, center_v);
-        let target_samples = self.adaptive_sample_count(
-            scene,
-            config,
-            lod,
-            probe_ray,
-            base_samples,
-            bvh,
-        );
+        let base_samples = context.config.base_samples_per_pixel.max(1) as usize;
+        let target_samples = if context.config.adaptive_sampling {
+            let probe_ray = context.camera.ray(center_u, center_v);
+            self.adaptive_sample_count(
+                context.scene,
+                context.config,
+                lod,
+                probe_ray,
+                base_samples,
+                context.bvh,
+            )
+        } else {
+            base_samples
+        };
         let min_samples = target_samples.clamp(1, 8);
 
         let mut color = Vec3::ZERO;
@@ -409,21 +494,27 @@ impl CpuRayTracer {
         for sample_idx in 0..target_samples {
             let seed = make_seed(x as u32, y as u32, sample_idx as u32);
             let phase = random_scalar(seed ^ 0xD1B5_4A35);
-            let jitter_u = (random_scalar(seed ^ 0xA53C_9E2D) - 0.5) / config.width as f64;
-            let jitter_v = (random_scalar(seed ^ 0x7F4A_7C15) - 0.5) / config.height as f64;
+            let jitter_u = (random_scalar(seed ^ 0xA53C_9E2D) - 0.5) / context.config.width as f64;
+            let jitter_v = (random_scalar(seed ^ 0x7F4A_7C15) - 0.5) / context.config.height as f64;
 
-            let temporal_offset_u = (phase - 0.5) * 0.45 / config.width as f64;
-            let temporal_offset_v = (0.5 - phase) * 0.45 / config.height as f64;
+            let temporal_offset_u = (phase - 0.5) * 0.45 / context.config.width as f64;
+            let temporal_offset_v = (0.5 - phase) * 0.45 / context.config.height as f64;
 
             let u = (center_u + temporal_offset_u + jitter_u).clamp(0.0, 1.0);
             let v = (center_v + temporal_offset_v + jitter_v).clamp(0.0, 1.0);
             let lens_u = random_scalar(seed ^ 0x91E1_0DA5);
             let lens_v = random_scalar(seed ^ 0xC2B3_A13F);
             let shutter_t = (phase + random_scalar(seed ^ 0x27D4_EB2D) * 0.25).fract();
-            let ray = camera.ray_with_lens(u, v, lens_u, lens_v, shutter_t);
+            let ray = context.camera.ray_with_lens(u, v, lens_u, lens_v, shutter_t);
             let sample = self.limit_fireflies(
-                trace_ray(scene, ray, lod_manager, 0, config.max_bounces, seed, bvh),
-                config.firefly_threshold,
+                trace_ray(ray, 0, TraceContext {
+                    scene: context.scene,
+                    lod_manager: context.lod_manager,
+                    global_bounce_limit: context.config.max_bounces,
+                    seed,
+                    bvh: context.bvh,
+                }),
+                context.config.firefly_threshold,
             );
             color += sample;
             used_samples += 1;
@@ -434,7 +525,7 @@ impl CpuRayTracer {
             let delta2 = luma - mean_luma;
             m2 += delta * delta2;
 
-            if config.adaptive_sampling && used_samples >= min_samples && used_samples.is_multiple_of(4) {
+            if context.config.adaptive_sampling && used_samples >= min_samples && used_samples.is_multiple_of(4) {
                 let variance = if used_samples > 1 {
                     m2 / (used_samples - 1) as f64
                 } else {

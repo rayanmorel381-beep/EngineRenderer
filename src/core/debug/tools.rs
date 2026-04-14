@@ -23,42 +23,44 @@ pub struct DebugOverlay {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct DebugTools;
 
+#[derive(Debug, Clone, Copy)]
+pub struct DebugCaptureInput<'a> {
+    pub summary: &'a FrameSummary,
+    pub report: &'a RenderReport,
+    pub network: NetworkStatus,
+    pub audio: AudioMix,
+    pub event_summary: &'a EventSummary,
+    pub warning_count: usize,
+    pub momentum_hint: f64,
+    pub log_depth: usize,
+}
+
 impl DebugTools {
-    pub fn capture(
-        &self,
-        summary: &FrameSummary,
-        report: &RenderReport,
-        network: NetworkStatus,
-        audio: AudioMix,
-        event_summary: &EventSummary,
-        warning_count: usize,
-        momentum_hint: f64,
-        log_depth: usize,
-    ) -> DebugOverlay {
+    pub fn capture(&self, input: DebugCaptureInput<'_>) -> DebugOverlay {
         DebugOverlay {
             headline: format!(
                 "frame={} px={} net={:.1}ms audio={:.2}/{:.2} rvb={:.2} warn={} evt={} mom={:.2}",
-                summary.frame_index,
-                report.rendered_pixels,
-                network.latency_ms,
-                audio.master_gain,
-                audio.spatial_width,
-                audio.reverb_send,
-                warning_count,
-                event_summary.clients,
-                momentum_hint
+                input.summary.frame_index,
+                input.report.rendered_pixels,
+                input.network.latency_ms,
+                input.audio.master_gain,
+                input.audio.spatial_width,
+                input.audio.reverb_send,
+                input.warning_count,
+                input.event_summary.clients,
+                input.momentum_hint
             ),
-            frame_index: summary.frame_index,
-            frame_time_ms: summary.total_frame_ms,
-            render_time_ms: report.duration_ms,
-            network_latency_ms: network.latency_ms,
-            master_gain: audio.master_gain,
-            spatial_width: audio.spatial_width,
-            reverb_send: audio.reverb_send,
-            warning_count,
-            event_history: event_summary.clients.max(event_summary.node_count),
-            momentum_hint,
-            log_depth,
+            frame_index: input.summary.frame_index,
+            frame_time_ms: input.summary.total_frame_ms,
+            render_time_ms: input.report.duration_ms,
+            network_latency_ms: input.network.latency_ms,
+            master_gain: input.audio.master_gain,
+            spatial_width: input.audio.spatial_width,
+            reverb_send: input.audio.reverb_send,
+            warning_count: input.warning_count,
+            event_history: input.event_summary.clients.max(input.event_summary.node_count),
+            momentum_hint: input.momentum_hint,
+            log_depth: input.log_depth,
         }
     }
 }

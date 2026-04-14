@@ -15,7 +15,7 @@ use super::{
     celestial::CelestialBodies,
     graph::SceneGraph,
     objects::{append_car, append_house, append_tree},
-    primitives::{append_box, append_ring},
+    primitives::{append_box, append_ring, RingSpec},
     world::{append_celestial_panorama, append_showcase_world},
 };
 
@@ -367,18 +367,17 @@ fn build_planet_showcase() -> ShowcaseShot {
         radius: 0.42,
         material: MaterialLibrary::metallic_moon(),
     });
-    append_ring(
-        &mut scene.triangles,
+    append_ring(&mut scene.triangles, RingSpec {
         center,
-        2.6,
-        3.8,
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 0.22, 1.0).normalize(),
-        28,
-        Material::new(Vec3::new(0.70, 0.66, 0.54), 0.76, 0.03, 0.05, Vec3::ZERO)
+        inner_radius: 2.6,
+        outer_radius: 3.8,
+        axis_u: Vec3::new(1.0, 0.0, 0.0),
+        axis_v: Vec3::new(0.0, 0.22, 1.0).normalize(),
+        segments: 28,
+        material: Material::new(Vec3::new(0.70, 0.66, 0.54), 0.76, 0.03, 0.05, Vec3::ZERO)
             .with_layers(0.94, 0.02, Vec3::new(0.04, 0.04, 0.03))
             .with_optics(0.08, 0.04, 0.02),
-    );
+    });
     let camera = Camera::look_at(
         Vec3::new(-5.0, 2.0, 5.8),
         Vec3::new(0.0, 0.2, 0.0),
@@ -435,16 +434,15 @@ fn build_black_hole_showcase() -> ShowcaseShot {
         radius: 2.1,
         material: MaterialLibrary::event_horizon(),
     });
-    append_ring(
-        &mut scene.triangles,
+    append_ring(&mut scene.triangles, RingSpec {
         center,
-        2.6,
-        4.6,
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 0.34, 1.0).normalize(),
-        36,
-        MaterialLibrary::accretion_disk(),
-    );
+        inner_radius: 2.6,
+        outer_radius: 4.6,
+        axis_u: Vec3::new(1.0, 0.0, 0.0),
+        axis_v: Vec3::new(0.0, 0.34, 1.0).normalize(),
+        segments: 36,
+        material: MaterialLibrary::accretion_disk(),
+    });
     scene.area_lights.push(AreaLight {
         position: Vec3::new(-1.4, 0.5, 1.3),
         u: Vec3::new(1.3, 0.0, 0.0),

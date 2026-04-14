@@ -254,16 +254,16 @@ impl EngineManager {
 
         let event_summary = self.event_bus.summarize_history();
         let warning_count = self.logger.warning_count();
-        let overlay = self.debug_tools.capture(
-            &summary,
-            &report,
-            self.network_manager.status(),
-            audio_mix,
-            &event_summary,
+        let overlay = self.debug_tools.capture(crate::core::debug::tools::DebugCaptureInput {
+            summary: &summary,
+            report: &report,
+            network: self.network_manager.status(),
+            audio: audio_mix,
+            event_summary: &event_summary,
             warning_count,
-            self.physics_manager.total_momentum(),
-            self.logger.len(),
-        );
+            momentum_hint: self.physics_manager.total_momentum(),
+            log_depth: self.logger.len(),
+        });
         let overlay_payload = self.serializer.serialize_overlay(&overlay);
         self.logger.debug(format!(
             "{} | payload={}B | clients={} (sync={})",

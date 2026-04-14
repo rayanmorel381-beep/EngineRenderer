@@ -7,6 +7,8 @@ use crate::core::engine::rendering::raytracing::{BvhStats, Vec3};
 /// Render quality preset selector.
 #[derive(Debug, Clone, Copy)]
 pub enum RenderPreset {
+    /// Ultra-fast animation (1 SPP, direct lighting, denoised).
+    AnimationFast,
     /// Fast preview (low SPP, single bounce).
     PreviewCpu,
     /// High-quality CPU render.

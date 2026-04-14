@@ -37,8 +37,8 @@ impl HwContext {
     }
 
     /// Max bytes we can safely allocate for pixel data.
-    pub fn max_pixel_bytes(&self) -> u64 {
-        self.caps.max_framebuffer_bytes()
+    pub fn max_pixel_bytes(&self, input_pixels: usize) -> u64 {
+        self.caps.max_framebuffer_bytes_for_input(input_pixels)
     }
 
     /// SIMD-aligned tile width.
@@ -162,7 +162,7 @@ impl TileScheduler {
 
         // ── Memory guard: refuse resolutions that exceed available RAM ──
         let pixel_bytes = (image_width * image_height * 24) as u64; // 3×f64
-        let max_bytes = hw.max_pixel_bytes();
+        let max_bytes = hw.max_pixel_bytes(image_width.saturating_mul(image_height));
         if pixel_bytes > max_bytes {
             eprintln!(
                 "scheduler: WARNING resolution {}×{} needs {}MB but only {}MB available",
@@ -186,7 +186,7 @@ impl TileScheduler {
                 "scheduler: DMA framebuffer allocated ({}×{}, {}B, phys=0x{:x})",
                 image_width, image_height,
                 fb.byte_len(),
-                fb.phys_addr(),
+                fb.virt_addr(),
             );
         }
 
@@ -264,7 +264,7 @@ impl TileScheduler {
 
         // ── GPU dispatch tracking ───────────────────────────────────────
         let workgroup = self.tile_width.max(1) * self.tile_height.max(1);
-        let gpu_dispatched = gpu_dispatch_tiles(self.total_tiles, workgroup);
+        let gpu_dispatched = gpu_dispatch_tiles(self.total_tiles as u32, workgroup as u32) > 0;
 
         let next_tile = AtomicUsize::new(0);
         let abort = AtomicBool::new(false);
@@ -377,18 +377,12 @@ impl TileScheduler {
 /// detected via the `hardware` crate (physical cores, avoiding HT
 /// contention on FP-heavy ray tracing workloads).
 fn effective_workers(hw: &HwContext, w: usize, h: usize, hint: usize) -> usize {
-    let cpus = hw.caps.optimal_render_threads();
-    // Scale down for tiny images
+    let cpus = hw
+        .caps
+        .optimal_render_threads_for_input(w.saturating_mul(h));
     let max_by_pixels = (w * h).div_ceil(16_000).max(1);
     let max_by_rows = h.div_ceil(16).max(1);
-    // If HT enabled and we have many cores, allow up to logical_cores for
-    // memory-bound passes (denoise) but cap at physical for compute (trace).
-    let ht_ceiling = if hw.cpu.has_ht && cpus >= 4 {
-        hw.caps.logical_cores as usize
-    } else {
-        cpus
-    };
-    hint.min(ht_ceiling).min(max_by_pixels).min(max_by_rows).max(1)
+    hint.min(cpus).min(max_by_pixels).min(max_by_rows).max(1)
 }
 
 /// Choose tile dimensions using SIMD vector width and L2 cache size.
