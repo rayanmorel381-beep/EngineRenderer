@@ -31,6 +31,9 @@ jobs:
       - name: Native CPU/GPU smoke call
         run: cargo run -- test
 
+      - name: Native hardware detect smoke call
+        run: cargo run -- detect
+
   cross-check-x86:
     name: Cross-check x86 targets (Ubuntu)
     runs-on: ubuntu-latest
@@ -47,8 +50,11 @@ jobs:
           rustup target add i686-unknown-linux-gnu
           rustup target add i686-unknown-linux-musl
           rustup target add i686-pc-windows-gnu
+          rustup target add i686-pc-windows-msvc
+          rustup target add x86_64-unknown-linux-gnu
           rustup target add x86_64-unknown-linux-musl
           rustup target add x86_64-pc-windows-gnu
+          rustup target add x86_64-pc-windows-msvc
           rustup target add x86_64-apple-darwin
 
       - name: Check x86/x86_64 targets
@@ -56,7 +62,21 @@ jobs:
           cargo check --target i686-unknown-linux-gnu
           cargo check --target i686-unknown-linux-musl
           cargo check --target i686-pc-windows-gnu
+          cargo check --target i686-pc-windows-msvc
           cargo check --target x86_64-unknown-linux-gnu
           cargo check --target x86_64-unknown-linux-musl
           cargo check --target x86_64-pc-windows-gnu
+          cargo check --target x86_64-pc-windows-msvc
           cargo check --target x86_64-apple-darwin
+
+      - name: Check x86/x86_64 test builds
+        run: |
+          cargo check --tests --target i686-unknown-linux-gnu
+          cargo check --tests --target i686-unknown-linux-musl
+          cargo check --tests --target i686-pc-windows-gnu
+          cargo check --tests --target i686-pc-windows-msvc
+          cargo check --tests --target x86_64-unknown-linux-gnu
+          cargo check --tests --target x86_64-unknown-linux-musl
+          cargo check --tests --target x86_64-pc-windows-gnu
+          cargo check --tests --target x86_64-pc-windows-msvc
+          cargo check --tests --target x86_64-apple-darwin
