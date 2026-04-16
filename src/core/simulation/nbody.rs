@@ -5,23 +5,32 @@ use crate::core::engine::rendering::{
     effects::volumetric_effects::medium::VolumetricMedium,
 };
 
+/// Constante gravitationnelle simplifiée utilisée par la simulation N-corps.
 pub const GRAVITY: f64 = 0.08;
 
+/// Corps céleste simulé avec masse, rayon, état cinématique et matériau.
 #[derive(Debug, Clone, Copy)]
 pub struct CelestialBody {
+    /// Masse du corps.
     pub mass: f64,
+    /// Rayon du corps.
     pub radius: f64,
+    /// Position actuelle du centre du corps.
     pub position: Vec3,
+    /// Vitesse actuelle du corps.
     pub velocity: Vec3,
+    /// Matériau de surface utilisé lors de la conversion en scène.
     pub material: Material,
 }
 
+/// Système N-corps avec intégration explicite simple.
 #[derive(Debug, Clone)]
 pub struct NBodySystem {
     bodies: Vec<CelestialBody>,
 }
 
 impl NBodySystem {
+    /// Retourne une configuration de démonstration avec plusieurs corps en orbite.
     pub fn showcase() -> Self {
         Self {
             bodies: vec![
@@ -64,10 +73,12 @@ impl NBodySystem {
         }
     }
 
+    /// Retourne une vue immuable sur les corps simulés.
     pub fn bodies(&self) -> &[CelestialBody] {
         &self.bodies
     }
 
+    /// Fait avancer la simulation pendant `total_time` découpé en `substeps` sous-pas.
     pub fn advance(&mut self, total_time: f64, substeps: u32) {
         let steps = substeps.max(1);
         let delta_time = total_time / steps as f64;
@@ -100,6 +111,7 @@ impl NBodySystem {
         }
     }
 
+    /// Calcule le centre de masse pondéré du système.
     pub fn scene_center(&self) -> Vec3 {
         let mut weighted_sum = Vec3::ZERO;
         let mut total_mass = 0.0;
@@ -116,6 +128,7 @@ impl NBodySystem {
         }
     }
 
+    /// Calcule le rayon englobant tous les corps depuis le centre de masse.
     pub fn scene_radius(&self) -> f64 {
         let center = self.scene_center();
         self.bodies
@@ -124,6 +137,7 @@ impl NBodySystem {
             .fold(1.0, f64::max)
     }
 
+    /// Convertit l'état simulé courant en `Scene` prête au rendu.
     pub fn to_scene(&self) -> Scene {
         let objects = self
             .bodies

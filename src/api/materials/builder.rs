@@ -61,11 +61,13 @@ impl MaterialBuilder {
 
     // -- colour / albedo ----------------------------------------------------
 
+    /// Définit l'albédo via trois composantes RGB linéaires.
     pub fn albedo_rgb(mut self, r: f64, g: f64, b: f64) -> Self {
         self.albedo = Vec3::new(r, g, b);
         self
     }
 
+    /// Définit l'albédo via un vecteur RGB linéaire.
     pub fn albedo(mut self, v: Vec3) -> Self {
         self.albedo = v;
         self
@@ -95,11 +97,13 @@ impl MaterialBuilder {
 
     // -- emission -----------------------------------------------------------
 
+    /// Définit l'émission RGB linéaire.
     pub fn emission_rgb(mut self, r: f64, g: f64, b: f64) -> Self {
         self.emission = Vec3::new(r, g, b);
         self
     }
 
+    /// Définit l'émission via un vecteur.
     pub fn emission(mut self, v: Vec3) -> Self {
         self.emission = v;
         self
@@ -119,36 +123,43 @@ impl MaterialBuilder {
 
     // -- PBR surface --------------------------------------------------------
 
+    /// Définit la rugosité de surface.
     pub fn roughness(mut self, v: f64) -> Self {
         self.roughness = v;
         self
     }
 
+    /// Définit la métallicité de surface.
     pub fn metallic(mut self, v: f64) -> Self {
         self.metallic = v;
         self
     }
 
+    /// Définit la réflectivité.
     pub fn reflectivity(mut self, v: f64) -> Self {
         self.reflectivity = v;
         self
     }
 
+    /// Définit l'occlusion ambiante.
     pub fn ambient_occlusion(mut self, v: f64) -> Self {
         self.ambient_occlusion = v;
         self
     }
 
+    /// Définit le clearcoat.
     pub fn clearcoat(mut self, v: f64) -> Self {
         self.clearcoat = v;
         self
     }
 
+    /// Définit le sheen RGB.
     pub fn sheen_rgb(mut self, r: f64, g: f64, b: f64) -> Self {
         self.sheen = Vec3::new(r, g, b);
         self
     }
 
+    /// Définit le sheen via un vecteur.
     pub fn sheen(mut self, v: Vec3) -> Self {
         self.sheen = v;
         self
@@ -156,11 +167,13 @@ impl MaterialBuilder {
 
     // -- transmission / refraction ------------------------------------------
 
+    /// Définit la transmission.
     pub fn transmission(mut self, v: f64) -> Self {
         self.transmission = v;
         self
     }
 
+    /// Définit l'indice de réfraction.
     pub fn ior(mut self, v: f64) -> Self {
         self.ior = v;
         self
@@ -168,16 +181,19 @@ impl MaterialBuilder {
 
     // -- advanced optics ----------------------------------------------------
 
+    /// Définit le facteur subsurface.
     pub fn subsurface(mut self, v: f64) -> Self {
         self.subsurface = v;
         self
     }
 
+    /// Définit l'anisotropie.
     pub fn anisotropy(mut self, v: f64) -> Self {
         self.anisotropy = v;
         self
     }
 
+    /// Définit l'iridescence.
     pub fn iridescence(mut self, v: f64) -> Self {
         self.iridescence = v;
         self
@@ -185,16 +201,19 @@ impl MaterialBuilder {
 
     // -- texturing ----------------------------------------------------------
 
+    /// Définit le poids de texture procédurale.
     pub fn texture_weight(mut self, v: f64) -> Self {
         self.texture_weight = v;
         self
     }
 
+    /// Définit l'intensité de normal map.
     pub fn normal_map_strength(mut self, v: f64) -> Self {
         self.normal_map_strength = v;
         self
     }
 
+    /// Définit l'échelle UV.
     pub fn uv_scale(mut self, v: f64) -> Self {
         self.uv_scale = v;
         self
@@ -202,6 +221,7 @@ impl MaterialBuilder {
 
     // -- physics config (all external) --------------------------------------
 
+    /// Applique une configuration physique complète.
     pub fn physics(mut self, cfg: PhysicsConfig) -> Self {
         self.physics = cfg;
         if cfg.ior > 0.0 {
@@ -210,17 +230,20 @@ impl MaterialBuilder {
         self
     }
 
+    /// Définit l'IOR physique.
     pub fn physics_ior(mut self, v: f64) -> Self {
         self.physics.ior = v;
         self.ior = v;
         self
     }
 
+    /// Définit la dispersion (Abbe).
     pub fn physics_dispersion(mut self, abbe: f64) -> Self {
         self.physics.dispersion_abbe = abbe;
         self
     }
 
+    /// Définit scattering Rayleigh/Mie.
     pub fn physics_scattering(mut self, rayleigh: f64, mie: f64, mie_dir: f64) -> Self {
         self.physics.rayleigh_coefficient = rayleigh;
         self.physics.mie_coefficient = mie;
@@ -228,6 +251,7 @@ impl MaterialBuilder {
         self
     }
 
+    /// Définit les paramètres volumétriques physiques.
     pub fn physics_volume(mut self, absorption: [f64; 3], scattering: [f64; 3], phase_g: f64) -> Self {
         self.physics.absorption = absorption;
         self.physics.scattering = scattering;
@@ -235,6 +259,7 @@ impl MaterialBuilder {
         self
     }
 
+    /// Définit les paramètres relativistes.
     pub fn physics_relativistic(mut self, grav_lensing: f64, doppler: f64) -> Self {
         self.physics.gravitational_lensing = grav_lensing;
         self.physics.doppler_factor = doppler;
@@ -243,10 +268,12 @@ impl MaterialBuilder {
 
     // -- accessors ----------------------------------------------------------
 
+    /// Retourne la configuration physique courante.
     pub fn get_physics(&self) -> &PhysicsConfig {
         &self.physics
     }
 
+    /// Retourne le spectre associé, s'il existe.
     pub fn get_spectrum(&self) -> Option<&Spectrum> {
         self.spectrum.as_ref()
     }

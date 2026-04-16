@@ -1,3 +1,5 @@
+use std::sync::Mutex;
+
 use super::arch::compute_dispatch;
 
 const GPU_MAX_PERCENT: u64 = 80;
@@ -60,7 +62,7 @@ pub struct GpuRenderBackend {
 	compute_units_val: u32,
 	drm_fd_val: i32,
 	gem_handle_val: u32,
-	framebuffer: Option<Vec<u8>>,
+	framebuffer: Option<Mutex<Vec<u8>>>,
 	info_val: GpuDeviceInfo,
 }
 
@@ -161,10 +163,10 @@ impl GpuRenderBackend {
 	pub fn gem_handle(&self) -> u32 { self.gem_handle_val }
 	pub fn is_mmap_active(&self) -> bool { self.framebuffer.is_some() }
 	pub fn mmap_framebuffer_ptr(&self) -> Option<*mut u8> {
-		self.framebuffer.as_ref().map(|b| b.as_ptr() as *mut u8)
+		self.framebuffer.as_ref().map(|b| b.lock().unwrap().as_mut_ptr())
 	}
 	pub fn mmap_framebuffer_len(&self) -> usize {
-		self.framebuffer.as_ref().map(|b| b.len()).unwrap_or(0)
+		self.framebuffer.as_ref().map(|b| b.lock().unwrap().len()).unwrap_or(0)
 	}
 
 	pub fn alloc_framebuffer(&mut self, width: usize, height: usize) -> Option<*mut u8> {
@@ -177,12 +179,24 @@ impl GpuRenderBackend {
 		}
 		let mut buf = vec![0u8; pixel_bytes];
 		let ptr = buf.as_mut_ptr();
-		self.framebuffer = Some(buf);
+		self.framebuffer = Some(Mutex::new(buf));
 		Some(ptr)
 	}
 
 	pub fn has_gem_framebuffer(&self) -> bool { self.gem_handle_val > 0 }
 	pub fn has_active_framebuffer(&self) -> bool { self.framebuffer.is_some() }
+
+	pub fn write_framebuffer_rgb(&self, data: &[u8]) -> bool {
+		let Some(framebuffer) = self.framebuffer.as_ref() else {
+			return false;
+		};
+		let mut framebuffer = framebuffer.lock().unwrap();
+		if data.len() != framebuffer.len() {
+			return false;
+		}
+		framebuffer.copy_from_slice(data);
+		true
+	}
 
 	pub fn submit_ib(&self, commands: &[u32]) -> Result<i64, &'static str> {
 		if commands.is_empty() {
@@ -212,22 +226,46 @@ pub struct GpuSubmitter {
 	cmd_buf: Vec<u32>,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ComputeDispatchMetadata {
+	pub kernel_tag: u32,
+	pub kernel_size_bytes: u32,
+	pub scene_signature: u64,
+	pub object_count: u32,
+	pub triangle_count: u32,
+}
+
 unsafe impl Send for GpuSubmitter {}
 unsafe impl Sync for GpuSubmitter {}
 
 impl GpuSubmitter {
-	pub fn new(_drm_fd: i32, driver: DrmDriver, _gem_handle: u32) -> Self {
+	pub fn new(drm_fd: i32, driver: DrmDriver, gem_handle: u32) -> Self {
+		let reserve = 256usize
+			.saturating_add((drm_fd.unsigned_abs() as usize) & 0x3F)
+			.saturating_add((gem_handle as usize) & 0x3F);
 		Self {
 			driver,
-			cmd_buf: Vec::with_capacity(256),
+			cmd_buf: Vec::with_capacity(reserve.max(1)),
 		}
 	}
 
-	pub fn build_compute_dispatch(&mut self, total_tiles: u32, workgroup_size: u32, pixel_count: u32) {
+	pub fn build_compute_dispatch_with_metadata(
+		&mut self,
+		total_tiles: u32,
+		workgroup_size: u32,
+		pixel_count: u32,
+		metadata: ComputeDispatchMetadata,
+	) {
 		self.cmd_buf.clear();
 		self.cmd_buf.push(total_tiles);
 		self.cmd_buf.push(workgroup_size.max(1));
 		self.cmd_buf.push(pixel_count);
+		self.cmd_buf.push(metadata.kernel_tag);
+		self.cmd_buf.push(metadata.kernel_size_bytes);
+		self.cmd_buf.push((metadata.scene_signature & 0xffff_ffff) as u32);
+		self.cmd_buf.push((metadata.scene_signature >> 32) as u32);
+		self.cmd_buf.push(metadata.object_count);
+		self.cmd_buf.push(metadata.triangle_count);
 	}
 
 	pub fn submit(&mut self) -> Result<i64, &'static str> {

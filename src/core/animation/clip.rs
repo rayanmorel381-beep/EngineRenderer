@@ -1,12 +1,17 @@
-use crate::api::scene_descriptor::SceneDescriptor;
+use crate::api::scenes::SceneDescriptor;
 use crate::api::types::CameraDesc;
 use super::timeline::{Timeline, Lerp};
 
+/// État caméra interpolable.
 #[derive(Debug, Clone)]
 pub struct CameraFrame {
+    /// Position caméra.
     pub eye:         [f64; 3],
+    /// Cible caméra.
     pub target:      [f64; 3],
+    /// FOV vertical.
     pub fov_degrees: f64,
+    /// Ouverture.
     pub aperture:    f64,
 }
 
@@ -28,10 +33,14 @@ impl Lerp for CameraFrame {
     }
 }
 
+/// État solaire interpolable.
 #[derive(Debug, Clone)]
 pub struct SunFrame {
+    /// Direction du soleil.
     pub direction: [f64; 3],
+    /// Couleur solaire.
     pub color:     [f64; 3],
+    /// Intensité solaire.
     pub intensity: f64,
 }
 
@@ -45,9 +54,12 @@ impl Lerp for SunFrame {
     }
 }
 
+/// État de ciel interpolable.
 #[derive(Debug, Clone)]
 pub struct SkyFrame {
+    /// Couleur du haut de ciel.
     pub top:    [f64; 3],
+    /// Couleur du bas de ciel.
     pub bottom: [f64; 3],
 }
 
@@ -60,17 +72,25 @@ impl Lerp for SkyFrame {
     }
 }
 
+/// Clip d'animation regroupant les timelines de paramètres de scène.
 #[derive(Debug, Clone)]
 pub struct AnimationClip {
+    /// Durée en secondes.
     pub duration_secs: f64,
+    /// FPS cible.
     pub fps:           f64,
+    /// Timeline caméra optionnelle.
     pub camera:        Option<Timeline<CameraFrame>>,
+    /// Timeline solaire optionnelle.
     pub sun:           Option<Timeline<SunFrame>>,
+    /// Timeline ciel optionnelle.
     pub sky:           Option<Timeline<SkyFrame>>,
+    /// Timeline exposition optionnelle.
     pub exposure:      Option<Timeline<f64>>,
 }
 
 impl AnimationClip {
+    /// Crée un clip vide.
     pub fn new(duration_secs: f64, fps: f64) -> Self {
         Self {
             duration_secs,
@@ -82,14 +102,17 @@ impl AnimationClip {
         }
     }
 
+    /// Retourne le nombre total de frames.
     pub fn frame_count(&self) -> usize {
         (self.duration_secs * self.fps).ceil() as usize
     }
 
+    /// Retourne le temps associé à une frame.
     pub fn time_for_frame(&self, frame: usize) -> f64 {
         frame as f64 / self.fps
     }
 
+    /// Évalue le clip sur une scène de base à l'instant `time`.
     pub fn evaluate(&self, base: &SceneDescriptor, time: f64) -> SceneDescriptor {
         let mut scene = base.clone();
 

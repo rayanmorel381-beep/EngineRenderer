@@ -7,6 +7,7 @@ use crate::core::engine::{
     scene::celestial::CelestialBodies,
 };
 
+/// Gestionnaire d'indicateurs physiques dérivés d'un catalogue de corps.
 #[derive(Debug, Clone)]
 pub struct PhysicsManager {
     bodies: Vec<RigidBodyState>,
@@ -14,6 +15,7 @@ pub struct PhysicsManager {
 }
 
 impl PhysicsManager {
+    /// Construit le gestionnaire à partir d'un catalogue de corps célestes.
     pub fn from_bodies(catalog: &CelestialBodies) -> Self {
         let mut manager = Self {
             bodies: Vec::new(),
@@ -23,6 +25,7 @@ impl PhysicsManager {
         manager
     }
 
+    /// Reconstruit l'état interne et recalcule les métriques de stabilité.
     pub fn rebuild_from_bodies(&mut self, catalog: &CelestialBodies) {
         self.bodies = catalog
             .bodies()
@@ -44,14 +47,17 @@ impl PhysicsManager {
             .clamp(0.0, 1.0);
     }
 
+    /// Retourne l'énergie cinétique totale du système.
     pub fn total_kinetic_energy(&self) -> f64 {
         self.bodies.iter().map(RigidBodyState::kinetic_energy).sum()
     }
 
+    /// Retourne la norme de quantité de mouvement totale.
     pub fn total_momentum(&self) -> f64 {
         self.bodies.iter().map(RigidBodyState::momentum_magnitude).sum()
     }
 
+    /// Retourne le rayon orbital moyen des corps.
     pub fn average_orbital_radius(&self) -> f64 {
         if self.bodies.is_empty() {
             0.0
@@ -64,6 +70,7 @@ impl PhysicsManager {
         }
     }
 
+    /// Retourne une mesure agrégée de gravité interne.
     pub fn net_gravity_measure(&self) -> f64 {
         let mut measure = 0.0;
         for (index, body) in self.bodies.iter().enumerate() {
@@ -74,10 +81,12 @@ impl PhysicsManager {
         measure
     }
 
+    /// Retourne un score de stabilité normalisé [0, 1].
     pub fn stability_score(&self) -> f64 {
         self.stability_score
     }
 
+    /// Retourne le nombre de corps suivis.
     pub fn body_count(&self) -> usize {
         self.bodies.len()
     }

@@ -1,11 +1,12 @@
 use std::error::Error;
 
-use crate::api::scene_descriptor::SceneDescriptor;
+use crate::api::scenes::SceneDescriptor;
 use crate::api::types::core::{RenderRequest, RenderResult};
 
 use super::engine_api::EngineApi;
 
 impl EngineApi {
+    /// Rend une scène décrite par un [`SceneDescriptor`].
     pub fn render_descriptor(
         &self,
         descriptor: SceneDescriptor,
@@ -15,6 +16,7 @@ impl EngineApi {
         self.render(builder, request)
     }
 
+    /// Charge un fichier `.scene` et le rend immédiatement.
     pub fn load_and_render<P: AsRef<std::path::Path>>(
         &self,
         scene_path: P,

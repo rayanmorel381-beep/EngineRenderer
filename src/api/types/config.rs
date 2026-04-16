@@ -2,11 +2,17 @@
 /// Every field `None` means "use the preset default".
 #[derive(Debug, Clone, Default)]
 pub struct RenderConfig {
+    /// Nombre d'échantillons par pixel.
     pub samples_per_pixel: Option<usize>,
+    /// Nombre max de rebonds.
     pub max_bounces: Option<u32>,
+    /// Nombre de passes.
     pub passes: Option<usize>,
+    /// Taille des tuiles.
     pub tile_size: Option<usize>,
+    /// Gamma de sortie.
     pub gamma: Option<f64>,
+    /// Opérateur de tone-mapping.
     pub tone_mapping: Option<ToneMapping>,
 }
 
@@ -22,5 +28,10 @@ pub enum ToneMapping {
     /// Uncharted 2 filmic.
     Uncharted2,
     /// Custom gamma + exposure.
-    Custom { gamma: f64, exposure: f64 },
+    Custom {
+        /// Gamma de sortie personnalisé.
+        gamma: f64,
+        /// Exposition globale personnalisée.
+        exposure: f64,
+    },
 }

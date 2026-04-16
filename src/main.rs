@@ -1,8 +1,22 @@
+//! Binaire principal d'EngineRenderer : sélectionne le mode CLI, temps réel ou génération vidéo.
+
 mod utils;
+mod realtime;
+mod generator;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    match std::env::args().nth(1) {
-        None => utils::terminal_mode::run_interactive(),
-        Some(arg) => utils::terminal_mode::run_cli(&arg),
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.is_empty() {
+        return utils::terminal_mode::run_interactive();
     }
+
+    if generator::is_video_mode(&args) {
+        return generator::run(&args);
+    }
+
+    if realtime::is_realtime_mode(&args) {
+        return realtime::run(&args);
+    }
+
+    utils::terminal_mode::run_cli(&args)
 }

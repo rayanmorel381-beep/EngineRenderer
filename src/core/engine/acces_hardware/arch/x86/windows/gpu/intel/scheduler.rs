@@ -10,7 +10,7 @@ pub(crate) fn recommended_chunk_size(work_items: usize) -> usize {
         return 8;
     }
     let raw = work_items.div_ceil(2);
-    let aligned = ((raw + 7) / 8) * 8;
+    let aligned = raw.div_ceil(8) * 8;
     aligned.max(8)
 }
 

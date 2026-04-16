@@ -61,8 +61,23 @@ pub(crate) struct Schedule {
 	pub(crate) frame_budget_us: u64,
 }
 
+fn parse_os_override(value: &str) -> Option<Os> {
+	match value {
+		"linux" | "android" => Some(Os::Linux),
+		"windows" => Some(Os::Windows),
+		"macos" | "darwin" => Some(Os::Macos),
+		_ => None,
+	}
+}
+
 pub(crate) fn detect_os() -> Os {
-	#[cfg(target_os = "linux")]
+	if let Ok(raw) = std::env::var("ENGINERENDERER_OS_OVERRIDE") {
+		let normalized = raw.trim().to_ascii_lowercase();
+		if let Some(os) = parse_os_override(&normalized) {
+			return os;
+		}
+	}
+	#[cfg(any(target_os = "linux", target_os = "android"))]
 	{
 		return Os::Linux;
 	}
@@ -78,12 +93,13 @@ pub(crate) fn detect_os() -> Os {
 	Os::Linux
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 fn map_vendor(v: super::linux::cpu::vendor::Vendor) -> Vendor {
 	match v {
 		super::linux::cpu::vendor::Vendor::Amd => Vendor::Amd,
 		super::linux::cpu::vendor::Vendor::Intel => Vendor::Intel,
 		super::linux::cpu::vendor::Vendor::Apple => Vendor::Apple,
+		super::linux::cpu::vendor::Vendor::Unknown => Vendor::Unknown,
 	}
 }
 
@@ -97,7 +113,7 @@ fn map_vendor(v: super::windows::cpu::vendor::Vendor) -> Vendor {
 }
 
 pub(crate) fn default_cpu_config() -> CpuConfig {
-	#[cfg(target_os = "linux")]
+	#[cfg(any(target_os = "linux", target_os = "android"))]
 	{
 		let c = super::linux::cpu::vendor::default_config();
 		return CpuConfig {
@@ -144,7 +160,7 @@ pub(crate) fn default_cpu_config() -> CpuConfig {
 }
 
 pub(crate) fn clamp_cpu_workers(requested: usize) -> usize {
-	#[cfg(target_os = "linux")]
+	#[cfg(any(target_os = "linux", target_os = "android"))]
 	{
 		return super::linux::cpu::vendor::clamp_workers(requested);
 	}
@@ -165,7 +181,7 @@ pub(crate) fn clamp_cpu_workers(requested: usize) -> usize {
 }
 
 pub(crate) fn build_cpu_schedule(work_items: usize) -> Schedule {
-	#[cfg(target_os = "linux")]
+	#[cfg(any(target_os = "linux", target_os = "android"))]
 	{
 		let s = super::linux::cpu::vendor::build_schedule(work_items);
 		return Schedule {
@@ -202,13 +218,14 @@ pub(crate) fn build_cpu_schedule(work_items: usize) -> Schedule {
 }
 
 pub(crate) fn default_gpu_config() -> GpuConfig {
-	#[cfg(target_os = "linux")]
+	#[cfg(any(target_os = "linux", target_os = "android"))]
 	{
 		let c = super::linux::gpu::vendor::default_config();
 		let vendor = match c.vendor {
 			super::linux::gpu::vendor::Vendor::Amd => Vendor::Amd,
 			super::linux::gpu::vendor::Vendor::Intel => Vendor::Intel,
 			super::linux::gpu::vendor::Vendor::Apple => Vendor::Apple,
+			super::linux::gpu::vendor::Vendor::Unknown => Vendor::Unknown,
 		};
 		return GpuConfig {
 			vendor,
@@ -263,7 +280,7 @@ pub(crate) fn default_gpu_config() -> GpuConfig {
 }
 
 pub(crate) fn clamp_gpu_workers(requested: usize) -> usize {
-	#[cfg(target_os = "linux")]
+	#[cfg(any(target_os = "linux", target_os = "android"))]
 	{
 		return super::linux::gpu::vendor::clamp_workers(requested);
 	}
@@ -280,7 +297,7 @@ pub(crate) fn clamp_gpu_workers(requested: usize) -> usize {
 }
 
 pub(crate) fn build_gpu_schedule(work_items: usize) -> Schedule {
-	#[cfg(target_os = "linux")]
+	#[cfg(any(target_os = "linux", target_os = "android"))]
 	{
 		let s = super::linux::gpu::vendor::build_schedule(work_items);
 		return Schedule {
@@ -317,13 +334,14 @@ pub(crate) fn build_gpu_schedule(work_items: usize) -> Schedule {
 }
 
 pub(crate) fn default_display_config() -> DisplayConfig {
-	#[cfg(target_os = "linux")]
+	#[cfg(any(target_os = "linux", target_os = "android"))]
 	{
 		let c = super::linux::display::vendor::default_config();
 		let vendor = match c.vendor {
 			super::linux::display::vendor::Vendor::Amd => Vendor::Amd,
 			super::linux::display::vendor::Vendor::Intel => Vendor::Intel,
 			super::linux::display::vendor::Vendor::Apple => Vendor::Apple,
+			super::linux::display::vendor::Vendor::Unknown => Vendor::Unknown,
 		};
 		return DisplayConfig {
 			vendor,
@@ -382,7 +400,7 @@ pub(crate) fn default_display_config() -> DisplayConfig {
 }
 
 pub(crate) fn clamp_display_workers(requested: usize) -> usize {
-	#[cfg(target_os = "linux")]
+	#[cfg(any(target_os = "linux", target_os = "android"))]
 	{
 		return super::linux::display::vendor::clamp_workers(requested);
 	}
@@ -399,7 +417,7 @@ pub(crate) fn clamp_display_workers(requested: usize) -> usize {
 }
 
 pub(crate) fn build_display_schedule(work_items: usize) -> Schedule {
-	#[cfg(target_os = "linux")]
+	#[cfg(any(target_os = "linux", target_os = "android"))]
 	{
 		let s = super::linux::display::vendor::build_schedule(work_items);
 		return Schedule {
@@ -436,15 +454,19 @@ pub(crate) fn build_display_schedule(work_items: usize) -> Schedule {
 }
 
 pub(crate) fn default_ram_config() -> RamConfig {
-	#[cfg(target_os = "linux")]
+	#[cfg(any(target_os = "linux", target_os = "android"))]
 	{
 		let c = super::linux::ram::vendor::default_config();
+		let low_power_from_vendor = matches!(
+			c.vendor,
+			super::linux::ram::vendor::Vendor::Apple
+		);
 		return RamConfig {
 			page_size: c.page_size,
 			total_bytes: c.total_bytes,
 			available_bytes: c.available_bytes,
 			frame_budget_us: c.frame_budget_us,
-			low_power: c.low_power,
+			low_power: c.low_power || low_power_from_vendor,
 		};
 	}
 	#[cfg(target_os = "windows")]
@@ -480,7 +502,7 @@ pub(crate) fn default_ram_config() -> RamConfig {
 }
 
 pub(crate) fn build_ram_schedule(work_items: usize) -> Schedule {
-	#[cfg(target_os = "linux")]
+	#[cfg(any(target_os = "linux", target_os = "android"))]
 	{
 		let s = super::linux::ram::vendor::build_schedule(work_items);
 		return Schedule {
@@ -516,7 +538,7 @@ pub(crate) fn build_ram_schedule(work_items: usize) -> Schedule {
 }
 
 pub(crate) fn clamp_ram_workers(requested: usize) -> usize {
-	#[cfg(target_os = "linux")]
+	#[cfg(any(target_os = "linux", target_os = "android"))]
 	{
 		return super::linux::ram::vendor::clamp_workers(requested);
 	}

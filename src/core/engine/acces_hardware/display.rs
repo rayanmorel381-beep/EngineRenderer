@@ -1,5 +1,4 @@
 use super::arch::compute_dispatch;
-use crate::core::engine::rendering::raytracing::math::Vec3;
 
 #[derive(Debug)]
 pub struct NativeWindow {
@@ -14,9 +13,10 @@ unsafe impl Send for NativeWindow {}
 unsafe impl Sync for NativeWindow {}
 
 impl NativeWindow {
-	pub fn open(width: usize, height: usize, _title: &str) -> Option<Self> {
+	pub fn open(width: usize, height: usize, title: &str) -> Option<Self> {
 		let cfg = compute_dispatch::default_display_config();
 		let schedule = compute_dispatch::build_display_schedule(width.saturating_mul(height));
+		let title_scale = title.chars().count().clamp(1, 64);
 		let vendor_scale = match cfg.vendor {
 			compute_dispatch::Vendor::Amd => 1usize,
 			compute_dispatch::Vendor::Intel => 1usize,
@@ -33,6 +33,7 @@ impl NativeWindow {
 		let vsync_capacity = compute_dispatch::clamp_display_workers(
 			cfg.vsync_slots
 				.max(schedule.chunks)
+				.saturating_add(title_scale.saturating_div(32))
 				.saturating_mul(vendor_scale)
 				.saturating_mul(buffering_scale)
 				.saturating_mul(latency_scale)
@@ -54,24 +55,10 @@ impl NativeWindow {
 		self.closed
 	}
 
-	pub fn present_frame(&mut self, _argb: &[u8], width: usize, height: usize) {
-		if self.handle.is_null() && self.vsync_capacity > 0 {
+	pub fn present_frame(&mut self, argb: &[u8], width: usize, height: usize) {
+		if self.handle.is_null() && self.vsync_capacity > 0 && argb.len() >= width.saturating_mul(height).saturating_mul(4) {
 			self.width = width as u32;
 			self.height = height as u32;
 		}
 	}
-}
-
-pub fn pixels_from_vec3(pixels: &[Vec3], width: usize, height: usize) -> Vec<u8> {
-	let len = width.saturating_mul(height);
-	let mut out = vec![0u8; len.saturating_mul(4)];
-	let clamp = |v: f64| -> u8 { (v.clamp(0.0, 1.0) * 255.0).round() as u8 };
-	for (i, p) in pixels.iter().take(len).enumerate() {
-		let base = i * 4;
-		out[base] = 255;
-		out[base + 1] = clamp(p.x);
-		out[base + 2] = clamp(p.y);
-		out[base + 3] = clamp(p.z);
-	}
-	out
 }

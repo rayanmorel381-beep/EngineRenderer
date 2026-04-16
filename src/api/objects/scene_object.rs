@@ -7,17 +7,27 @@ use crate::core::engine::rendering::raytracing::{Material, Sphere, Triangle, Vec
 /// [`SceneBuilder`](crate::api::scenes::builder::SceneBuilder).
 #[derive(Debug, Clone)]
 pub enum SceneObject {
+    /// Sphère paramétrique.
     Sphere {
+        /// Centre de la sphère.
         center: Vec3,
+        /// Rayon de la sphère.
         radius: f64,
+        /// Matériau appliqué.
         material: Material,
     },
+    /// Triangle plat.
     Triangle {
+        /// Sommet A.
         a: Vec3,
+        /// Sommet B.
         b: Vec3,
+        /// Sommet C.
         c: Vec3,
+        /// Matériau appliqué.
         material: Material,
     },
+    /// Groupe récursif d'objets.
     Group(Vec<SceneObject>),
 }
 

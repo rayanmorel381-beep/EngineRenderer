@@ -55,6 +55,19 @@ UltraHdCpu ············ 16 SPP · 3 bounces · high-quality stills
 ProductionReference ··· 64 SPP · max bounces · reference quality
 ```
 
+### Realtime 120 FPS Profile
+
+EngineRenderer includes a unified ultra-constrained realtime profile for `--fps 120`.
+
+- Scene-side budget: proxy showcase geometry, reduced light budget, optional panorama removal
+- Runtime-side budget: cached showcase meshes, static realtime scene reuse, BVH reuse
+- Loop-side budget: deadline-based frame pacing with drift compensation
+
+Validated runtime benchmarks (release, 3 seconds, `--fps 120 --width 1280 --height 720`):
+
+- Linux x86_64: achieved FPS above target 120
+- Android ARM64: achieved FPS above target 120
+
 ### 🎬 Animation
 
 | | |
@@ -109,25 +122,7 @@ ProductionReference ··· 64 SPP · max bounces · reference quality
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
-<details>
-<summary>📋 <strong>Full module breakdown</strong></summary>
-<br>
-
-| Module | Path | Purpose |
-|:-------|:-----|:--------|
-| **API** | `src/api/` | Scene building, materials, camera, animation, AI |
-| **Managers** | `src/core/coremanager/` | Engine lifecycle, camera, config, timing, input, audio, resources, LOD, networking |
-| **Rendering** | `src/core/engine/rendering/` | Ray tracing, framebuffer, shading, effects, post-processing, culling, texture |
-| **Scene** | `src/core/engine/scene/` | Scene graph, world state, objects, celestial mechanics |
-| **Physics** | `src/core/engine/physics/` | Rigid body dynamics, collision, raycasting |
-| **Simulation** | `src/core/simulation/` | N-body gravitational simulation |
-| **Animation** | `src/core/animation/` | Clips, timelines, sequencing, easing, video export |
-| **Hardware** | `src/core/engine/acces_hardware/` | Per-OS CPU/GPU/display abstraction |
-| **Scheduler** | `src/core/scheduler/` | Tile-based work distribution, profiling |
-| **Debug** | `src/core/debug/` | Logging, profiling, serialization |
-| **Input** | `src/core/input/` | Input state, camera control, events, audio |
-
-</details>
+📋 Full module breakdown: [arborescence.md](arborescence.md)
 
 <br>
 
@@ -154,6 +149,8 @@ ProductionReference ··· 64 SPP · max bounces · reference quality
 > + musl variants for static linking
 
 ✅ All listed targets compile successfully.
+
+✅ `cargo clippy --target x86_64-pc-windows-gnu` passes cleanly.
 
 </td>
 <td width="50%">
@@ -218,8 +215,25 @@ cargo build --release --target x86_64-unknown-linux-musl    # Static Linux
 cargo run --release -- render    # Standard render → output file
 cargo run --release -- gallery   # Full gallery showcase
 cargo run --release -- test      # Quick smoke test
+cargo run --release -- detect    # Hardware/compute diagnostics
+cargo run --release -- video     # Render animation → MP4
+cargo run --release -- run       # Realtime preview mode
 cargo run --release -- help      # Show commands
 ```
+
+#### Detect / Debug options
+
+```bash
+cargo run --release -- detect --verbose
+cargo run --release -- detect --json --component gpu
+cargo run --release -- detect --bench --component cpu
+cargo run --release -- detect --override arch=arm,os=windows,vendor=amd
+```
+
+Supported values:
+
+- `--component`: `cpu`, `gpu`, `ram`, `display`, `all`
+- `--override`: `arch=x86|arm`, `os=linux|windows|macos`, `vendor=amd|intel|apple|unknown`
 
 ### Interactive Terminal
 
@@ -296,23 +310,31 @@ cargo run --example render_world       # → output/WORLD/world.ppm
 cargo run --example render_blackhole   # → output/BLACKHOLE/blackhole.ppm
 ```
 
-### 🌀 Black Hole Animation (MP4)
+### 🌀 Rendu vidéo / Animation
 
-`generate_mp4.rs` produces a 10-second 1920×1080 animation:
+Le mode `video` génère une animation MP4 à partir d'une scène :
 
 ```bash
-rustc generate_mp4.rs --edition 2024 \
-  --extern enginerenderer=target/release/libenginerenderer.rlib \
-  -o generate_mp4 && ./generate_mp4
+cargo run --release -- video --duration=10 --fps=30 --width=1920 --height=1080 --output-mp4=output/animation.mp4
 ```
 
-| Element | Details |
-|:--------|:--------|
-| 🕳️ Black hole | Event horizon material |
-| 💫 Photon ring | 60 emissive spheres |
-| 🔥 Accretion disk | ~5,250 particles · black-body emission · Doppler shift |
-| 🚀 Relativistic jets | 96 segments (2 × 48) |
-| ⭐ Star field | 300 procedural stars |
+Chargement d'une scène existante :
+
+```bash
+cargo run --release -- video --scene-file=my_scene.scene --output-mp4=output/animation.mp4
+```
+
+| Option | Défaut | Description |
+|:-------|:------:|:------------|
+| `--duration=N` | `5` | Durée en secondes |
+| `--fps=N` | `30` | Images par seconde |
+| `--width=N` | `1280` | Largeur en pixels |
+| `--height=N` | `720` | Hauteur en pixels |
+| `--quality=preview\|hd\|production` | `preview` | Qualité de rendu |
+| `--scene-file=PATH` | *(défaut)* | Scène `.scene` à charger |
+| `--output-dir=PATH` | `output/video` | Dossier frames temporaires |
+| `--output-mp4=PATH` | `output/video/animation.mp4` | Fichier MP4 final |
+| `--prefix=NAME` | `frame` | Préfixe des frames |
 
 <br>
 
@@ -390,11 +412,18 @@ enginerenderer::api::diagnose_compute_environment();
 
 ```
 src/
+├── main.rs                     CLI dispatcher (video · run · interactive)
+├── lib.rs                      Public library exports
+├── generator.rs                Generic video rendering (CLI video mode)
+├── realtime.rs                 Realtime preview mode (CLI run mode)
 ├── api/                        Public API layer
+│   ├── scene_descriptor.rs       Serializable scene description
+│   ├── generator.rs              GeneratorRequest API type
 │   ├── ai/                       AI capabilities, prompt parsing, renderer
 │   ├── animation/                Clips, timelines, sequencer
 │   ├── camera/                   Controller and presets
-│   ├── engine/                   Entry point, scene/object/camera mgmt
+│   ├── engine/                   EngineApi · diagnostics · cameras ·
+│   │                             descriptor · objects · rendering · scenes
 │   ├── materials/                Builder, catalog, spectrum, physics
 │   ├── objects/                  Primitives, composites, scene objects
 │   ├── scenes/                   Builder and presets
@@ -420,8 +449,6 @@ src/
 │   └── simulation/               N-body gravitational simulation
 │
 └── utils/                      CLI and interactive terminal
-
-generate_mp4.rs                 Black hole animation renderer
 ```
 
 <br>

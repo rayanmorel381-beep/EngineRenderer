@@ -12,6 +12,7 @@ pub struct ResourceTracker {
 }
 
 impl ResourceTracker {
+    /// Crée un tracker de ressources vide.
     pub fn new() -> Self {
         Self { frame_outputs: Vec::new() }
     }

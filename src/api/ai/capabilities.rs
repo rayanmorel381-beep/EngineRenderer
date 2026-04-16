@@ -6,20 +6,33 @@
 
 #[derive(Debug, Clone)]
 pub struct Capabilities {
+    /// Types d'objets supportés par le moteur (sphères, triangles, corps célestes…).
     pub object_types: Vec<&'static str>,
+    /// Préréglages de matériaux disponibles dans le catalogue.
     pub material_presets: Vec<&'static str>,
+    /// Niveaux de qualité supportés (`"preview"`, `"hd"`, `"production"`).
     pub quality_levels: Vec<&'static str>,
+    /// Résolution maximale en pixels `(largeur, hauteur)`.
     pub max_resolution: (usize, usize),
+    /// Nombre maximum de rebonds de rayons (profondeur de récursion).
     pub max_bounces: u32,
+    /// Nombre maximum d'échantillons par pixel.
     pub max_samples_per_pixel: u32,
+    /// Indique si les effets volumétriques sont disponibles.
     pub supports_volumetrics: bool,
+    /// Indique si les lumières surfaciques sont disponibles.
     pub supports_area_lights: bool,
+    /// Indique si la profondeur de champ est disponible.
     pub supports_depth_of_field: bool,
+    /// Indique si le flou de mouvement est disponible.
     pub supports_motion_blur: bool,
+    /// Indique si les textures procédurales sont disponibles.
     pub supports_procedural_textures: bool,
+    /// Format de sortie des images rendu (`"ppm"`, etc.).
     pub output_format: &'static str,
 }
 
+/// Détecte et retourne les capacités courantes du moteur de rendu.
 pub fn discover() -> Capabilities {
     Capabilities {
         object_types: vec![

@@ -20,7 +20,33 @@ cargo run --release -- render
 
 Expected result: an image is generated in the output directory.
 
-## 3. Interactive terminal mode
+## 3. Mode vidéo (animation → MP4)
+
+```bash
+cargo run --release -- video --duration=10 --fps=30 --width=1920 --height=1080 --output-mp4=output/animation.mp4
+```
+
+Expected result: `output/animation.mp4` généré via FFmpeg.
+
+## 4. Mode realtime
+
+```bash
+cargo run --release -- run --seconds=10 --fps=30
+```
+
+Expected result: rendu séquentiel en mode preview.
+
+## 5. Render example scene
+
+```bash
+cargo run --example render_spheres     # → output/SPHERES/spheres.ppm
+cargo run --example render_cubes       # → output/CUBES/cubes.ppm
+cargo run --example render_blackhole   # → output/BLACKHOLE/blackhole.ppm
+```
+
+Expected result: output files generated in their respective directories.
+
+## 6. Interactive terminal mode
 
 ```bash
 cargo run --release
@@ -28,15 +54,7 @@ cargo run --release
 
 Expected result: the REPL opens with module navigation.
 
-## 4. Render example scene
-
-```bash
-cargo run --example render_spheres
-```
-
-Expected result: output/SPHERES/spheres.ppm
-
-## Optional cross-target builds
+## 7. Optional cross-target builds
 
 ```bash
 cargo build --release --target aarch64-apple-darwin

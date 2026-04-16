@@ -3,14 +3,14 @@ pub(super) mod scheduler;
 
 use std::ffi::c_void;
 
-type HKEY = *mut c_void;
-const HKEY_LOCAL_MACHINE: HKEY = 0x80000002_usize as HKEY;
+type Hkey = *mut c_void;
+const HKEY_LOCAL_MACHINE: Hkey = 0x80000002_usize as Hkey;
 const KEY_READ: u32 = 0x20019;
 
 unsafe extern "system" {
-    fn RegOpenKeyExW(key: HKEY, sub_key: *const u16, options: u32, desired: u32, result: *mut HKEY) -> i32;
-    fn RegQueryValueExW(key: HKEY, value_name: *const u16, reserved: *mut u32, reg_type: *mut u32, data: *mut u8, data_len: *mut u32) -> i32;
-    fn RegCloseKey(key: HKEY) -> i32;
+    fn RegOpenKeyExW(key: Hkey, sub_key: *const u16, options: u32, desired: u32, result: *mut Hkey) -> i32;
+    fn RegQueryValueExW(key: Hkey, value_name: *const u16, reserved: *mut u32, reg_type: *mut u32, data: *mut u8, data_len: *mut u32) -> i32;
+    fn RegCloseKey(key: Hkey) -> i32;
 }
 
 fn to_wide(s: &str) -> Vec<u16> {
@@ -22,7 +22,7 @@ fn to_wide(s: &str) -> Vec<u16> {
 fn registry_dword(key: &str, value: &str) -> Option<u32> {
     let sub_key = to_wide(key);
     let value_name = to_wide(value);
-    let mut hkey: HKEY = core::ptr::null_mut();
+    let mut hkey: Hkey = core::ptr::null_mut();
     let open = unsafe { RegOpenKeyExW(HKEY_LOCAL_MACHINE, sub_key.as_ptr(), 0, KEY_READ, &mut hkey) };
     if open != 0 {
         return None;
@@ -47,7 +47,7 @@ fn registry_dword(key: &str, value: &str) -> Option<u32> {
 fn registry_string(key: &str, value: &str) -> Option<String> {
     let sub_key = to_wide(key);
     let value_name = to_wide(value);
-    let mut hkey: HKEY = core::ptr::null_mut();
+    let mut hkey: Hkey = core::ptr::null_mut();
     let open = unsafe { RegOpenKeyExW(HKEY_LOCAL_MACHINE, sub_key.as_ptr(), 0, KEY_READ, &mut hkey) };
     if open != 0 {
         return None;

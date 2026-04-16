@@ -1,35 +1,49 @@
-use crate::core::engine::acces_hardware::{
-    ComputeCapabilities, ComputeDeviceKind, KernelConfig, ComputeJobBatch,
-    ComputeQueue, GpuRenderBackend, GpuSubmitter,
-};
+//! Compute device abstraction and adaptive dispatch utilities.
 
+use crate::core::engine::acces_hardware::{
+    ComputeCapabilities, ComputeDeviceKind, ComputeJobBatch, ComputeQueue, GpuRenderBackend, KernelConfig,
+    NativeComputeBackend, NativeHardwareBackend,
+};
+use crate::core::engine::acces_hardware::arch::native_calls;
+
+/// Trait implemented by all compute backends used by the renderer.
 pub trait ComputeDevice: Send + Sync {
+    /// Returns static capabilities for this compute device.
     fn capabilities(&self) -> ComputeCapabilities;
 
+    /// Compiles a kernel source for the concrete backend.
     fn compile_kernel(
         &self,
         name: &str,
         kernel_source: &[u8],
     ) -> Result<Vec<u8>, String>;
 
+    /// Submits a prepared job batch to the backend queue.
     fn submit_batch(&self, batch: &ComputeJobBatch) -> Result<u64, String>;
 
+    /// Waits until the backend queue becomes idle.
     fn wait_idle(&self);
 
+    /// Returns a human-readable backend name.
     fn device_name(&self) -> &str;
 }
 
+/// Generic compute device implementation for CPU and GPU paths.
 pub struct GenericComputeDevice {
     capabilities: ComputeCapabilities,
-    queue: ComputeQueue,
-    device_name: String,
-    drm_fd: i32,
-    driver_kind: ComputeDeviceKind,
-    submitter: Option<std::sync::Mutex<GpuSubmitter>>,
+    backend: NativeComputeBackend,
 }
 
 impl GenericComputeDevice {
-    pub fn new_gpu(
+    pub fn from_native_backend(native: &NativeHardwareBackend, kind: ComputeDeviceKind) -> Self {
+        Self {
+            capabilities: native.capabilities_for(kind),
+            backend: native.create_compute_backend(kind),
+        }
+    }
+
+    /// Creates a GPU device with an initialized native submission path.
+    pub fn new_gpu_with_fd(
         backend: &GpuRenderBackend,
         max_workgroups: u32,
         max_workgroup_size: u32,
@@ -49,48 +63,45 @@ impl GenericComputeDevice {
                 parallel_lanes,
                 shared_memory_bytes,
             ),
-            queue: ComputeQueue::new(),
-            device_name,
-            drm_fd: -1,
-            driver_kind: ComputeDeviceKind::Gpu,
-            submitter: None,
+            backend: NativeComputeBackend::new(
+                device_name,
+                ComputeDeviceKind::Gpu,
+                parallel_lanes,
+                backend.drm_fd(),
+                Some(crate::core::engine::acces_hardware::GpuSubmitter::new(
+                    backend.drm_fd(),
+                    backend.driver(),
+                    backend.gem_handle(),
+                )),
+            ),
         }
     }
 
-    pub fn new_gpu_with_fd(
-        backend: &GpuRenderBackend,
-        max_workgroups: u32,
-        max_workgroup_size: u32,
-        parallel_lanes: u32,
-        shared_memory_bytes: u32,
-    ) -> Self {
-        let mut dev = Self::new_gpu(backend, max_workgroups, max_workgroup_size, parallel_lanes, shared_memory_bytes);
-        dev.drm_fd = backend.drm_fd();
-        dev.submitter = Some(std::sync::Mutex::new(
-            GpuSubmitter::new(backend.drm_fd(), backend.driver(), backend.gem_handle())
-        ));
-        dev
-    }
-
+    /// Creates a SIMD-optimized CPU device.
     pub fn new_cpu_simd() -> Self {
         Self {
             capabilities: ComputeCapabilities::cpu_simd(),
-            queue: ComputeQueue::new(),
-            device_name: "CPU-SIMD".to_string(),
-            drm_fd: -1,
-            driver_kind: ComputeDeviceKind::CpuSimd,
-            submitter: None,
+            backend: NativeComputeBackend::new(
+                "CPU-SIMD".to_string(),
+                ComputeDeviceKind::CpuSimd,
+                ComputeCapabilities::cpu_simd().parallel_lanes,
+                -1,
+                None,
+            ),
         }
     }
 
+    /// Creates a scalar CPU fallback device.
     pub fn new_cpu_scalar() -> Self {
         Self {
             capabilities: ComputeCapabilities::cpu_scalar(),
-            queue: ComputeQueue::new(),
-            device_name: "CPU-Scalar".to_string(),
-            drm_fd: -1,
-            driver_kind: ComputeDeviceKind::CpuScalar,
-            submitter: None,
+            backend: NativeComputeBackend::new(
+                "CPU-Scalar".to_string(),
+                ComputeDeviceKind::CpuScalar,
+                ComputeCapabilities::cpu_scalar().parallel_lanes,
+                -1,
+                None,
+            ),
         }
     }
 }
@@ -103,83 +114,44 @@ impl ComputeDevice for GenericComputeDevice {
     fn compile_kernel(
         &self,
         name: &str,
-        _kernel_source: &[u8],
+        kernel_source: &[u8],
     ) -> Result<Vec<u8>, String> {
-        let device_type = match self.capabilities.kind {
-            ComputeDeviceKind::Gpu => "GPU",
-            ComputeDeviceKind::CpuSimd => "CPU-SIMD",
-            ComputeDeviceKind::CpuScalar => "CPU-Scalar",
-        };
-        eprintln!(
-            "compute: {} compiling kernel '{}' (device={})",
-            self.device_name, name, device_type
-        );
-
-        Ok(Vec::new())
+        self.backend.compile_kernel(name, kernel_source)
     }
 
     fn submit_batch(&self, batch: &ComputeJobBatch) -> Result<u64, String> {
-        let batch_size = batch.jobs.len() as u32;
-        let total_threads = batch.total_threads();
-
-        self.queue.submit_batch(batch_size);
-
-        if let Some(ref submitter_lock) = self.submitter {
-            let mut submitter = submitter_lock.lock().unwrap();
-            let total_tiles = batch.jobs.len() as u32;
-            let workgroup_size = batch.jobs.first()
-                .map(|j| j.config.thread_count())
-                .unwrap_or(256);
-            let pixel_count = total_threads as u32;
-
-            submitter.build_compute_dispatch(total_tiles, workgroup_size, pixel_count);
-
-            match submitter.submit() {
-                Ok(cs_id) => {
-                    eprintln!(
-                        "gpu-compute: {} dispatched {} tiles ({} threads) → cs_id={} driver={} dwords={}",
-                        self.device_name, total_tiles, total_threads, cs_id,
-                        submitter.driver().name(), submitter.cmd_buf_dwords(),
-                    );
-                }
-                Err(e) => {
-                    eprintln!(
-                        "gpu-compute: {} DRM submit failed ({}), CPU fallback",
-                        self.device_name, e,
-                    );
-                }
-            }
-        } else {
-            let dispatch_target = match self.driver_kind {
-                ComputeDeviceKind::Gpu => "gpu-sw",
-                ComputeDeviceKind::CpuSimd => "cpu-simd",
-                ComputeDeviceKind::CpuScalar => "cpu-scalar",
-            };
-            eprintln!(
-                "compute: {} submitted batch {} jobs × {} total threads (target={}, fd={})",
-                self.device_name, batch_size, total_threads, dispatch_target, self.drm_fd
-            );
-        }
-
-        self.queue.mark_batch_complete(batch_size);
-        Ok(total_threads)
+        self.backend.submit_batch(batch)
     }
 
     fn wait_idle(&self) {
-        self.queue.wait_idle();
+        self.backend.wait_idle();
     }
 
     fn device_name(&self) -> &str {
-        &self.device_name
+        self.backend.device_name()
     }
 }
 
+/// Adaptive dispatcher that selects and drives compute devices.
 pub struct AdaptiveComputeDispatcher {
     devices: Vec<Box<dyn ComputeDevice>>,
     active_device_idx: usize,
 }
 
+pub struct TileComputeDescriptor<'a> {
+    pub image_width: usize,
+    pub image_height: usize,
+    pub tile_size: usize,
+    pub config: KernelConfig,
+    pub kernel_name: &'a str,
+    pub kernel_source: &'a [u8],
+    pub scene_signature: u64,
+    pub object_count: usize,
+    pub triangle_count: usize,
+}
+
 impl AdaptiveComputeDispatcher {
+    /// Creates an empty dispatcher.
     pub fn new() -> Self {
         Self {
             devices: Vec::new(),
@@ -187,11 +159,13 @@ impl AdaptiveComputeDispatcher {
         }
     }
 
+    /// Registers a compute device into the dispatcher.
     pub fn register_device(&mut self, device: Box<dyn ComputeDevice>) {
         eprintln!("compute: registered device '{}' — {}", device.device_name(), self.device_count() + 1);
         self.devices.push(device);
     }
 
+    /// Creates a dispatcher and auto-registers available devices.
     pub fn with_auto_detection(gpu_backend: Option<&GpuRenderBackend>) -> Self {
         let mut dispatcher = Self::new();
 
@@ -207,20 +181,7 @@ impl AdaptiveComputeDispatcher {
             dispatcher.active_device_idx = 0;
         }
 
-        let has_simd = {
-            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            {
-                std::is_x86_feature_detected!("avx2") || std::is_x86_feature_detected!("sse2")
-            }
-            #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
-            {
-                true
-            }
-            #[cfg(not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "arm", target_arch = "aarch64")))]
-            {
-                false
-            }
-        };
+        let has_simd = native_calls::host_has_simd();
 
         let cpu_device = if has_simd {
             Box::new(GenericComputeDevice::new_cpu_simd()) as Box<dyn ComputeDevice>
@@ -232,6 +193,32 @@ impl AdaptiveComputeDispatcher {
         dispatcher
     }
 
+    pub fn with_native_backend(native: &NativeHardwareBackend) -> Self {
+        let mut dispatcher = Self::new();
+
+        if native.gpu_backend().is_some() {
+            dispatcher.register_device(Box::new(GenericComputeDevice::from_native_backend(
+                native,
+                ComputeDeviceKind::Gpu,
+            )));
+            dispatcher.active_device_idx = 0;
+        }
+
+        let has_simd = native_calls::host_has_simd();
+        let cpu_kind = if has_simd {
+            ComputeDeviceKind::CpuSimd
+        } else {
+            ComputeDeviceKind::CpuScalar
+        };
+        dispatcher.register_device(Box::new(GenericComputeDevice::from_native_backend(
+            native,
+            cpu_kind,
+        )));
+
+        dispatcher
+    }
+
+    /// Selects the active device by index.
     pub fn set_active_device(&mut self, device_idx: usize) -> Result<(), String> {
         if device_idx >= self.devices.len() {
             return Err(format!("device index {} out of range", device_idx));
@@ -244,18 +231,22 @@ impl AdaptiveComputeDispatcher {
         Ok(())
     }
 
+    /// Returns an immutable reference to the active compute device.
     pub fn active_device(&self) -> &dyn ComputeDevice {
         &*self.devices[self.active_device_idx]
     }
 
+    /// Returns a mutable reference to the active compute device.
     pub fn active_device_mut(&mut self) -> &mut dyn ComputeDevice {
         &mut *self.devices[self.active_device_idx]
     }
 
+    /// Returns the number of registered devices.
     pub fn device_count(&self) -> usize {
         self.devices.len()
     }
 
+    /// Lists registered devices and their capability summaries.
     pub fn list_devices(&self) -> Vec<String> {
         self.devices
             .iter()
@@ -273,6 +264,7 @@ impl AdaptiveComputeDispatcher {
             .collect()
     }
 
+    /// Builds and dispatches tile jobs for the current active device.
     pub fn dispatch_tile_compute(
         &mut self,
         image_width: usize,
@@ -280,80 +272,105 @@ impl AdaptiveComputeDispatcher {
         tile_size: usize,
         config: KernelConfig,
     ) -> Result<u64, String> {
+        self.dispatch_tile_compute_with_kernel(TileComputeDescriptor {
+            image_width,
+            image_height,
+            tile_size,
+            config,
+            kernel_name: "generic-tile",
+            kernel_source: b"kernel generic_tile(u32 tile_id) { return; }",
+            scene_signature: 0,
+            object_count: 0,
+            triangle_count: 0,
+        })
+    }
+
+    pub fn dispatch_tile_compute_with_kernel(
+        &mut self,
+        descriptor: TileComputeDescriptor<'_>,
+    ) -> Result<u64, String> {
         let device = self.active_device();
         let mut batch = ComputeJobBatch::new(device.capabilities().max_workgroups as usize);
+        let binary = device.compile_kernel(descriptor.kernel_name, descriptor.kernel_source)?;
+        batch.set_metadata(
+            hash32(&binary),
+            binary.len() as u32,
+            descriptor.scene_signature,
+            descriptor.object_count.min(u32::MAX as usize) as u32,
+            descriptor.triangle_count.min(u32::MAX as usize) as u32,
+        );
 
-        let tiles_across = image_width.div_ceil(tile_size);
-        let tiles_down = image_height.div_ceil(tile_size);
+        let tiles_across = descriptor.image_width.div_ceil(descriptor.tile_size);
+        let tiles_down = descriptor.image_height.div_ceil(descriptor.tile_size);
 
         for tile_y in 0..tiles_down {
             for tile_x in 0..tiles_across {
                 let tile_id = (tile_y * tiles_across + tile_x) as u32;
-                let x_min = tile_x * tile_size;
-                let y_min = tile_y * tile_size;
-                let x_max = (x_min + tile_size).min(image_width);
-                let y_max = (y_min + tile_size).min(image_height);
+                let x_min = tile_x * descriptor.tile_size;
+                let y_min = tile_y * descriptor.tile_size;
+                let x_max = (x_min + descriptor.tile_size).min(descriptor.image_width);
+                let y_max = (y_min + descriptor.tile_size).min(descriptor.image_height);
 
                 let pixel_count = (x_max - x_min) * (y_max - y_min);
-                let workgroups_needed = pixel_count.div_ceil(config.thread_count() as usize);
+                let workgroups_needed = pixel_count.div_ceil(descriptor.config.thread_count() as usize);
 
-                if !batch.push_job(tile_id, workgroups_needed as u32, 1, 1, config) {
+                if !batch.push_job(tile_id, workgroups_needed as u32, 1, 1, descriptor.config) {
                     break;
                 }
             }
         }
 
         eprintln!(
-            "compute: tile dispatch — {} tiles, {} total workgroups",
+            "compute: tile dispatch — {} tiles, {} total workgroups, kernel=0x{:08x}, scene=0x{:016x}",
             tiles_across * tiles_down,
-            batch.jobs.len()
+            batch.jobs.len(),
+            batch.kernel_tag,
+            batch.scene_signature,
         );
 
         device.submit_batch(&batch)
     }
 
+    /// Waits for all previously dispatched work to complete.
     pub fn wait_all_dispatched(&self) {
         self.active_device().wait_idle();
     }
 }
 
+fn hash32(bytes: &[u8]) -> u32 {
+    let mut hash = 0x811c9dc5u32;
+    for &byte in bytes {
+        hash ^= byte as u32;
+        hash = hash.wrapping_mul(0x01000193);
+    }
+    hash
+}
+
+/// SIMD capability snapshot used by diagnostic output.
 pub struct SimdCapabilities {
+    /// Preferred vector lanes for the current target.
     pub max_lanes: u32,
+    /// AVX2 availability.
     pub has_avx2: bool,
+    /// AVX availability.
     pub has_avx: bool,
+    /// SSE2 availability.
     pub has_sse2: bool,
+    /// SSE 4.2 availability.
     pub has_sse42: bool,
+    /// NEON availability.
     pub has_neon: bool,
+    /// SVE availability.
     pub has_sve: bool,
 }
 
 impl SimdCapabilities {
+    /// Detects SIMD capabilities for the current target.
     pub fn detect() -> Self {
-        let (has_avx2, has_avx, has_sse2, has_sse42) = {
-            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            {
-                (
-                    std::is_x86_feature_detected!("avx2"),
-                    std::is_x86_feature_detected!("avx"),
-                    std::is_x86_feature_detected!("sse2"),
-                    std::is_x86_feature_detected!("sse4.2"),
-                )
-            }
-            #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
-            {
-                (false, false, false, false)
-            }
-        };
-
-        let (has_neon, has_sve) = if cfg!(target_arch = "aarch64") {
-            (cfg!(target_feature = "neon"), cfg!(target_feature = "sve"))
-        } else {
-            (false, false)
-        };
-
-        let max_lanes = if has_avx2 || has_avx {
+        let f = native_calls::host_detect_simd_features();
+        let max_lanes = if f.avx2 || f.avx {
             8
-        } else if has_sse2 || has_neon {
+        } else if f.sse2 || f.neon {
             4
         } else {
             1
@@ -361,15 +378,16 @@ impl SimdCapabilities {
 
         Self {
             max_lanes,
-            has_avx2,
-            has_avx,
-            has_sse2,
-            has_sse42,
-            has_neon,
-            has_sve,
+            has_avx2: f.avx2,
+            has_avx: f.avx,
+            has_sse2: f.sse2,
+            has_sse42: f.sse4_2,
+            has_neon: f.neon,
+            has_sve: f.sve,
         }
     }
 
+    /// Prints a compact SIMD capability report.
     pub fn report(&self) {
         let mut features = Vec::new();
         if self.has_avx2 {
@@ -399,6 +417,7 @@ impl SimdCapabilities {
     }
 }
 
+/// Prints an extended compute environment diagnostic report.
 pub fn diagnose_compute_environment() {
     use crate::core::engine::acces_hardware::CommandBuffer;
     
@@ -438,9 +457,10 @@ pub fn diagnose_compute_environment() {
     dispatcher.register_device(Box::new(cpu_simd));
     dispatcher.register_device(Box::new(cpu_scalar));
     
-    if let Some(gpu_backend) = crate::core::engine::acces_hardware::GpuRenderBackend::try_init() {
+    let native_backend = NativeHardwareBackend::detect();
+    if let Some(gpu_backend) = native_backend.gpu_backend() {
         let gpu_device = GenericComputeDevice::new_gpu_with_fd(
-            &gpu_backend,
+            gpu_backend,
             gpu_backend.info().active_cu.max(4) * 8,
             1024,
             gpu_backend.info().active_cu.max(1),
@@ -456,13 +476,13 @@ pub fn diagnose_compute_environment() {
         );
     }
     
-    let _devices = dispatcher.list_devices();
+    let devices = dispatcher.list_devices();
     eprintln!("\nregistered devices:");
-    for device_info in _devices {
+    for device_info in devices {
         eprintln!("  {}", device_info);
     }
     
-    let autodispatched = AdaptiveComputeDispatcher::with_auto_detection(None);
+    let autodispatched = AdaptiveComputeDispatcher::with_auto_detection(native_backend.gpu_backend());
     eprintln!("\nauto-detected dispatcher: {} devices", autodispatched.device_count());
     
     let mut d2 = AdaptiveComputeDispatcher::new();
@@ -484,11 +504,14 @@ pub fn diagnose_compute_environment() {
     eprintln!("  shared memory: {} bytes", kernel_config.shared_memory_bytes);
     
     let mut batch = ComputeJobBatch::new(256);
+    let mut submitted_jobs = 0usize;
     for tile_id in 0..16 {
-        let _ = batch.push_job(tile_id, 4, 4, 1, kernel_config);
+        if batch.push_job(tile_id, 4, 4, 1, kernel_config) {
+            submitted_jobs = submitted_jobs.saturating_add(1);
+        }
     }
     eprintln!("\njob batch:");
-    eprintln!("  jobs submitted: {}", batch.jobs.len());
+    eprintln!("  jobs submitted: {}", submitted_jobs);
     eprintln!("  job IDs: {} to {}", batch.jobs[0].job_id, batch.jobs[batch.jobs.len()-1].job_id);
     eprintln!("  total threads: {}", batch.total_threads());
     

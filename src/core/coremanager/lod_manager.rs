@@ -1,3 +1,4 @@
+/// Paramètres de détail sélectionnés pour un objet donné.
 #[derive(Debug, Clone, Copy)]
 pub struct LodSelection {
     pub primary_samples: u32,
@@ -10,6 +11,7 @@ pub struct LodSelection {
 }
 
 impl LodSelection {
+    /// Paramètres de fond de scène (coût minimal).
     pub const fn background() -> Self {
         Self {
             primary_samples: 3,
@@ -23,6 +25,7 @@ impl LodSelection {
     }
 }
 
+/// Gestionnaire de niveau de détail basé sur distance et couverture écran.
 #[derive(Debug, Clone, Copy)]
 pub struct LodManager {
     near_distance: f64,
@@ -41,6 +44,7 @@ impl Default for LodManager {
 }
 
 impl LodManager {
+    /// Sélectionne les paramètres LOD en fonction de la distance caméra et du rayon de l'objet.
     pub fn select(&self, camera_distance: f64, object_radius: f64) -> LodSelection {
         let safe_distance = camera_distance.max(0.001);
         let coverage = (object_radius / safe_distance).clamp(0.0, 1.0);
@@ -92,6 +96,7 @@ impl LodManager {
         }
     }
 
+    /// Donne un facteur de détail global pour les éléments d'horizon.
     pub fn horizon_detail(&self, distance: f64) -> f64 {
         if distance <= self.near_distance {
             1.0

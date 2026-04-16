@@ -5,6 +5,7 @@ pub(crate) enum Vendor {
     Amd,
     Intel,
     Apple,
+    Unknown,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -37,7 +38,7 @@ fn detect_vendor() -> Vendor {
             return Vendor::Intel;
         }
     }
-    Vendor::Apple
+    Vendor::Unknown
 }
 
 pub(crate) fn default_config() -> RamConfig {
@@ -55,6 +56,10 @@ pub(crate) fn default_config() -> RamConfig {
             let c = apple::backend::default_backend_config();
             (c.page_size, c.total_bytes, c.available_bytes, c.frame_budget_us, c.low_power)
         }
+        Vendor::Unknown => {
+            let c = apple::backend::default_backend_config();
+            (c.page_size, c.total_bytes, c.available_bytes, c.frame_budget_us, c.low_power)
+        }
     };
     RamConfig { vendor, page_size, total_bytes, available_bytes, frame_budget_us, low_power }
 }
@@ -64,6 +69,7 @@ pub(crate) fn clamp_workers(requested: usize) -> usize {
         Vendor::Amd => amd::backend::clamp_workers(requested),
         Vendor::Intel => intel::backend::clamp_workers(requested),
         Vendor::Apple => apple::backend::clamp_workers(requested),
+        Vendor::Unknown => requested.max(1),
     }
 }
 
@@ -81,6 +87,11 @@ pub(crate) fn build_schedule(work_items: usize) -> RamSchedule {
         Vendor::Apple => {
             let s = apple::scheduler::build_schedule(work_items);
             (s.chunks, s.chunk_size, s.frame_budget_us)
+        }
+        Vendor::Unknown => {
+            let chunk_size = if work_items == 0 { 16 } else { work_items.div_ceil(16).max(16) };
+            let chunks = if work_items == 0 { 1 } else { work_items.div_ceil(chunk_size) };
+            (chunks, chunk_size, 8_333)
         }
     };
     RamSchedule { chunks, chunk_size, frame_budget_us }

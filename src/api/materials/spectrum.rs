@@ -17,6 +17,7 @@ pub struct Spectrum {
 }
 
 impl Spectrum {
+    /// Spectre nul sans énergie sur toutes les bandes.
     pub const ZERO: Self = Self {
         bands: [0.0; SPECTRAL_BANDS],
     };

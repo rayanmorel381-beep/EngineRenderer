@@ -41,6 +41,7 @@ impl Default for AiRenderer {
 }
 
 impl AiRenderer {
+    /// Crée un `AiRenderer` avec les préréglages HD et production par défaut.
     pub fn new() -> Self {
         Self {
             preset_hd: RenderPreset::UltraHdCpu,

@@ -459,11 +459,16 @@ pub(crate) fn default_ram_config() -> RamConfig {
 	#[cfg(target_os = "windows")]
 	{
 		let c = super::windows::ram::vendor::default_config();
+		let vendor_budget_scale = match c.vendor {
+			super::windows::ram::vendor::Vendor::Amd => 1u64,
+			super::windows::ram::vendor::Vendor::Intel => 1u64,
+			super::windows::ram::vendor::Vendor::Apple => 1u64,
+		};
 		return RamConfig {
 			page_size: c.page_size,
 			total_bytes: c.total_bytes,
 			available_bytes: c.available_bytes,
-			frame_budget_us: c.frame_budget_us,
+			frame_budget_us: c.frame_budget_us.saturating_mul(vendor_budget_scale),
 			low_power: c.low_power,
 		};
 	}

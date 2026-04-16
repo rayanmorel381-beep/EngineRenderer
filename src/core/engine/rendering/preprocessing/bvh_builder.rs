@@ -1,12 +1,16 @@
 use crate::core::engine::rendering::raytracing::{Sphere, Triangle, Vec3};
 
+/// Boîte englobante axis-aligned pour accélération BVH.
 #[derive(Debug, Clone, Copy)]
 pub struct Aabb {
+    /// Coin minimum de la boîte.
     pub min: Vec3,
+    /// Coin maximum de la boîte.
     pub max: Vec3,
 }
 
 impl Aabb {
+    /// Retourne une boîte vide initialisée aux extrêmes.
     pub fn empty() -> Self {
         Self {
             min: Vec3::new(f64::INFINITY, f64::INFINITY, f64::INFINITY),
@@ -14,6 +18,7 @@ impl Aabb {
         }
     }
 
+    /// Construit l'AABB d'une sphère.
     pub fn from_sphere(sphere: &Sphere) -> Self {
         let radius = Vec3::splat(sphere.radius);
         Self {
@@ -22,6 +27,7 @@ impl Aabb {
         }
     }
 
+    /// Construit l'AABB d'un triangle.
     pub fn from_triangle(tri: &Triangle) -> Self {
         Self {
             min: Vec3::new(
@@ -37,6 +43,7 @@ impl Aabb {
         }
     }
 
+    /// Retourne l'union de deux AABB.
     pub fn union(self, other: Self) -> Self {
         Self {
             min: Vec3::new(
@@ -52,6 +59,7 @@ impl Aabb {
         }
     }
 
+    /// Étend l'AABB pour inclure un point.
     pub fn expand(&mut self, point: Vec3) {
         self.min = Vec3::new(
             self.min.x.min(point.x),
@@ -65,15 +73,18 @@ impl Aabb {
         );
     }
 
+    /// Retourne le centre géométrique de l'AABB.
     pub fn center(&self) -> Vec3 {
         (self.min + self.max) * 0.5
     }
 
+    /// Retourne la surface de l'AABB.
     pub fn surface_area(&self) -> f64 {
         let extent = self.max - self.min;
         2.0 * (extent.x * extent.y + extent.y * extent.z + extent.z * extent.x).max(0.0)
     }
 
+    /// Retourne l'axe principal (0=x, 1=y, 2=z).
     pub fn longest_axis(&self) -> usize {
         let extent = self.max - self.min;
         if extent.x >= extent.y && extent.x >= extent.z {
@@ -85,6 +96,7 @@ impl Aabb {
         }
     }
 
+    /// Teste l'intersection rayon/AABB entre `t_min` et `t_max`.
     #[inline(always)]
     pub fn hit(&self, ray_origin: Vec3, ray_inv_dir: Vec3, mut t_min: f64, mut t_max: f64) -> bool {
         let mut t0 = (self.min.x - ray_origin.x) * ray_inv_dir.x;

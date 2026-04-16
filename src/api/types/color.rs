@@ -3,23 +3,29 @@ use crate::api::materials::Spectrum;
 /// Linear RGB colour (0..∞ HDR).
 #[derive(Debug, Clone, Copy)]
 pub struct Color {
+    /// Canal rouge linéaire.
     pub r: f64,
+    /// Canal vert linéaire.
     pub g: f64,
+    /// Canal bleu linéaire.
     pub b: f64,
 }
 
 impl Color {
+    /// Noir linéaire absolu.
     pub const BLACK: Self = Self {
         r: 0.0,
         g: 0.0,
         b: 0.0,
     };
+    /// Blanc linéaire unitaire.
     pub const WHITE: Self = Self {
         r: 1.0,
         g: 1.0,
         b: 1.0,
     };
 
+    /// Construit une couleur linéaire.
     pub const fn new(r: f64, g: f64, b: f64) -> Self {
         Self { r, g, b }
     }

@@ -54,7 +54,7 @@ struct DrmRadeonGemCreate {
 #[repr(C)]
 struct DrmRadeonGemMmap {
     handle: u32,
-    _pad: u32,
+    pad: u32,
     offset: u64,
     size: u64,
     addr_ptr: u64,
@@ -63,7 +63,7 @@ struct DrmRadeonGemMmap {
 #[repr(C)]
 struct DrmRadeonGemWait {
     handle: u32,
-    _pad: u32,
+    pad: u32,
 }
 
 #[repr(C)]
@@ -71,7 +71,7 @@ struct DrmRadeonGemSetDomain {
     handle: u32,
     read_domains: u32,
     write_domain: u32,
-    _pad: u32,
+    pad: u32,
 }
 
 #[repr(C)]
@@ -101,7 +101,7 @@ struct DrmAmdgpuGemCreate {
 #[repr(C)]
 struct DrmAmdgpuGemMmap {
     in_handle: u32,
-    _pad: u32,
+    pad: u32,
     out_addr_ptr: u64,
 }
 
@@ -254,7 +254,7 @@ pub(crate) fn drm_amdgpu_alloc_gem(fd: RawFd, size_bytes: u64) -> Option<GemBuff
 pub(crate) fn drm_radeon_gem_mmap(fd: RawFd, handle: u32, size: u64) -> Option<u64> {
     let mut args = DrmRadeonGemMmap {
         handle,
-        _pad: 0,
+        pad: 0,
         offset: 0,
         size,
         addr_ptr: 0,
@@ -273,7 +273,7 @@ pub(crate) fn drm_radeon_gem_mmap(fd: RawFd, handle: u32, size: u64) -> Option<u
 pub(crate) fn drm_amdgpu_gem_mmap(fd: RawFd, handle: u32) -> Option<u64> {
     let mut args = DrmAmdgpuGemMmap {
         in_handle: handle,
-        _pad: 0,
+        pad: 0,
         out_addr_ptr: 0,
     };
     let ret = unsafe {
@@ -287,7 +287,7 @@ pub(crate) fn drm_amdgpu_gem_mmap(fd: RawFd, handle: u32) -> Option<u64> {
 }
 
 pub(crate) fn drm_radeon_gem_wait(fd: RawFd, handle: u32) -> bool {
-    let mut args = DrmRadeonGemWait { handle, _pad: 0 };
+    let mut args = DrmRadeonGemWait { handle, pad: 0 };
     let ret = unsafe {
         raw_ioctl(fd, DRM_IOCTL_RADEON_GEM_WAIT_IDLE, core::ptr::addr_of_mut!(args).cast())
     };
@@ -315,7 +315,7 @@ pub(crate) fn drm_radeon_set_domain(fd: RawFd, handle: u32, read_domains: u32, w
         handle,
         read_domains,
         write_domain,
-        _pad: 0,
+        pad: 0,
     };
     let ret = unsafe {
         raw_ioctl(fd, DRM_IOCTL_RADEON_GEM_SET_DOMAIN, core::ptr::addr_of_mut!(args).cast())

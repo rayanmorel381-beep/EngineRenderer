@@ -24,6 +24,16 @@ pub(crate) struct CpuSchedule {
 }
 
 fn detect_vendor() -> Vendor {
+    if let Some(info) = amd::detect_amd()
+        && (!info.brand.is_empty() || info.base_mhz > 0 || info.smt_enabled)
+    {
+        return Vendor::Amd;
+    }
+    if let Some(info) = intel::detect_intel()
+        && (!info.brand.is_empty() || info.base_mhz > 0 || info.turbo_available)
+    {
+        return Vendor::Intel;
+    }
     if let Ok(id) = std::env::var("PROCESSOR_IDENTIFIER") {
         let id = id.to_lowercase();
         if id.contains("apple") {

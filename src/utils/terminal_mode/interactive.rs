@@ -1,3 +1,5 @@
+//! Interactive REPL implementation for the terminal mode.
+
 use std::error::Error;
 use std::io::{self, Write};
 
@@ -6,6 +8,7 @@ use super::cli;
 use super::docs;
 use super::ui;
 
+/// Runs the interactive terminal loop.
 pub fn run_interactive() -> Result<(), Box<dyn Error>> {
     const MODULES: [&str; 8] = [
         "ai",
@@ -89,7 +92,10 @@ pub fn run_interactive() -> Result<(), Box<dyn Error>> {
                         "gallery" => cli::run_command("gallery")?,
                         "test" => cli::run_command("test")?,
                         "run" => cli::run_command("run")?,
-                        "detect" | "debug" => cli::run_command("detect")?,
+                        "detect" | "debug" => {
+                            let tail: Vec<&str> = parts.collect();
+                            cli::run_command_with_args("detect", &tail)?;
+                        }
                         other => eprintln!("unknown engine function: {}", other),
                     },
                     Some("animation") => match function_name {
@@ -136,14 +142,20 @@ pub fn run_interactive() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn print_root_help(_modules: &[&str]) {
+fn print_root_help(modules: &[&str]) {
     let width = ui::terminal_columns().saturating_sub(2).clamp(60, 79);
+    let mut listed = String::new();
+    for (idx, module) in modules.iter().enumerate() {
+        if idx > 0 {
+            listed.push_str("  ");
+        }
+        listed.push_str(module);
+    }
     let namespace_lines = vec![
         "🚀Welcome in Helper🚀".to_string(),
         String::new(),
         "📦 Modules:".to_string(),
-        "  🧠 ai         🎬 animation    📷 camera     ⚙ engine".to_string(),
-        "  🎨 materials  📦 objects      🌌 scenes     🧩 types".to_string(),
+        listed,
     ];
     ui::print_framed_panel("Root Namespace", &namespace_lines, width);
 
@@ -177,7 +189,7 @@ fn print_module_help(module: &str) {
 
     match module {
         "engine" => {
-            let callable = vec!["render | gallery | test | run | detect".to_string()];
+            let callable = vec!["run (interactive inputs) | render | gallery | test | detect [--json --verbose --bench --component <name> --override <k=v,...>]".to_string()];
             ui::print_console_block("Callable Functions", &callable);
         }
         "animation" => {

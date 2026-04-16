@@ -7,6 +7,7 @@ use std::{
 
 use super::sequence::SequenceResult;
 
+/// Erreur retournée lorsque `ffmpeg` n'est pas disponible dans le `PATH`.
 #[derive(Debug)]
 pub struct FfmpegNotFound;
 
@@ -18,9 +19,11 @@ impl fmt::Display for FfmpegNotFound {
 
 impl Error for FfmpegNotFound {}
 
+/// Encodeur vidéo utilitaire pour transformer des séquences PNG en H.264.
 pub struct VideoExporter;
 
 impl VideoExporter {
+    /// Encode une séquence d'images `prefix_00001.png...` en MP4/H.264.
     pub fn encode_h264<P: AsRef<Path>, Q: AsRef<Path>>(
         frame_dir:    P,
         frame_prefix: &str,
@@ -62,6 +65,7 @@ impl VideoExporter {
         }
     }
 
+    /// Encode directement une vidéo à partir d'un `SequenceResult`.
     pub fn encode_from_result<P: AsRef<Path>>(
         result:      &SequenceResult,
         output_path: P,

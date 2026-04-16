@@ -10,6 +10,7 @@ use crate::core::engine::rendering::{
     },
     effects::volumetric_effects::medium::VolumetricMedium,
 };
+use std::sync::OnceLock;
 
 use super::{
     celestial::CelestialBodies,
@@ -22,21 +23,58 @@ use super::{
 use crate::core::coremanager::camera_manager::CameraManager;
 use crate::core::scheduler::resource::ResourceManager;
 
+/// Scène moteur complète : géométrie rendu, caméra active et graphe de scène.
 #[derive(Debug, Clone)]
 pub struct EngineScene {
+    /// Scène de rendu contenant les objets, lumières et environnement.
     pub scene: Scene,
+    /// Caméra active pour le rendu.
     pub camera: Camera,
+    /// Graphe de scène utilisé pour les calculs de disposition.
     pub graph: SceneGraph,
 }
 
+/// Prise de vue dédiée à la galerie, avec un nom et une configuration de scène/caméra indépendante.
 #[derive(Debug, Clone)]
 pub struct ShowcaseShot {
+    /// Identifiant textuel de la prise de vue.
     pub name: &'static str,
+    /// Scène de rendu de la prise de vue.
     pub scene: Scene,
+    /// Caméra associée à la prise de vue.
     pub camera: Camera,
 }
 
+/// Budget de complexité appliqué à la scène showcase.
+#[derive(Debug, Clone, Copy)]
+pub struct SceneComplexity {
+    /// Nombre maximal de meshes showcase instanciés.
+    pub showcase_mesh_budget: usize,
+    /// Nombre maximal de lumières surfaciques conservées.
+    pub area_light_budget: usize,
+    /// Active ou non le panorama céleste additionnel.
+    pub panorama_enabled: bool,
+    /// Active ou non le raffinement géométrique des meshes showcase.
+    pub refined_showcase_meshes: bool,
+    /// Remplace les meshes showcase par des proxies low-poly.
+    pub proxy_showcase_meshes: bool,
+}
+
+impl SceneComplexity {
+    /// Retourne la complexité maximale.
+    pub fn full() -> Self {
+        Self {
+            showcase_mesh_budget: usize::MAX,
+            area_light_budget: usize::MAX,
+            panorama_enabled: true,
+            refined_showcase_meshes: true,
+            proxy_showcase_meshes: false,
+        }
+    }
+}
+
 impl EngineScene {
+    /// Construit une `EngineScene` à partir d'un catalogue de corps célestes et des gestionnaires de ressources.
     pub fn from_bodies(
         catalog: &CelestialBodies,
         camera_manager: &CameraManager,
@@ -44,6 +82,27 @@ impl EngineScene {
         graph: SceneGraph,
         aspect_ratio: f64,
         time: f64,
+    ) -> Self {
+        Self::from_bodies_with_complexity(
+            catalog,
+            camera_manager,
+            resource_manager,
+            graph,
+            aspect_ratio,
+            time,
+            SceneComplexity::full(),
+        )
+    }
+
+    /// Construit une `EngineScene` en appliquant un budget explicite de complexité géométrique et lumineuse.
+    pub fn from_bodies_with_complexity(
+        catalog: &CelestialBodies,
+        camera_manager: &CameraManager,
+        resource_manager: &ResourceManager,
+        graph: SceneGraph,
+        aspect_ratio: f64,
+        time: f64,
+        complexity: SceneComplexity,
     ) -> Self {
         let mut scene = catalog.to_scene();
         let environment = resource_manager.environment();
@@ -64,33 +123,30 @@ impl EngineScene {
         scene.solar_elevation = environment.solar_elevation;
 
         let showcase_anchor = graph.focus_point() + Vec3::new(0.2, 0.0, 5.4);
-        let content_bundle = ContentLoader.load_showcase_bundle();
-        let obj_meshes = ObjLoader.load_embedded_showcase();
-        let glb_meshes = GlbLoader.load_embedded_showcase();
+        let showcase_meshes = cached_showcase_meshes(
+            complexity.refined_showcase_meshes,
+            complexity.proxy_showcase_meshes,
+        );
 
-        scene.triangles = content_bundle
-            .primary_meshes
+        scene.triangles = showcase_meshes
             .iter()
-            .chain(content_bundle.cinematic_meshes.iter())
-            .chain(obj_meshes.iter())
-            .chain(glb_meshes.iter())
+            .take(complexity.showcase_mesh_budget)
             .enumerate()
             .flat_map(|(index, mesh)| {
-                let refined = refine_mesh_for_render(mesh);
                 let translation = showcase_anchor
                     + Vec3::new(
                         -3.8 + index as f64 * 1.25,
                         0.38 + (index % 3) as f64 * 0.46,
                         -1.0 + index as f64 * 0.72,
                     );
-                let scale = (0.16 + refined.descriptor.bounding_radius * 0.10).clamp(0.14, 0.48);
+                let scale = (0.16 + mesh.descriptor.bounding_radius * 0.10).clamp(0.14, 0.48);
                 let fallback_material = match index % 4 {
                     0 => MaterialLibrary::metallic_moon(),
                     1 => MaterialLibrary::rocky_world(Vec3::new(0.58, 0.46, 0.34)),
                     2 => MaterialLibrary::icy_world(),
                     _ => MaterialLibrary::ocean_world(),
                 };
-                refined.to_triangles(translation, scale, refined.material_or(fallback_material))
+                mesh.to_triangles(translation, scale, mesh.material_or(fallback_material))
             })
             .collect();
 
@@ -116,9 +172,14 @@ impl EngineScene {
                 color: Vec3::new(0.94, 0.96, 1.0),
                 intensity: 1.0,
             },
-        ];
+        ]
+        .into_iter()
+        .take(complexity.area_light_budget)
+        .collect();
 
-        append_celestial_panorama(&mut scene, graph.focus_point());
+        if complexity.panorama_enabled {
+            append_celestial_panorama(&mut scene, graph.focus_point());
+        }
 
         scene.sun.intensity *= 1.12;
         scene.exposure *= 1.04 + (scene.triangles.len() as f64).ln().max(0.0) * 0.010;
@@ -128,10 +189,23 @@ impl EngineScene {
         Self { scene, camera, graph }
     }
 
+    /// Construit uniquement la caméra showcase temps réel pour un graphe déjà préparé.
+    pub fn realtime_camera(
+        camera_manager: &CameraManager,
+        graph: &SceneGraph,
+        aspect_ratio: f64,
+        time: f64,
+    ) -> Camera {
+        let showcase_anchor = graph.focus_point() + Vec3::new(0.2, 0.0, 5.4);
+        build_showcase_camera(camera_manager, graph, showcase_anchor, aspect_ratio, time)
+    }
+
+    /// Retourne le nombre de nœuds dans le graphe de la scène.
     pub fn node_count(&self) -> usize {
         self.graph.node_count()
     }
 
+    /// Retourne les prises de vue galerie prédéfinies (voiture, arbre, maison, planète, soleil…).
     pub fn dedicated_gallery_shots() -> Vec<ShowcaseShot> {
         vec![
             build_car_showcase(),
@@ -143,6 +217,53 @@ impl EngineScene {
             build_black_hole_showcase(),
         ]
     }
+}
+
+fn cached_showcase_meshes(refined: bool, proxy: bool) -> &'static [MeshAsset] {
+    static RAW_SHOWCASE_MESHES: OnceLock<Vec<MeshAsset>> = OnceLock::new();
+    static REFINED_SHOWCASE_MESHES: OnceLock<Vec<MeshAsset>> = OnceLock::new();
+    static PROXY_SHOWCASE_MESHES: OnceLock<Vec<MeshAsset>> = OnceLock::new();
+
+    let load_meshes = || {
+        let content_bundle = ContentLoader.load_showcase_bundle();
+        let obj_meshes = ObjLoader.load_embedded_showcase();
+        let glb_meshes = GlbLoader.load_embedded_showcase();
+        content_bundle
+            .primary_meshes
+            .into_iter()
+            .chain(content_bundle.cinematic_meshes)
+            .chain(obj_meshes)
+            .chain(glb_meshes)
+            .collect::<Vec<_>>()
+    };
+
+    if proxy {
+        PROXY_SHOWCASE_MESHES.get_or_init(|| {
+            load_meshes()
+                .into_iter()
+                .map(|mesh| showcase_proxy_mesh(&mesh))
+                .collect()
+        })
+    } else if refined {
+        REFINED_SHOWCASE_MESHES.get_or_init(|| {
+            load_meshes()
+                .into_iter()
+                .map(|mesh| refine_mesh_for_render(&mesh))
+                .collect()
+        })
+    } else {
+        RAW_SHOWCASE_MESHES.get_or_init(load_meshes)
+    }
+}
+
+fn showcase_proxy_mesh(mesh: &MeshAsset) -> MeshAsset {
+    let mut proxy = MeshAsset::procedural_asteroid(
+        &mesh.name,
+        mesh.descriptor.bounding_radius.max(0.12),
+        1,
+    );
+    proxy.preferred_material = mesh.preferred_material;
+    proxy
 }
 
 fn refine_mesh_for_render(mesh: &MeshAsset) -> MeshAsset {

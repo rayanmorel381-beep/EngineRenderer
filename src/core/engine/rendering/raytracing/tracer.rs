@@ -8,9 +8,6 @@ use std::{
 use crate::core::engine::acces_hardware::{
     self, precise_timestamp_ns, elapsed_ms as hw_elapsed_ms,
 };
-
-
-use crate::core::engine::acces_hardware::cpu::detect_core_frequencies;
 use crate::core::engine::rendering::lod::manager::LodManager;
 use crate::core::engine::rendering::lod::selection::LodSelection;
 use crate::core::scheduler::adaptive::TileScheduler;
@@ -290,31 +287,6 @@ pub struct CpuRayTracer;
 pub type BvhStats = super::acceleration::BvhStats;
 
 impl CpuRayTracer {
-    pub fn render(
-        &self,
-        scene: &Scene,
-        camera: &super::camera::Camera,
-        config: &RenderConfig,
-        lod_manager: &LodManager,
-    ) -> (Image, BvhStats) {
-        let t_bvh = precise_timestamp_ns();
-        let bvh = BvhNode::build(scene);
-        let bvh_stats = bvh.as_ref().map(|n| n.stats()).unwrap_or_default();
-        let bvh_ms = hw_elapsed_ms(t_bvh, precise_timestamp_ns());
-        eprintln!("tracer: BVH build {:.2}ms (nodes={} leaves={})",
-            bvh_ms, bvh_stats.node_count, bvh_stats.leaf_count);
-
-        let core_freqs = detect_core_frequencies();
-        if !core_freqs.is_empty() {
-            let max_freq = core_freqs.iter().map(|c| c.frequency_hz).max().unwrap_or(0);
-            let min_freq = core_freqs.iter().map(|c| c.frequency_hz).min().unwrap_or(0);
-            eprintln!("tracer: {} cores, freq range {}-{}MHz",
-                core_freqs.len(), min_freq / 1_000_000, max_freq / 1_000_000);
-        }
-
-        self.render_with_bvh(scene, camera, config, lod_manager, bvh.as_ref())
-    }
-
     pub fn render_with_scheduler(
         &self,
         scene: &Scene,
@@ -375,12 +347,13 @@ impl CpuRayTracer {
             config.firefly_threshold,
             config.thread_count,
         );
+        let dma_flushed = self.flush_image_to_dma(&denoised, scheduler.dma_ptr());
         let denoise_ms = hw_elapsed_ms(t_denoise, precise_timestamp_ns());
 
         let total_ms = hw_elapsed_ms(t_start, precise_timestamp_ns());
         eprintln!(
-            "tracer: total={:.1}ms (dispatch={:.1} assemble={:.1} denoise={:.1})",
-            total_ms, dispatch_ms, assemble_ms, denoise_ms,
+            "tracer: total={:.1}ms (dispatch={:.1} assemble={:.1} denoise={:.1} dma_flush={})",
+            total_ms, dispatch_ms, assemble_ms, denoise_ms, dma_flushed,
         );
 
         (denoised, bvh_stats)
@@ -447,12 +420,13 @@ impl CpuRayTracer {
             config.firefly_threshold,
             config.thread_count,
         );
+        let dma_flushed = self.flush_image_to_dma(&denoised, scheduler.dma_ptr());
         let denoise_ms = hw_elapsed_ms(t_denoise, precise_timestamp_ns());
 
         let total_ms = hw_elapsed_ms(t_start, precise_timestamp_ns());
         eprintln!(
-            "tracer: total={:.1}ms (dispatch={:.1} assemble={:.1} denoise={:.1})",
-            total_ms, dispatch_ms, assemble_ms, denoise_ms,
+            "tracer: total={:.1}ms (dispatch={:.1} assemble={:.1} denoise={:.1} dma_flush={})",
+            total_ms, dispatch_ms, assemble_ms, denoise_ms, dma_flushed,
         );
 
         (denoised, bvh_stats)
@@ -734,5 +708,23 @@ impl CpuRayTracer {
             height: h,
             pixels: current,
         }
+    }
+
+    fn flush_image_to_dma(&self, image: &Image, dma_ptr: Option<*mut u8>) -> bool {
+        let Some(dma_ptr) = dma_ptr else {
+            return false;
+        };
+        let byte_len = image.width.saturating_mul(image.height).saturating_mul(3);
+        if byte_len == 0 {
+            return false;
+        }
+        let dma = unsafe { std::slice::from_raw_parts_mut(dma_ptr, byte_len) };
+        for (pixel, out) in image.pixels.iter().zip(dma.chunks_exact_mut(3)) {
+            let corrected = pixel.clamp(0.0, 1.0).powf(1.0 / 2.2);
+            out[0] = (corrected.x * 255.0).round() as u8;
+            out[1] = (corrected.y * 255.0).round() as u8;
+            out[2] = (corrected.z * 255.0).round() as u8;
+        }
+        true
     }
 }

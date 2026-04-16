@@ -573,11 +573,39 @@ pub struct ComputeJob {
 pub struct ComputeJobBatch {
     pub jobs: Vec<ComputeJob>,
     pub capacity: usize,
+    pub kernel_tag: u32,
+    pub kernel_size_bytes: u32,
+    pub scene_signature: u64,
+    pub object_count: u32,
+    pub triangle_count: u32,
 }
 
 impl ComputeJobBatch {
     pub fn new(capacity: usize) -> Self {
-        Self { jobs: Vec::new(), capacity }
+        Self {
+            jobs: Vec::new(),
+            capacity,
+            kernel_tag: 0,
+            kernel_size_bytes: 0,
+            scene_signature: 0,
+            object_count: 0,
+            triangle_count: 0,
+        }
+    }
+
+    pub fn set_metadata(
+        &mut self,
+        kernel_tag: u32,
+        kernel_size_bytes: u32,
+        scene_signature: u64,
+        object_count: u32,
+        triangle_count: u32,
+    ) {
+        self.kernel_tag = kernel_tag;
+        self.kernel_size_bytes = kernel_size_bytes;
+        self.scene_signature = scene_signature;
+        self.object_count = object_count;
+        self.triangle_count = triangle_count;
     }
 
     pub fn push_job(
@@ -609,6 +637,11 @@ impl ComputeJobBatch {
 
     pub fn clear(&mut self) {
         self.jobs.clear();
+        self.kernel_tag = 0;
+        self.kernel_size_bytes = 0;
+        self.scene_signature = 0;
+        self.object_count = 0;
+        self.triangle_count = 0;
     }
 }
 
@@ -654,8 +687,10 @@ impl ComputeQueue {
         if self.is_idle() {
             return;
         }
-        let guard = self.idle_signal.0.lock().unwrap();
-        let _guard = self.idle_signal.1.wait_while(guard, |_| !self.is_idle()).unwrap();
+        let mut guard = self.idle_signal.0.lock().unwrap();
+        while !self.is_idle() {
+            guard = self.idle_signal.1.wait(guard).unwrap();
+        }
     }
 }
 

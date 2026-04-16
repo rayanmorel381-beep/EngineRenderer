@@ -1,7 +1,7 @@
 use crate::api::materials::catalog::MaterialCatalog;
 use crate::api::objects::SceneObject;
+use crate::core::engine::rendering::raytracing::Vec3;
 
-// Re-export mesh/geometry internals
 pub use crate::core::engine::rendering::mesh::asset::MeshAsset;
 pub use crate::core::engine::rendering::mesh::generators::{ground_plane, icosphere, torus, unit_cube};
 pub use crate::core::engine::rendering::mesh::operations::{
@@ -9,9 +9,7 @@ pub use crate::core::engine::rendering::mesh::operations::{
 };
 pub use crate::core::engine::rendering::mesh::vertex::{cube, geometric_density, plane, uv_sphere};
 pub use crate::core::engine::rendering::preprocessing::bvh_builder::Aabb;
-pub use crate::core::engine::rendering::raytracing::{Vec3, Ray, Sphere, Triangle, Material, Scene};
-pub use crate::core::engine::rendering::renderer::Renderer;
-pub use crate::core::engine::rendering::renderer::types::RenderPreset;
+pub use crate::core::engine::rendering::raytracing::{Material, Ray, Scene, Sphere, Triangle};
 
 /// Primitive object factories — one function call = one renderable object.
 ///

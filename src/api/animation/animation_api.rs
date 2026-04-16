@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use crate::api::scene_descriptor::SceneDescriptor;
+use crate::api::scenes::SceneDescriptor;
 use crate::api::types::core::{Quality, RenderRequest};
 use crate::core::animation::clip::AnimationClip;
 use crate::core::animation::sequence::{FrameSequencer, SequenceResult};
@@ -10,6 +10,7 @@ use crate::core::engine::rendering::renderer::types::RenderPreset;
 use crate::api::engine::EngineApi;
 
 impl EngineApi {
+    /// Rend une animation complète à partir d'une scène de base et d'un clip.
     pub fn render_animation(
         &self,
         base: SceneDescriptor,
@@ -18,7 +19,7 @@ impl EngineApi {
         frame_prefix: &str,
     ) -> Result<SequenceResult, Box<dyn Error>> {
         let preset = match request.quality {
-            Quality::Preview => RenderPreset::PreviewCpu,
+            Quality::Preview => RenderPreset::AnimationFast,
             Quality::Hd => RenderPreset::UltraHdCpu,
             Quality::Production => RenderPreset::ProductionReference,
         };
@@ -36,6 +37,7 @@ impl EngineApi {
         sequencer.render_all()
     }
 
+    /// Encode une séquence de frames en MP4/H.264.
     pub fn encode_animation_mp4<P: AsRef<std::path::Path>>(
         &self,
         sequence: &SequenceResult,

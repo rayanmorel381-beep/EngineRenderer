@@ -10,6 +10,40 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## `0.0.2` — 2026-04-16
+
+> Realtime 120 FPS profile hardening, cross-architecture runtime validation, and Windows target Clippy cleanup.
+
+### ⚡ Realtime Performance
+
+- Unified ultra-constrained 120 FPS profile across architectures
+- Realtime scene complexity budget added (proxy meshes, light budget, optional panorama)
+- Showcase mesh caching and BVH reuse moved outside the realtime frame loop
+- Deadline-based frame pacing with drift compensation for stable high-frequency loops
+- Ultra-constrained presentation path tuned to reduce per-frame overhead
+
+### 📊 Runtime Validation
+
+- Linux x86_64 release realtime benchmark (3s, target 120 FPS): achieved > 120 FPS
+- Android ARM64 release realtime benchmark (3s, target 120 FPS): achieved > 120 FPS
+- Runtime tuning now scales internal resolution and scene cost to preserve target cadence
+
+### 🪟 Windows Target Quality
+
+- Windows x86_64 vendor paths wired so CPU/GPU detection code is actively used
+- Dead-code warning sources on Windows vendor modules eliminated through integration
+- Clippy warnings fixed on `x86_64-pc-windows-gnu`:
+	- collapsed nested `if`
+	- replaced manual `div_ceil` patterns
+	- replaced manual clamp patterns with `clamp`
+	- renamed acronym aliases (`HKEY` → `Hkey`) to satisfy lint rules
+- `cargo clippy --target x86_64-pc-windows-gnu` now passes cleanly
+
+### 🧱 Build & Docs
+
+- Strict docs check kept clean (`RUSTFLAGS='-W missing-docs' cargo check`)
+- Cross-target checks revalidated after perf/runtime refactors
+
 ## `0.0.1` — 2026-04-14
 
 > Initial release — full rendering pipeline, animation system, multi-platform HAL.
@@ -63,9 +97,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ### 🛠️ Tools & CLI
 
 - Interactive terminal REPL — module navigation · documentation browser · framed UI panels
-- CLI mode — `render` · `gallery` · `test` · `help`
+- CLI mode — `render` · `gallery` · `test` · `video` · `run` · `detect` · `help`
 - 7 render examples — spheres · cubes · house · city · car · world · blackhole
-- Standalone `generate_mp4.rs` black hole accretion disk animation
+- `video` mode — animation MP4 générique avec chargement de scène `.scene` via `--scene-file`
+- `run` mode — prévisualisation realtime paramétrable (`--seconds`, `--fps`, `--width`, `--height`)
 
 ### ⚙️ Infrastructure
 

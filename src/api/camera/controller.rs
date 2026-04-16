@@ -11,6 +11,7 @@ pub struct CameraController {
 }
 
 impl CameraController {
+    /// Crée un `CameraController` avec les valeurs par défaut.
     pub fn new() -> Self {
         Self::default()
     }

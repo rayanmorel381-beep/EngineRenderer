@@ -11,22 +11,50 @@ pub mod pipeline;
 pub mod scene_builder;
 pub mod types;
 
+use std::sync::{Arc, Mutex};
+
 use crate::core::engine::acces_hardware::{
-    self, DrmDriver, HardwareCapabilities, GpuRenderBackend, CpuProfile,
+    self, CpuProfile, DrmDriver, GpuRenderBackend, HardwareCapabilities, KernelConfig,
+    NativeHardwareBackend, RamRuntimeConfig,
 };
+use crate::core::engine::math::{Mat4, Vec3, Vec4};
 use crate::core::engine::rendering::{
     lod::manager::LodManager,
-    raytracing::{CpuRayTracer, RenderConfig},
+    raytracing::{CpuRayTracer, RenderConfig, Scene},
+    raytracing::acceleration::BvhNode,
+    framebuffer::FrameBuffer,
+    shader_dispatcher::{AdaptiveComputeDispatcher, TileComputeDescriptor},
 };
 
 use types::RenderPreset;
+
+#[derive(Debug, Clone)]
+struct CachedBvh {
+    signature: u64,
+    object_count: usize,
+    triangle_count: usize,
+    bvh: Arc<BvhNode>,
+}
+
+impl std::fmt::Debug for Renderer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Renderer")
+            .field("width", &self.width)
+            .field("height", &self.height)
+            .field("lod_manager", &self.lod_manager)
+            .field("hw_caps", &self.hw_caps)
+            .field("cpu_profile", &self.cpu_profile)
+            .field("ram_config", &self.ram_config)
+            .field("gpu", &self.gpu)
+            .finish()
+    }
+}
 
 /// Hybrid CPU/GPU offline renderer.
 ///
 /// Hardware is probed once at construction. The stored `hw_caps` and
 /// `cpu_profile` drive every scheduling and allocation decision —
 /// thread count, tile sizing, memory guards, GPU framebuffer, etc.
-#[derive(Debug)]
 pub struct Renderer {
     /// Target width.
     pub(super) width: usize,
@@ -40,108 +68,170 @@ pub struct Renderer {
     pub hw_caps: HardwareCapabilities,
     /// Detailed CPU profile (SIMD, caches, frequencies).
     pub(super) cpu_profile: CpuProfile,
+    pub(super) ram_config: RamRuntimeConfig,
     /// GPU DRM backend (None if no GPU or DRM unavailable).
     pub(super) gpu: Option<GpuRenderBackend>,
+    bvh_cache: Mutex<Option<CachedBvh>>,
+    compute_dispatcher: Mutex<AdaptiveComputeDispatcher>,
 }
 
 impl Renderer {
+        fn with_resolution_from_backend(width: usize, height: usize, native_backend: &NativeHardwareBackend) -> Self {
+            let hw_caps = native_backend.hw_caps().clone();
+            hw_caps.log_summary();
+
+            let cpu_profile = native_backend.cpu_profile().clone();
+            let ram_config = native_backend.ram_config();
+            let ram_available = ram_config.available_bytes.unwrap_or(ram_config.total_bytes);
+            eprintln!(
+                "native-ram: page={} total={}MB available={}MB",
+                ram_config.page_size,
+                ram_config.total_bytes / (1024 * 1024),
+                ram_available / (1024 * 1024),
+            );
+            let native_cpu = acces_hardware::native_cpu_call(&cpu_profile);
+            let optimal_workgroup = acces_hardware::arch_optimal_workgroup();
+            eprintln!(
+                "native-cpu: arch={} logical_cores={} vec={}bit workgroup={}",
+                native_cpu.architecture,
+                native_cpu.logical_cores,
+                native_cpu.vector_width_bits,
+                optimal_workgroup,
+            );
+            let (matrix_probe, basis_probe, tone_probe) = Self::runtime_transform_probe(width, height);
+            eprintln!(
+                "native-math: mvp_probe={:.4} basis_probe={:.4} tone_probe={:.4}",
+                matrix_probe,
+                basis_probe,
+                tone_probe,
+            );
+            cpu_profile.log_summary();
+
+            let pixel_bytes = (width * height * 24) as u64;
+            let max_bytes = hw_caps.max_framebuffer_bytes_for_input(width.saturating_mul(height));
+            if pixel_bytes > max_bytes {
+                eprintln!(
+                    "renderer: WARNING {}×{} needs {}MB, only {}MB available — consider lower resolution",
+                    width, height,
+                    pixel_bytes / (1024 * 1024),
+                    max_bytes / (1024 * 1024),
+                );
+            }
+
+            let compute_dispatcher = AdaptiveComputeDispatcher::with_native_backend(native_backend);
+            let mut gpu = native_backend.probe_gpu_backend();
+            if let Some(ref mut g) = gpu {
+                let driver_family = match g.driver() {
+                    DrmDriver::Amdgpu | DrmDriver::Radeon => "amd",
+                    DrmDriver::I915 | DrmDriver::Xe => "intel",
+                    DrmDriver::Nouveau => "nvidia-open",
+                    DrmDriver::Mali => "arm",
+                    DrmDriver::Agx => "apple",
+                    DrmDriver::Msm => "qualcomm",
+                    DrmDriver::Unknown => "unknown",
+                };
+                if g.has_valid_metrics() {
+                    eprintln!(
+                        "renderer: GPU DRM backend active (driver={} family={} vram={}MB, CU={}, device={:04x})",
+                        g.driver_name(),
+                        driver_family,
+                        g.vram_bytes() / (1024 * 1024),
+                        g.compute_units(),
+                        g.info().device_id,
+                    );
+                } else {
+                    eprintln!(
+                        "renderer: GPU DRM backend active (driver={} family={}, telemetry unavailable)",
+                        g.driver_name(),
+                        driver_family,
+                    );
+                }
+                if let Some(dt_compatible) = g.dt_compatible.as_deref() {
+                    eprintln!("renderer: GPU device-tree node={}", dt_compatible);
+                }
+                if let Some(ptr) = g.alloc_framebuffer(width, height) {
+                    eprintln!(
+                        "renderer: GPU framebuffer allocated ({}×{}, ptr={:p}, gem={})",
+                        width,
+                        height,
+                        ptr,
+                        g.has_gem_framebuffer(),
+                    );
+                } else {
+                    eprintln!("renderer: GPU framebuffer alloc failed, GPU command path disabled");
+                }
+            } else {
+                eprintln!("hardware: no DRM GPU available, using CPU-only rendering");
+            }
+
+            let native_gpu = acces_hardware::native_gpu_call(gpu.as_ref(), width.saturating_mul(height));
+            eprintln!(
+                "native-gpu: init_ok={} dispatch_ok={} framebuffer_ok={}",
+                native_gpu.init_ok,
+                native_gpu.dispatch_ok,
+                native_gpu.framebuffer_ok,
+            );
+
+            Self {
+                width,
+                height,
+                tracer: CpuRayTracer,
+                lod_manager: LodManager::default(),
+                hw_caps,
+                cpu_profile,
+                ram_config,
+                gpu,
+                bvh_cache: Mutex::new(None),
+                compute_dispatcher: Mutex::new(compute_dispatcher),
+            }
+        }
+
+        pub fn with_resolution_using_backend(width: usize, height: usize, backend: &NativeHardwareBackend) -> Self {
+            Self::with_resolution_from_backend(width, height, backend)
+        }
+
+    fn runtime_transform_probe(width: usize, height: usize) -> (f32, f32, f32) {
+        let aspect = (width.max(1) as f32) / (height.max(1) as f32);
+        let eye = Vec3::new(0.0, 1.5, 4.0);
+        let center = Vec3::new(0.0, 0.0, 0.0);
+        let up = Vec3::new(0.0, 1.0, 0.0);
+
+        let view = Mat4::look_at(eye, center, up);
+        let projection = Mat4::perspective(std::f32::consts::FRAC_PI_3, aspect, 0.1, 2500.0);
+        let model = Mat4::translate(0.0, 0.0, 0.0)
+            * Mat4::rotate(Vec3::new(0.0, 1.0, 0.0), 0.25)
+            * Mat4::scale(1.0, 1.0, 1.0);
+        let mvp = projection * view * model * Mat4::IDENTITY;
+
+        let m = mvp.as_ref();
+        let basis_forward = (center - eye).normalize();
+        let basis_right = basis_forward.cross(up).normalize();
+        let alignment = basis_forward.dot(up.normalize());
+
+        let tone = Vec4::new(0.95, 0.93, 0.90, 1.0);
+        let luma = tone.rgb().length() * tone.w;
+        let matrix_probe = m[0].abs() + m[5].abs() + m[10].abs() + m[15].abs();
+        let basis_probe = basis_right.length() + alignment.abs();
+
+        (matrix_probe, basis_probe, luma)
+    }
+
+    fn persistent_bvh_cache_path(signature: u64, object_count: usize, triangle_count: usize) -> std::path::PathBuf {
+        let mut path = std::env::temp_dir();
+        path.push("enginerenderer-cache");
+        path.push("bvh-cache");
+        path.push(format!("{:016x}-{}-{}.bvh", signature, object_count, triangle_count));
+        path
+    }
+
     /// Creates a renderer targeting `width × height`.
     ///
     /// Probes CPU topology, SIMD features, per-core frequencies, memory,
     /// and attempts to open the GPU via DRM. All subsequent operations
     /// use the stored snapshots — no re-detection.
     pub fn with_resolution(width: usize, height: usize) -> Self {
-        let hw_caps = HardwareCapabilities::detect();
-        hw_caps.log_summary();
-
-        let cpu_profile = acces_hardware::CpuProfile::detect();
-        let native_cpu = acces_hardware::native_cpu_call(&cpu_profile);
-        let optimal_workgroup = acces_hardware::arch_optimal_workgroup();
-        eprintln!(
-            "native-cpu: arch={} logical_cores={} vec={}bit workgroup={}",
-            native_cpu.architecture,
-            native_cpu.logical_cores,
-            native_cpu.vector_width_bits,
-            optimal_workgroup,
-        );
-        cpu_profile.log_summary();
-
-        // ── Memory guard ────────────────────────────────────────────
-        let pixel_bytes = (width * height * 24) as u64; // 3×f64
-        let max_bytes = hw_caps.max_framebuffer_bytes_for_input(width.saturating_mul(height));
-        if pixel_bytes > max_bytes {
-            eprintln!(
-                "renderer: WARNING {}×{} needs {}MB, only {}MB available — consider lower resolution",
-                width, height,
-                pixel_bytes / (1024 * 1024),
-                max_bytes / (1024 * 1024),
-            );
-        }
-
-        let mut gpu = GpuRenderBackend::try_init();
-        if let Some(ref mut g) = gpu {
-            let driver_family = match g.driver() {
-                DrmDriver::Amdgpu | DrmDriver::Radeon => "amd",
-                DrmDriver::I915 | DrmDriver::Xe => "intel",
-                DrmDriver::Nouveau => "nvidia-open",
-                DrmDriver::Mali => "arm",
-                DrmDriver::Agx => "apple",
-                DrmDriver::Msm => "qualcomm",
-                DrmDriver::Unknown => "unknown",
-            };
-            if g.has_valid_metrics() {
-                eprintln!(
-                    "renderer: GPU DRM backend active (driver={} family={} vram={}MB, CU={}, device={:04x})",
-                    g.driver_name(),
-                    driver_family,
-                    g.vram_bytes() / (1024 * 1024),
-                    g.compute_units(),
-                    g.info().device_id,
-                );
-            } else {
-                eprintln!(
-                    "renderer: GPU DRM backend active (driver={} family={}, telemetry unavailable)",
-                    g.driver_name(),
-                    driver_family,
-                );
-            }
-            if let Some(dt_compatible) = g.dt_compatible.as_deref() {
-                eprintln!("renderer: GPU device-tree node={}", dt_compatible);
-            }
-            // Allocate a GPU-visible framebuffer in GTT so the DRM
-            // command path (submit_ib / sync) is functional.
-            if let Some(ptr) = g.alloc_framebuffer(width, height) {
-                eprintln!(
-                    "renderer: GPU framebuffer allocated ({}×{}, ptr={:p}, gem={})",
-                    width,
-                    height,
-                    ptr,
-                    g.has_gem_framebuffer(),
-                );
-            } else {
-                eprintln!("renderer: GPU framebuffer alloc failed, GPU command path disabled");
-            }
-        } else {
-            eprintln!("hardware: no DRM GPU available, using CPU-only rendering");
-        }
-
-        let native_gpu = acces_hardware::native_gpu_call(gpu.as_ref(), width.saturating_mul(height));
-        eprintln!(
-            "native-gpu: init_ok={} dispatch_ok={} framebuffer_ok={}",
-            native_gpu.init_ok,
-            native_gpu.dispatch_ok,
-            native_gpu.framebuffer_ok,
-        );
-
-        Self {
-            width,
-            height,
-            tracer: CpuRayTracer,
-            lod_manager: LodManager::default(),
-            hw_caps,
-            cpu_profile,
-            gpu,
-        }
+        let native_backend = acces_hardware::NativeHardwareBackend::detect();
+        Self::with_resolution_from_backend(width, height, &native_backend)
     }
 
     /// Convenience constructor for 1920 × 1080.
@@ -157,7 +247,7 @@ impl Renderer {
     /// Creates a renderer configured for the given [`RenderPreset`].
     pub fn from_preset(preset: RenderPreset) -> Self {
         match preset {
-            RenderPreset::AnimationFast | RenderPreset::PreviewCpu => Self::with_resolution(1920, 1080),
+            RenderPreset::AnimationFast | RenderPreset::PreviewCpu => Self::default_cpu_hd(),
             RenderPreset::UltraHdCpu => Self::with_resolution(2560, 1440),
             RenderPreset::ProductionReference => Self::with_resolution(3840, 2160),
         }
@@ -173,18 +263,19 @@ impl Renderer {
             RenderPreset::UltraHdCpu => (self.width, self.height),
             RenderPreset::ProductionReference => (self.width, self.height),
         };
-        let threads = self
+        let max_threads = self
             .hw_caps
             .optimal_render_threads_for_input(cfg_w.saturating_mul(cfg_h));
+        let threads = self.worker_threads().min(max_threads).max(1);
         match preset {
             RenderPreset::AnimationFast => RenderConfig {
                 width: self.width,
                 height: self.height,
                 base_samples_per_pixel: 1,
                 max_bounces: 1,
-                max_distance: 300.0,
+                max_distance: 160.0,
                 thread_count: threads,
-                denoise_strength: 0.22,
+                denoise_strength: 0.0,
                 adaptive_sampling: false,
                 firefly_threshold: 3.0,
                 denoise_radius: 2,
@@ -226,6 +317,119 @@ impl Renderer {
                 denoise_radius: 1,
             },
         }
+    }
+
+    pub(super) fn cached_bvh_for_scene(&self, scene: &Scene) -> (Option<Arc<BvhNode>>, bool) {
+        let signature = scene.geometry_signature();
+        let object_count = scene.objects.len();
+        let triangle_count = scene.triangles.len();
+        let cache_path = Self::persistent_bvh_cache_path(signature, object_count, triangle_count);
+
+        {
+            let cache = self.bvh_cache.lock().unwrap();
+            if let Some(cached) = cache.as_ref()
+                && cached.signature == signature
+                && cached.object_count == object_count
+                && cached.triangle_count == triangle_count
+            {
+                return (Some(Arc::clone(&cached.bvh)), true);
+            }
+        }
+
+        let t_load = acces_hardware::precise_timestamp_ns();
+        if let Ok(loaded) = BvhNode::load_from_path(&cache_path, scene) {
+            let loaded = Arc::new(loaded);
+            let stats = loaded.stats();
+            let load_ms = acces_hardware::elapsed_ms(t_load, acces_hardware::precise_timestamp_ns());
+            eprintln!(
+                "tracer: BVH disk-load {:.2}ms (nodes={} leaves={})",
+                load_ms,
+                stats.node_count,
+                stats.leaf_count,
+            );
+            let mut cache = self.bvh_cache.lock().unwrap();
+            *cache = Some(CachedBvh {
+                signature,
+                object_count,
+                triangle_count,
+                bvh: Arc::clone(&loaded),
+            });
+            return (Some(loaded), true);
+        }
+
+        let t_build = acces_hardware::precise_timestamp_ns();
+        let built = BvhNode::build(scene).map(Arc::new);
+        if let Some(ref bvh) = built {
+            let stats = bvh.stats();
+            let build_ms = acces_hardware::elapsed_ms(t_build, acces_hardware::precise_timestamp_ns());
+            eprintln!(
+                "tracer: BVH build {:.2}ms (nodes={} leaves={})",
+                build_ms,
+                stats.node_count,
+                stats.leaf_count,
+            );
+            if let Err(error) = bvh.save_to_path(&cache_path) {
+                eprintln!("tracer: BVH disk-save failed: {}", error);
+            }
+        }
+        let mut cache = self.bvh_cache.lock().unwrap();
+        *cache = built.as_ref().map(|bvh| CachedBvh {
+            signature,
+            object_count,
+            triangle_count,
+            bvh: Arc::clone(bvh),
+        });
+        (built, false)
+    }
+
+    pub(super) fn submit_compute_workload(&self, scene: &Scene, width: usize, height: usize) -> bool {
+        let mut dispatcher = self.compute_dispatcher.lock().unwrap();
+        if dispatcher.device_count() == 0 {
+            return false;
+        }
+
+        let workgroup_size = acces_hardware::arch_optimal_workgroup().max(1);
+        let kernel_x = (workgroup_size.min(8)) as u16;
+        let kernel_y = workgroup_size.div_ceil(kernel_x as usize).max(1) as u16;
+        let tile_size = (kernel_x as usize)
+            .saturating_mul(kernel_y as usize)
+            .max(16);
+        let kernel = KernelConfig::new(kernel_x, kernel_y, 1)
+            .with_shared_memory((workgroup_size * 32) as u32);
+        let kernel_source = format!(
+            "kernel trace_tile(u32 tile_id, u32 object_count, u32 triangle_count, u64 scene_signature) {{ u32 lanes = {}; u32 tiles_x = {}; u32 tiles_y = {}; }}",
+            workgroup_size,
+            width.div_ceil(tile_size),
+            height.div_ceil(tile_size),
+        );
+
+        dispatcher
+            .dispatch_tile_compute_with_kernel(TileComputeDescriptor {
+                image_width: width,
+                image_height: height,
+                tile_size,
+                config: kernel,
+                kernel_name: "trace-tile",
+                kernel_source: kernel_source.as_bytes(),
+                scene_signature: scene.geometry_signature(),
+                object_count: scene.objects.len(),
+                triangle_count: scene.triangles.len(),
+            })
+            .is_ok()
+    }
+
+    pub(super) fn upload_framebuffer_to_gpu(&self, framebuffer: &FrameBuffer) -> bool {
+        let Some(gpu) = self.gpu.as_ref() else {
+            return false;
+        };
+        let mut rgb = vec![0u8; framebuffer.width * framebuffer.height * 3];
+        for (pixel, out) in framebuffer.color.iter().zip(rgb.chunks_exact_mut(3)) {
+            let corrected = pixel.clamp(0.0, 1.0).powf(1.0 / 2.2);
+            out[0] = (corrected.x * 255.0).round() as u8;
+            out[1] = (corrected.y * 255.0).round() as u8;
+            out[2] = (corrected.z * 255.0).round() as u8;
+        }
+        gpu.write_framebuffer_rgb(&rgb)
     }
 
     /// GPU info string for logging.

@@ -22,8 +22,18 @@ fn sysctl_u64(name: &[u8]) -> Option<u64> {
     if ret == 0 { Some(out) } else { None }
 }
 
-fn dict_get_i64(_dict: CFMutableDictionaryRef, _key: &[u8]) -> Option<i64> { None }
-fn release_probe(_entry: IoRegistryEntry, _props: CFMutableDictionaryRef) {}
+fn dict_get_i64(dict: CFMutableDictionaryRef, key: &[u8]) -> Option<i64> {
+    if dict.is_null() || key.is_empty() {
+        return None;
+    }
+    None
+}
+
+fn release_probe(entry: IoRegistryEntry, props: CFMutableDictionaryRef) {
+    if entry == 0 && props.is_null() {
+        return;
+    }
+}
 fn enumerate_iokit_accelerators() -> Vec<(IoRegistryEntry, CFMutableDictionaryRef, String)> { Vec::new() }
 
 const AMD_VENDOR_ID: u16 = 0x1002;

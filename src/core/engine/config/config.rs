@@ -11,11 +11,23 @@ pub struct EngineConfig {
 }
 
 impl EngineConfig {
+    fn default_output_path(file_name: &str) -> PathBuf {
+        #[cfg(target_os = "android")]
+        {
+            let mut path = std::env::temp_dir();
+            path.push("enginerenderer-output");
+            path.push(file_name);
+            return path;
+        }
+        #[allow(unreachable_code)]
+        PathBuf::from("output").join(file_name)
+    }
+
     pub fn ultra_hd_cpu() -> Self {
         Self {
             width: 2560,
             height: 1440,
-            output_path: PathBuf::from("output/render_output.ppm"),
+            output_path: Self::default_output_path("render_output.ppm"),
             render_preset: RenderPreset::UltraHdCpu,
         }
     }
@@ -24,8 +36,17 @@ impl EngineConfig {
         Self {
             width: 3840,
             height: 2160,
-            output_path: PathBuf::from("output/render_output.ppm"),
+            output_path: Self::default_output_path("render_output.ppm"),
             render_preset: RenderPreset::ProductionReference,
+        }
+    }
+
+    pub fn realtime_preview() -> Self {
+        Self {
+            width: 1280,
+            height: 720,
+            output_path: Self::default_output_path("realtime_preview.ppm"),
+            render_preset: RenderPreset::AnimationFast,
         }
     }
 
@@ -35,7 +56,7 @@ impl EngineConfig {
         Self {
             width: 80,
             height: 45,
-            output_path: PathBuf::from("output/render_test.ppm"),
+            output_path: Self::default_output_path("render_test.ppm"),
             render_preset: RenderPreset::PreviewCpu,
         }
     }

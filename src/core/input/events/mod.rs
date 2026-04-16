@@ -13,6 +13,7 @@ pub struct EventLog {
 }
 
 impl EventLog {
+    /// Crée un journal d'événements vide.
     pub fn new() -> Self {
         Self { snapshots: Vec::new() }
     }
@@ -27,6 +28,7 @@ impl EventLog {
         self.snapshots.len()
     }
 
+    /// Indique si aucun snapshot n'a encore été enregistré.
     pub fn is_empty(&self) -> bool {
         self.snapshots.is_empty()
     }

@@ -5,6 +5,7 @@ pub(crate) enum Vendor {
     Amd,
     Intel,
     Apple,
+    Unknown,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -39,7 +40,7 @@ fn detect_vendor() -> Vendor {
             return Vendor::Intel;
         }
     }
-    Vendor::Apple
+    Vendor::Unknown
 }
 
 pub(crate) fn default_config() -> DisplayConfig {
@@ -57,6 +58,7 @@ pub(crate) fn default_config() -> DisplayConfig {
             let c = apple::backend::default_backend_config();
             (c.page_size, c.target_render_fps, c.latency_budget_us, c.scan_out_latency_us, c.vsync_slots, c.double_buffered, c.low_power)
         }
+        Vendor::Unknown => (4096, 120, 8_333, 16_666, 4, true, false)
     };
     DisplayConfig { vendor, page_size, target_render_fps, latency_budget_us, scan_out_latency_us, vsync_slots, double_buffered, low_power }
 }
@@ -66,6 +68,7 @@ pub(crate) fn clamp_workers(requested: usize) -> usize {
         Vendor::Amd   => amd::backend::clamp_workers(requested),
         Vendor::Intel => intel::backend::clamp_workers(requested),
         Vendor::Apple => apple::backend::clamp_workers(requested),
+        Vendor::Unknown => requested.clamp(1, 2),
     }
 }
 
@@ -83,6 +86,11 @@ pub(crate) fn build_schedule(work_items: usize) -> DisplaySchedule {
         Vendor::Apple => {
             let s = apple::scheduler::build_schedule(work_items);
             (s.chunks, s.chunk_size, s.frame_budget_us)
+        }
+        Vendor::Unknown => {
+            let chunk_size = if work_items == 0 { 16 } else { work_items.div_ceil(16).max(16) };
+            let chunks = if work_items == 0 { 1 } else { work_items.div_ceil(chunk_size) };
+            (chunks, chunk_size, 8_333)
         }
     };
     DisplaySchedule { chunks, chunk_size, frame_budget_us }

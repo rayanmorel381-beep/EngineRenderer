@@ -3,7 +3,6 @@ use crate::api::scenes::builder::SceneBuilder;
 
 use super::engine_api::EngineApi;
 
-// Re-export scene/physics/event internals
 pub use crate::core::engine::config::EngineConfig;
 pub use crate::core::engine::event::event_system::{EventBus, EngineEvent};
 pub use crate::core::engine::physics::physics_manager::PhysicsManager;
@@ -17,10 +16,12 @@ pub use crate::core::scheduler::resource::ResourceManager;
 impl EngineApi {
     // -- scene construction -------------------------------------------------
 
+    /// Retourne un `SceneBuilder` vide.
     pub fn scene(&self) -> SceneBuilder {
         SceneBuilder::new()
     }
 
+    /// Construit une scène à partir d'une liste d'objets, avec cadrage automatique.
     pub fn scene_from_objects(&self, objects: Vec<SceneObject>) -> SceneBuilder {
         let mut builder = SceneBuilder::new();
         for obj in objects {

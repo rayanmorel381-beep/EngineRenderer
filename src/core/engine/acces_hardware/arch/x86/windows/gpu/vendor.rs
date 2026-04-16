@@ -26,6 +26,14 @@ pub(crate) struct GpuSchedule {
 }
 
 fn detect_vendor() -> Vendor {
+    let amd_probes: [amd::GpuProbeResult; 0] = [];
+    if amd::probe(&amd_probes).is_some() {
+        return Vendor::Amd;
+    }
+    let intel_probes: [intel::GpuProbeResult; 0] = [];
+    if intel::probe(&intel_probes).is_some() {
+        return Vendor::Intel;
+    }
     if let Ok(id) = std::env::var("PROCESSOR_IDENTIFIER") {
         let id = id.to_lowercase();
         if id.contains("apple") {

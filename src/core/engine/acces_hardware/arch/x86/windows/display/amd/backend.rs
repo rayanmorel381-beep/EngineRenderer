@@ -22,5 +22,5 @@ pub(crate) fn default_backend_config() -> VendorBackendConfig {
 }
 
 pub(crate) fn clamp_workers(requested: usize) -> usize {
-    requested.max(1).min(4)
+    requested.clamp(1, 4)
 }

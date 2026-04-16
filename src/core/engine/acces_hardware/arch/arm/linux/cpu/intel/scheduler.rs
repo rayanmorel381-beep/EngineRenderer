@@ -12,7 +12,7 @@ pub(crate) fn recommended_chunk_size(work_items: usize) -> usize {
     let workers = std::thread::available_parallelism()
         .map(|v| v.get()).unwrap_or(1).max(1);
     let raw = work_items / workers;
-    let aligned = ((raw + 3) / 4) * 4;
+    let aligned = raw.div_ceil(4) * 4;
     aligned.max(4)
 }
 

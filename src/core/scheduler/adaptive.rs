@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::thread;
 
 use crate::core::engine::acces_hardware::{
-    self, CpuProfile, HardwareCapabilities,
+    self, CpuProfile, HardwareCapabilities, NativeHardwareBackend,
     precise_timestamp_ns, elapsed_ms, gpu_dispatch_tiles,
     alloc_dma_framebuffer, DmaFramebuffer,
 };
@@ -23,8 +23,13 @@ pub struct HwContext {
 impl HwContext {
     /// Probe everything once.
     pub fn detect() -> Self {
-        let caps = HardwareCapabilities::detect();
-        let cpu = CpuProfile::detect();
+        let backend = NativeHardwareBackend::detect();
+        Self::from_backend(&backend)
+    }
+
+    pub fn from_backend(backend: &NativeHardwareBackend) -> Self {
+        let caps = backend.hw_caps().clone();
+        let cpu = backend.cpu_profile().clone();
         let core_freqs = detect_core_frequencies();
         Self { caps, cpu, core_freqs }
     }
@@ -158,7 +163,18 @@ impl TileScheduler {
     /// Probes hardware once: CPU topology, SIMD features, per-core
     /// frequencies, memory limits. Allocates DMA framebuffer if possible.
     pub fn new(image_width: usize, image_height: usize, hint_threads: usize) -> Self {
-        let hw = HwContext::detect();
+        let backend = NativeHardwareBackend::detect();
+        Self::new_with_backend(image_width, image_height, hint_threads, &backend)
+    }
+
+    /// Construit un scheduler en réutilisant un backend matériel déjà détecté.
+    pub fn new_with_backend(
+        image_width: usize,
+        image_height: usize,
+        hint_threads: usize,
+        backend: &NativeHardwareBackend,
+    ) -> Self {
+        let hw = HwContext::from_backend(backend);
 
         // ── Memory guard: refuse resolutions that exceed available RAM ──
         let pixel_bytes = (image_width * image_height * 24) as u64; // 3×f64
@@ -213,22 +229,27 @@ impl TileScheduler {
         }
     }
 
+    /// Retourne le nombre total de tuiles.
     pub fn total_tiles(&self) -> usize {
         self.total_tiles
     }
 
+    /// Retourne le nombre de workers alloués.
     pub fn worker_count(&self) -> usize {
         self.worker_count
     }
 
+    /// Retourne le snapshot matériel utilisé par le scheduler.
     pub fn hw(&self) -> &HwContext {
         &self.hw
     }
 
+    /// Indique si un framebuffer DMA a été alloué.
     pub fn has_dma(&self) -> bool {
         self.dma_fb.is_some()
     }
 
+    /// Retourne le pointeur brut DMA si disponible.
     pub fn dma_ptr(&self) -> Option<*mut u8> {
         self.dma_fb.as_ref().map(|fb| fb.as_ptr())
     }
@@ -377,11 +398,9 @@ impl TileScheduler {
 /// detected via the `hardware` crate (physical cores, avoiding HT
 /// contention on FP-heavy ray tracing workloads).
 fn effective_workers(hw: &HwContext, w: usize, h: usize, hint: usize) -> usize {
-    let cpus = hw
-        .caps
-        .optimal_render_threads_for_input(w.saturating_mul(h));
-    let max_by_pixels = (w * h).div_ceil(16_000).max(1);
-    let max_by_rows = h.div_ceil(16).max(1);
+    let cpus = (hw.caps.logical_cores as usize).max(1);
+    let max_by_pixels = (w * h).div_ceil(3_000).max(1);
+    let max_by_rows = h.div_ceil(8).max(1);
     hint.min(cpus).min(max_by_pixels).min(max_by_rows).max(1)
 }
 
