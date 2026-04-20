@@ -1,36 +1,23 @@
 use crate::core::engine::rendering::raytracing::Vec3;
 
-/// Number of spectral bands (covers ~380 nm – 780 nm in equal steps).
 pub const SPECTRAL_BANDS: usize = 16;
 
-/// A sampled light spectrum.
-///
-/// Each band covers ~25 nm of the visible range.  Conversions to/from
-/// sRGB are provided but the raw spectrum is always available for
-/// physically accurate wavelength-dependent effects (dispersion,
-/// chromatic aberration, thin-film interference, Rayleigh/Mie
-/// scattering, Doppler shifting, etc.).
 #[derive(Debug, Clone, Copy)]
 pub struct Spectrum {
-    /// Energy per band.  Index 0 ≈ 380 nm, index 15 ≈ 755 nm.
     pub bands: [f64; SPECTRAL_BANDS],
 }
 
 impl Spectrum {
-    /// Spectre nul sans énergie sur toutes les bandes.
     pub const ZERO: Self = Self {
         bands: [0.0; SPECTRAL_BANDS],
     };
 
-    /// Flat (white) spectrum with a given power level per band.
     pub fn flat(power: f64) -> Self {
         Self {
             bands: [power; SPECTRAL_BANDS],
         }
     }
 
-    /// Build a spectrum from a single dominant wavelength (nm) and power.
-    /// The energy is spread with a Gaussian falloff around `wavelength_nm`.
     pub fn from_wavelength(wavelength_nm: f64, power: f64, spread_nm: f64) -> Self {
         let mut bands = [0.0; SPECTRAL_BANDS];
         let step = (780.0 - 380.0) / SPECTRAL_BANDS as f64;
@@ -42,7 +29,6 @@ impl Spectrum {
         Self { bands }
     }
 
-    /// Black-body spectrum at a given temperature (Kelvin).
     pub fn black_body(temperature_k: f64, peak_power: f64) -> Self {
         let mut bands = [0.0; SPECTRAL_BANDS];
         let step = (780.0 - 380.0) / SPECTRAL_BANDS as f64;
@@ -63,7 +49,6 @@ impl Spectrum {
         Self { bands }
     }
 
-    /// Convert to approximate linear RGB (CIE 1931 2° observer, D65).
     pub fn to_rgb(&self) -> Vec3 {
         #[allow(clippy::excessive_precision)]
         const XYZ_TABLE: [[f64; 3]; SPECTRAL_BANDS] = [
@@ -98,7 +83,6 @@ impl Spectrum {
         Vec3::new(r.max(0.0), g.max(0.0), b.max(0.0))
     }
 
-    /// Convert to RGB with a caller-supplied 3×3 colour-space matrix.
     pub fn to_rgb_custom(&self, xyz_to_rgb: [[f64; 3]; 3]) -> Vec3 {
         #[allow(clippy::excessive_precision)]
         const XYZ_TABLE: [[f64; 3]; SPECTRAL_BANDS] = [
@@ -135,7 +119,6 @@ impl Spectrum {
         )
     }
 
-    /// Approximate sRGB → flat spectrum (uniform-energy inverse).
     pub fn from_rgb(rgb: Vec3) -> Self {
         let mut bands = [0.0; SPECTRAL_BANDS];
         for (i, b) in bands.iter_mut().enumerate() {

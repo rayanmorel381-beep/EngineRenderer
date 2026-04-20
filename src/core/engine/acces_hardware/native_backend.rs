@@ -156,8 +156,8 @@ impl NativeComputeBackend {
 
     pub fn compile_kernel(&self, name: &str, kernel_source: &[u8]) -> Result<Vec<u8>, String> {
         let key = format!("{}-{:08x}", name, hash32(kernel_source));
-        if let Some(binary) = self.kernel_cache.lock().unwrap().get(&key).cloned() {
-            eprintln!(
+        if let Some(binary) = lock_unpoisoned(&self.kernel_cache).get(&key).cloned() {
+            crate::runtime_log!(
                 "compute: {} kernel '{}' cache-hit size={}B",
                 self.device_name,
                 name,
@@ -168,17 +168,17 @@ impl NativeComputeBackend {
 
         let cache_path = self.persistent_kernel_cache_path(name, kernel_source);
         if let Ok(binary) = std::fs::read(&cache_path) {
-            eprintln!(
+            crate::runtime_log!(
                 "compute: {} kernel '{}' disk-cache-hit size={}B",
                 self.device_name,
                 name,
                 binary.len(),
             );
-            self.kernel_cache.lock().unwrap().insert(key, binary.clone());
+            lock_unpoisoned(&self.kernel_cache).insert(key, binary.clone());
             return Ok(binary);
         }
 
-        eprintln!(
+        crate::runtime_log!(
             "compute: {} compiling kernel '{}' (device={:?})",
             self.device_name,
             name,
@@ -201,13 +201,13 @@ impl NativeComputeBackend {
             && !parent.as_os_str().is_empty()
             && let Err(error) = std::fs::create_dir_all(parent)
         {
-            eprintln!("compute: kernel cache dir create failed: {}", error);
+            crate::runtime_log!("compute: kernel cache dir create failed: {}", error);
         }
         if let Err(error) = std::fs::write(&cache_path, &binary) {
-            eprintln!("compute: kernel disk-cache store failed: {}", error);
+            crate::runtime_log!("compute: kernel disk-cache store failed: {}", error);
         }
 
-        self.kernel_cache.lock().unwrap().insert(key, binary.clone());
+        lock_unpoisoned(&self.kernel_cache).insert(key, binary.clone());
         Ok(binary)
     }
 
@@ -217,7 +217,7 @@ impl NativeComputeBackend {
         self.queue.submit_batch(batch_size);
 
         if let Some(ref submitter_lock) = self.submitter {
-            let mut submitter = submitter_lock.lock().unwrap();
+            let mut submitter = lock_unpoisoned(submitter_lock);
             let total_tiles = batch.jobs.len() as u32;
             let workgroup_size = batch.jobs.first().map(|job| job.config.thread_count()).unwrap_or(256);
             let pixel_count = total_threads as u32;
@@ -237,7 +237,7 @@ impl NativeComputeBackend {
 
             match submitter.submit() {
                 Ok(cs_id) => {
-                    eprintln!(
+                    crate::runtime_log!(
                         "gpu-compute: {} dispatched {} tiles ({} threads) kernel=0x{:08x} scene=0x{:016x} objs={} tris={} → cs_id={} driver={} dwords={}",
                         self.device_name,
                         total_tiles,
@@ -252,7 +252,7 @@ impl NativeComputeBackend {
                     );
                 }
                 Err(error) => {
-                    eprintln!(
+                    crate::runtime_log!(
                         "gpu-compute: {} DRM submit failed ({}), CPU fallback",
                         self.device_name,
                         error,
@@ -265,7 +265,7 @@ impl NativeComputeBackend {
                 ComputeDeviceKind::CpuSimd => "cpu-simd",
                 ComputeDeviceKind::CpuScalar => "cpu-scalar",
             };
-            eprintln!(
+            crate::runtime_log!(
                 "compute: {} submitted batch {} jobs × {} total threads (target={}, fd={})",
                 self.device_name,
                 batch_size,
@@ -304,4 +304,11 @@ fn hash32(bytes: &[u8]) -> u32 {
         hash = hash.wrapping_mul(0x01000193);
     }
     hash
+}
+
+fn lock_unpoisoned<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    match mutex.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
 }

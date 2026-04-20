@@ -29,33 +29,21 @@ impl AreaLight {
     }
 }
 
-/// Scène complète prête à être rendue : objets, éclairage, environnement et volume.
 #[derive(Debug, Clone)]
 pub struct Scene {
-    /// Liste des sphères présentes dans la scène.
     pub objects: Vec<Sphere>,
-    /// Liste des triangles présents dans la scène.
     pub triangles: Vec<Triangle>,
-    /// Lumière directionnelle principale (soleil).
     pub sun: DirectionalLight,
-    /// Lumières surfaciques.
     pub area_lights: Vec<AreaLight>,
-    /// Couleur du ciel en haut `[r, g, b]`.
     pub sky_top: Vec3,
-    /// Couleur du ciel en bas / horizon `[r, g, b]`.
     pub sky_bottom: Vec3,
-    /// Facteur d'exposition global.
     pub exposure: f64,
-    /// Médium volumétrique de la scène.
     pub volume: VolumetricMedium,
-    /// Environnement HDRI procédural optionnel.
     pub hdri: Option<ProceduralEnvironment>,
-    /// Élévation solaire en radians (utilisée par le rendu atmosphérique).
     pub solar_elevation: f64,
 }
 
 impl Scene {
-    /// Calcule un hash de la géométrie (positions et rayons) pour détecter les changements.
     pub fn geometry_signature(&self) -> u64 {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         self.objects.len().hash(&mut hasher);
@@ -83,7 +71,6 @@ impl Scene {
         hasher.finish()
     }
 
-    /// Retourne le `HitRecord` le plus proche le long du rayon, ou `None` si aucune intersection.
     pub fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> Option<HitRecord> {
         let mut closest = t_max;
         let mut result = None;
@@ -104,7 +91,6 @@ impl Scene {
         result
     }
 
-    /// Teste si un rayon est occulté dans la distance donnée (ombre portée).
     pub fn is_occluded(&self, ray: &Ray, max_distance: f64) -> bool {
         for object in &self.objects {
             if object.hit(ray, EPSILON, max_distance).is_some() {

@@ -66,27 +66,27 @@ fn probe_gpu_runtime(vendor: Vendor) {
                 let effective_map = mapped.max(gem.mmap_offset);
                 let wait_ok = amd::drm::drm_amdgpu_wait_cs(gem.fd, 0, 1_000_000);
                 if !wait_ok {
-                    eprintln!("gpu: amdgpu wait_cs failed");
+                    crate::runtime_log!("gpu: amdgpu wait_cs failed");
                 }
                 if let Err(err) = amd::drm::submit_amdgpu_cs(
                     gem.fd,
                     gem.handle,
                     &[0, cu_a, se_a, sclk_a, temp_a as u32, effective_map as u32],
                 ) {
-                    eprintln!("gpu: amdgpu submit failed: {}", err);
+                    crate::runtime_log!("gpu: amdgpu submit failed: {}", err);
                 }
             }
             if let Some(gem) = amd::drm::drm_radeon_alloc_gem(-1, target_size.max(4096)) {
                 let maybe_mapped = amd::drm::drm_radeon_gem_mmap(gem.fd, gem.handle, gem.size);
                 if maybe_mapped.is_none() {
-                    eprintln!("gpu: radeon mmap failed");
+                    crate::runtime_log!("gpu: radeon mmap failed");
                 }
                 let wait_ok = amd::drm::drm_radeon_gem_wait(gem.fd, gem.handle);
                 if !wait_ok {
-                    eprintln!("gpu: radeon wait failed");
+                    crate::runtime_log!("gpu: radeon wait failed");
                 }
                 if let Err(err) = amd::drm::submit_radeon_cs(gem.fd, gem.handle, &[0, cu_r, se_r, sclk_r, temp_r as u32]) {
-                    eprintln!("gpu: radeon submit failed: {}", err);
+                    crate::runtime_log!("gpu: radeon submit failed: {}", err);
                 }
             }
         }
@@ -101,14 +101,14 @@ fn probe_gpu_runtime(vendor: Vendor) {
                 let effective_size = gem.size.max(gem.mmap_offset).max(mapped);
                 let wait_ok = intel::drm::drm_i915_gem_wait(gem.fd, gem.handle, 1_000_000);
                 if !wait_ok {
-                    eprintln!("gpu: i915 wait failed");
+                    crate::runtime_log!("gpu: i915 wait failed");
                 }
                 if let Err(err) = intel::drm::submit_i915_execbuf(
                     gem.fd,
                     gem.handle,
                     &[0, eu, slices, freq, temp as u32, effective_size as u32],
                 ) {
-                    eprintln!("gpu: i915 submit failed: {}", err);
+                    crate::runtime_log!("gpu: i915 submit failed: {}", err);
                 }
             }
         }

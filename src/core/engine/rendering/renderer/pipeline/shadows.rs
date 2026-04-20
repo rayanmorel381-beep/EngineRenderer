@@ -1,4 +1,3 @@
-//! Shadow cascade, cloud layers, and shadow sampling helpers.
 
 use crate::core::engine::rendering::{
     culling::frustum::Frustum,
@@ -42,7 +41,7 @@ impl Renderer {
         let mut total_cascade_bias = 0.0;
         for (i, cascade_cfg) in shadow_cascade.cascades.iter().enumerate() {
             total_cascade_bias += cascade_cfg.bias + cascade_cfg.normal_bias;
-            eprintln!(
+            crate::runtime_log!(
                 "cascade[{}]: near={:.2} far={:.2} res={} bias={:.4}",
                 i, cascade_cfg.split_near, cascade_cfg.split_far,
                 cascade_cfg.resolution, cascade_cfg.bias
@@ -51,7 +50,7 @@ impl Renderer {
                 let lm = &shadow_cascade.light_matrices[i];
                 let projected = lm.project(camera.origin);
                 let in_bounds = lm.is_in_bounds(projected);
-                eprintln!(
+                crate::runtime_log!(
                     "  light_matrix[{}]: origin=({:.2},{:.2},{:.2}) half={:.2} in_bounds={} r=({:.2},{:.2},{:.2}) u=({:.2},{:.2},{:.2}) f=({:.2},{:.2},{:.2}) near={:.2} far={:.2}",
                     i, lm.origin.x, lm.origin.y, lm.origin.z, lm.half_extent, in_bounds,
                     lm.right.x, lm.right.y, lm.right.z,

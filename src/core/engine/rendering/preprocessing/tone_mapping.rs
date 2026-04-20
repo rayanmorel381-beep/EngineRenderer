@@ -1,20 +1,14 @@
 use crate::core::engine::rendering::raytracing::Vec3;
 
-/// Opérateurs de tone mapping disponibles.
 #[derive(Debug, Clone, Copy)]
 pub enum ToneMappingOperator {
-    /// Courbe ACES filmique.
     Aces,
-    /// Reinhard global.
     Reinhard,
-    /// Courbe filmique type Uncharted.
     Filmic,
-    /// Courbe AgX simplifiée.
     AgX,
 }
 
 impl ToneMappingOperator {
-    /// Applique l'opérateur choisi à une couleur HDR avec exposition.
     pub fn apply(self, color: Vec3, exposure: f64) -> Vec3 {
         let exposed = color * exposure.max(0.1);
         match self {
@@ -47,20 +41,13 @@ impl ToneMappingOperator {
     }
 }
 
-/// Paramètres de color grading post-tone-mapping.
 #[derive(Debug, Clone, Copy)]
 pub struct ColorGrading {
-    /// Décalage des noirs (lift).
     pub lift: Vec3,
-    /// Gamma par canal.
     pub gamma: Vec3,
-    /// Gain par canal.
     pub gain: Vec3,
-    /// Saturation globale.
     pub saturation: f64,
-    /// Contraste global.
     pub contrast: f64,
-    /// Balance chaud/froid simplifiée.
     pub temperature: f64,
 }
 
@@ -78,7 +65,6 @@ impl Default for ColorGrading {
 }
 
 impl ColorGrading {
-    /// Préréglage cinématique doux.
     pub fn cinematic() -> Self {
         Self {
             lift: Vec3::new(0.002, 0.001, 0.003),
@@ -90,7 +76,6 @@ impl ColorGrading {
         }
     }
 
-    /// Applique le color grading à une couleur déjà tonemapée.
     pub fn apply(&self, color: Vec3) -> Vec3 {
         let lifted = color + self.lift;
         let gained = lifted * self.gain;

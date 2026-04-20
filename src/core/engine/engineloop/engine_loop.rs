@@ -1,8 +1,3 @@
-//! Engine main loop — single-frame and gallery render orchestration.
-//!
-//! [`EngineLoop`] wires the scheduler, scene assembly, renderer, and profiler
-//! into a cohesive frame lifecycle without duplicating types that already live
-//! in sibling modules.
 
 use std::error::Error;
 
@@ -26,7 +21,6 @@ use crate::core::debug::tools::DebugTools;
 use crate::core::engine::event::event_system::{EngineEvent, EventBus};
 use crate::core::engine::physics::physics_manager::PhysicsManager;
 
-/// Orchestrates the full frame lifecycle for the engine.
 #[derive(Debug)]
 pub struct EngineLoop {
     config: EngineConfig,
@@ -52,8 +46,8 @@ impl EngineLoop {
 
         Self {
             config,
-            time: TimeManager::new(1.0 / 30.0),
-            loop_controller: LoopController::new(30.0, 8),
+            time: TimeManager::new(1.0 / 120.0),
+            loop_controller: LoopController::new(120.0, 8),
             resource,
             profiler: FrameProfiler,
             logger: EngineLogger::with_capacity(256),
@@ -67,7 +61,6 @@ impl EngineLoop {
         }
     }
 
-    /// Execute a single frame: simulate → assemble scene → render → profile.
     pub fn run_frame(&mut self) -> Result<RenderReport, Box<dyn Error>> {
         let frame_target = self.loop_controller.frame_target(
             self.config.width,
@@ -187,7 +180,6 @@ impl EngineLoop {
         Ok(report)
     }
 
-    /// Render the dedicated gallery showcase shots.
     pub fn run_gallery(&mut self) -> Result<Vec<RenderReport>, Box<dyn Error>> {
         let shots = EngineScene::dedicated_gallery_shots();
         let renderer = Renderer::with_resolution(self.config.width, self.config.height);

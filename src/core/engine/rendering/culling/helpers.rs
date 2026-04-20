@@ -1,19 +1,8 @@
-//! Lightweight culling helpers: contribution, back-face, and occlusion tests.
-//!
-//! These free-standing functions complement the heavier [`SceneCuller`] and
-//! [`Frustum`] by providing per-object or per-triangle acceptance tests that
-//! can be composed into custom pipelines.
 
 use crate::core::engine::rendering::raytracing::{Sphere, Vec3};
 
 // ── Contribution culling ────────────────────────────────────────────────
 
-/// Estimates how many screen-pixels an object of `object_radius` subtends
-/// when seen from `camera_distance` with the given vertical FOV and
-/// screen height.
-///
-/// The result is an **approximate pixel diameter** — useful as a
-/// threshold to decide whether a distant object is worth rendering.
 pub fn projected_screen_coverage(
     object_radius: f64,
     camera_distance: f64,
@@ -25,9 +14,6 @@ pub fn projected_screen_coverage(
     angular_size / fov_rad * screen_height
 }
 
-/// Returns `true` when an object's projected size on screen is below
-/// `pixel_threshold` — i.e. it contributes fewer pixels than the minimum
-/// and can be safely culled.
 pub fn is_contribution_negligible(
     object_radius: f64,
     camera_distance: f64,
@@ -41,17 +27,11 @@ pub fn is_contribution_negligible(
 
 // ── Back-face culling ───────────────────────────────────────────────────
 
-/// Returns `true` when the triangle faces **away** from the viewer.
-///
-/// `triangle_normal` must be the face normal (world-space) and
-/// `view_direction` points **from the camera toward the triangle**.
 #[inline]
 pub fn is_backfacing(triangle_normal: Vec3, view_direction: Vec3) -> bool {
     triangle_normal.dot(view_direction) > 0.0
 }
 
-/// Computes the (un-normalised) face normal from three triangle vertices
-/// via the cross-product of two edges.
 #[inline]
 pub fn triangle_normal(a: Vec3, b: Vec3, c: Vec3) -> Vec3 {
     (b - a).cross(c - a).normalize()
@@ -59,14 +39,6 @@ pub fn triangle_normal(a: Vec3, b: Vec3, c: Vec3) -> Vec3 {
 
 // ── Occlusion culling (coarse, sphere-based) ────────────────────────────
 
-/// Cheap, conservative occlusion test using bounding spheres.
-///
-/// Returns `true` when `occluder` fully hides the target sphere (given
-/// by `target_center` / `target_radius`) as seen from `camera_pos`.
-///
-/// The check compares angular extents: the occluder must be nearer to
-/// the camera **and** subtend a larger solid angle than the target,
-/// including the angular gap between them.
 pub fn sphere_occludes(
     occluder: &Sphere,
     target_center: Vec3,

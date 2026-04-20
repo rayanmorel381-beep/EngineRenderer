@@ -1,33 +1,15 @@
-//! Screen-space light shaft (god ray) post-effect.
-//!
-//! [`GodRays`] implements the classic radial-blur technique popularised by
-//! *Crepuscular Rays in Participating Media* (GPU Gems 3).  The effect
-//! is applied as a 2-D post-process on a pixel buffer.
 
 use crate::core::engine::rendering::raytracing::Vec3;
 
-/// Screen-space god-ray parameters.
-///
-/// Works by marching from each pixel toward the on-screen light position,
-/// accumulating and decaying brightness along the way.
 pub struct GodRays {
-    /// Number of samples along each radial march (more = smoother).
     pub num_samples: u32,
-    /// Controls how quickly the march converges toward the light.
     pub density: f64,
-    /// Contribution weight per sample.
     pub weight: f64,
-    /// Exponential falloff applied each step.
     pub decay: f64,
-    /// Final exposure multiplier applied to the accumulated shaft colour.
     pub exposure: f64,
 }
 
 impl GodRays {
-    /// Applies the radial-blur god-ray pass **in-place** on a pixel buffer.
-    ///
-    /// `light_screen_x` / `light_screen_y` are the projected screen-space
-    /// position of the light source in `[0, 1]` normalised coordinates.
     pub fn apply_to_buffer(
         &self,
         pixels: &mut [Vec3],

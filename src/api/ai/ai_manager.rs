@@ -11,33 +11,25 @@ fn camera_distance_scale(detail: f64) -> f64 {
     (1.0 + detail * 0.15).clamp(0.8, 2.0)
 }
 
-/// Directives de rendu produites par l'analyse de scène.
 #[derive(Debug, Clone, Copy)]
 pub struct AiDirective {
-    /// Biais de qualité appliqué au préréglage de rendu, dans `[0.7, 1.25]`.
     pub quality_bias: f64,
-    /// Facteur d'échelle de la distance caméra–scène.
     pub camera_distance_scale: f64,
-    /// Biais d'exposition additif.
     pub exposure_bias: f64,
 }
 
-/// Gestionnaire IA qui analyse la complexité d'une scène et produit des directives
-/// de rendu adaptées (qualité, distance caméra, exposition).
 #[derive(Debug, Clone, Copy)]
 pub struct AiManager {
     aggressiveness: f64,
 }
 
 impl AiManager {
-    /// Crée un `AiManager` avec le coefficient d'agressivité donné (clampé dans `[0.25, 2.0]`).
     pub fn new(aggressiveness: f64) -> Self {
         Self {
             aggressiveness: aggressiveness.clamp(0.25, 2.0),
         }
     }
 
-    /// Analyse le graphe de scène et retourne des directives de rendu adaptées.
     pub fn analyze(&self, graph: &SceneGraph, detail_scale: f64) -> AiDirective {
         let detail = detail_score(
             graph.scene_radius(),

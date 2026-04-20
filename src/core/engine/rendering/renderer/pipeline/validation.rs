@@ -1,4 +1,3 @@
-//! Mesh system, utility function, and tone-mapping variant validation.
 
 use crate::core::engine::rendering::{
     mesh::generators::{ground_plane, torus, unit_cube},
@@ -47,7 +46,7 @@ impl Renderer {
         let ray_inv_dir = Vec3::new(1.0 / ray_dir.x.max(1e-12), 1.0 / ray_dir.y.max(1e-12), 1.0 / ray_dir.z);
         let did_hit = aabb.hit(ray_origin, ray_inv_dir, 0.001, 1000.0);
 
-        eprintln!(
+        crate::runtime_log!(
             "mesh: cube={}v torus={}v sphere={}v cube_d={}v plane_d={}v density={:.2} subdiv={}v center=({:.2},{:.2},{:.2}) hit={}",
             cube_mesh.positions.len(), torus_mesh.vertices.len(),
             sphere_desc.vertex_count, cube_desc.vertex_count, plane_desc.vertex_count,
@@ -84,21 +83,21 @@ impl Renderer {
 
         let (u, v, w) = barycentric(Vec3::new(0.25, 0.25, 0.0), Vec3::ZERO, Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
 
-        eprintln!(
+        crate::runtime_log!(
             "utils: inv_t={:.3} remap={:.3} quintic={:.3} bias={:.3} gain={:.3}",
             inv_t, remapped, quintic, bias_val, gain_val,
         );
-        eprintln!(
+        crate::runtime_log!(
             "color: srgb=({:.3},{:.3},{:.3}) hsv->rgb=({:.3},{:.3},{:.3}) warm=({:.3},{:.3},{:.3})",
             srgb_col.x, srgb_col.y, srgb_col.z,
             rgb_back.x, rgb_back.y, rgb_back.z,
             warm.x, warm.y, warm.z,
         );
-        eprintln!(
+        crate::runtime_log!(
             "fresnel: schlick={:.4} vec=({:.4},{:.4},{:.4}) dielectric={:.4}",
             fresnel_s, fresnel_v.x, fresnel_v.y, fresnel_v.z, fresnel_d,
         );
-        eprintln!(
+        crate::runtime_log!(
             "geo: theta={:.3} phi={:.3} reflected=({:.3},{:.3},{:.3}) tri_area={:.4} bary=({:.3},{:.3},{:.3})",
             theta, phi, reflected.x, reflected.y, reflected.z, tri_area, u, v, w,
         );
@@ -116,7 +115,7 @@ impl Renderer {
         let reinhard_applied = reinhard_map.apply(test_color, 1.0);
         let filmic_applied = filmic_map.apply(test_color, 1.0);
         let agx_applied = agx_map.apply(test_color, 1.0);
-        eprintln!(
+        crate::runtime_log!(
             "tonemap: aces=({:.3},{:.3},{:.3}) reinhard=({:.3},{:.3},{:.3}) uncharted=({:.3},{:.3},{:.3}) r_op=({:.3},{:.3},{:.3}) f_op=({:.3},{:.3},{:.3}) agx=({:.3},{:.3},{:.3})",
             aces_result.x, aces_result.y, aces_result.z,
             reinhard_result.x, reinhard_result.y, reinhard_result.z,

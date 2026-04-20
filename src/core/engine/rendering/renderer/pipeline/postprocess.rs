@@ -1,4 +1,3 @@
-//! Framebuffer operations, god rays, tone mapping & color grading.
 
 use crate::core::engine::rendering::{
     effects::volumetric_effects::god_rays::GodRays,
@@ -10,8 +9,6 @@ use crate::core::engine::rendering::{
 use super::super::Renderer;
 
 impl Renderer {
-    /// Applies a subtle depth-based fog tint to the framebuffer.
-    /// Computes fog inline from depth values — no intermediate Vec allocation.
     pub(in crate::core::engine::rendering::renderer) fn apply_depth_fog(
         &self,
         framebuffer: &mut FrameBuffer,
@@ -29,7 +26,6 @@ impl Renderer {
         }
     }
 
-    /// Single god-ray pass with intensity driven by sun visibility.
     pub(in crate::core::engine::rendering::renderer) fn apply_god_rays(
         &self,
         framebuffer: &mut FrameBuffer,

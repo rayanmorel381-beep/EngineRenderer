@@ -180,10 +180,10 @@ pub(crate) fn submit_i915_execbuf(fd: RawFd, gem_handle: u32, batch: &[u32]) -> 
         raw_ioctl(fd, DRM_IOCTL_I915_GEM_EXECBUF2, core::ptr::addr_of_mut!(execbuf).cast())
     };
     if ret == 0 {
-        eprintln!("gpu: i915 execbuffer2 submitted — {} dwords", batch.len());
+        crate::runtime_log!("gpu: i915 execbuffer2 submitted — {} dwords", batch.len());
         Ok(batch.len() as i64)
     } else {
-        eprintln!("gpu: i915 execbuffer2 failed (ret={})", ret);
+        crate::runtime_log!("gpu: i915 execbuffer2 failed (ret={})", ret);
         Err("i915 execbuffer2 ioctl failed")
     }
 }

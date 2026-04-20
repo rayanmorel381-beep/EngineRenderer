@@ -9,7 +9,6 @@ use crate::api::types::CameraDesc;
 // Empty / minimal
 // ---------------------------------------------------------------------------
 
-/// Completely empty scene — vacuum, no objects, no light.
 pub fn empty() -> SceneBuilder {
     SceneBuilder::new()
         .with_vacuum()
@@ -18,7 +17,6 @@ pub fn empty() -> SceneBuilder {
         .exposure(1.0)
 }
 
-/// Single directional light, no objects.
 pub fn lit_void(direction: [f64; 3], color: [f64; 3], intensity: f64) -> SceneBuilder {
     empty()
         .sun_direction(direction)
@@ -30,7 +28,6 @@ pub fn lit_void(direction: [f64; 3], color: [f64; 3], intensity: f64) -> SceneBu
 // Studio / controlled lighting
 // ---------------------------------------------------------------------------
 
-/// Classic three-point lighting studio, clear environment.
 pub fn studio(eye: [f64; 3], target: [f64; 3]) -> SceneBuilder {
     SceneBuilder::new()
         .with_vacuum()
@@ -54,14 +51,12 @@ pub fn studio(eye: [f64; 3], target: [f64; 3]) -> SceneBuilder {
         .camera_position(eye, target)
 }
 
-/// High-key studio (bright, minimal shadows).
 pub fn studio_high_key(eye: [f64; 3], target: [f64; 3]) -> SceneBuilder {
     studio(eye, target)
         .sun_intensity(2.0)
         .exposure(1.6)
 }
 
-/// Low-key studio (dramatic, deep shadows).
 pub fn studio_low_key(eye: [f64; 3], target: [f64; 3]) -> SceneBuilder {
     studio(eye, target)
         .sun_intensity(0.6)
@@ -72,7 +67,6 @@ pub fn studio_low_key(eye: [f64; 3], target: [f64; 3]) -> SceneBuilder {
 // Outdoor / natural environments
 // ---------------------------------------------------------------------------
 
-/// Daylight sky — gradient from horizon to zenith.
 pub fn outdoor_daylight(
     sun_dir: [f64; 3],
     sun_color: [f64; 3],
@@ -89,7 +83,6 @@ pub fn outdoor_daylight(
         .exposure(1.4)
 }
 
-/// Golden-hour approximation — warm tones, low sun angle.
 pub fn golden_hour() -> SceneBuilder {
     outdoor_daylight(
         [-0.15, -0.12, -1.0],
@@ -100,7 +93,6 @@ pub fn golden_hour() -> SceneBuilder {
     )
 }
 
-/// Night scene — moon-like directional light, dark sky.
 pub fn night(moon_dir: [f64; 3]) -> SceneBuilder {
     SceneBuilder::new()
         .with_vacuum()
@@ -115,7 +107,6 @@ pub fn night(moon_dir: [f64; 3]) -> SceneBuilder {
 // Volumetric / atmospheric
 // ---------------------------------------------------------------------------
 
-/// Scene pre-filled with a volumetric medium (fog, mist, smoke, …).
 pub fn volumetric(
     density: f64,
     anisotropy: f64,
@@ -145,7 +136,6 @@ pub fn volumetric(
         .exposure(1.4)
 }
 
-/// Dense fog environment.
 pub fn foggy() -> SceneBuilder {
     volumetric(0.06, 0.2, 0.08, [0.7, 0.72, 0.75], [0.0, 0.0, 0.0])
 }
@@ -154,7 +144,6 @@ pub fn foggy() -> SceneBuilder {
 // Space / celestial
 // ---------------------------------------------------------------------------
 
-/// Deep-space vacuum — pitch-black sky, no atmosphere, no volume.
 pub fn deep_space() -> SceneBuilder {
     SceneBuilder::new()
         .with_vacuum()
@@ -165,7 +154,6 @@ pub fn deep_space() -> SceneBuilder {
         .exposure(1.45)
 }
 
-/// Space with nebula-like volumetric medium.
 pub fn nebula(
     density: f64,
     color: [f64; 3],
@@ -180,7 +168,6 @@ pub fn nebula(
 // Testing / debug
 // ---------------------------------------------------------------------------
 
-/// Minimal test scene: single white sphere at origin, white light.
 pub fn test_single_sphere() -> SceneBuilder {
     use crate::core::engine::rendering::raytracing::{Material, Vec3};
 
@@ -192,8 +179,6 @@ pub fn test_single_sphere() -> SceneBuilder {
         .camera_position([0.0, 0.0, 5.0], [0.0, 0.0, 0.0])
 }
 
-/// Material comparison: N spheres in a row with the same geometry,
-/// different materials.
 pub fn material_lineup(materials: Vec<crate::core::engine::rendering::raytracing::Material>, spacing: f64) -> SceneBuilder {
     use crate::core::engine::rendering::raytracing::Vec3;
 
@@ -210,7 +195,6 @@ pub fn material_lineup(materials: Vec<crate::core::engine::rendering::raytracing
     builder
 }
 
-/// Camera orbiting a fixed target — useful for turntable renders.
 pub fn turntable(target: [f64; 3], distance: f64, height: f64, angle_degrees: f64) -> CameraDesc {
     let angle = angle_degrees.to_radians();
     CameraDesc {

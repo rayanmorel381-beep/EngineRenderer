@@ -1,4 +1,3 @@
-//! Frame-rate loop controller — adaptive quality budgeting.
 
 #[derive(Debug, Clone, Copy)]
 pub struct FrameTarget {

@@ -23,45 +23,30 @@ use super::{
 use crate::core::coremanager::camera_manager::CameraManager;
 use crate::core::scheduler::resource::ResourceManager;
 
-/// Scène moteur complète : géométrie rendu, caméra active et graphe de scène.
 #[derive(Debug, Clone)]
 pub struct EngineScene {
-    /// Scène de rendu contenant les objets, lumières et environnement.
     pub scene: Scene,
-    /// Caméra active pour le rendu.
     pub camera: Camera,
-    /// Graphe de scène utilisé pour les calculs de disposition.
     pub graph: SceneGraph,
 }
 
-/// Prise de vue dédiée à la galerie, avec un nom et une configuration de scène/caméra indépendante.
 #[derive(Debug, Clone)]
 pub struct ShowcaseShot {
-    /// Identifiant textuel de la prise de vue.
     pub name: &'static str,
-    /// Scène de rendu de la prise de vue.
     pub scene: Scene,
-    /// Caméra associée à la prise de vue.
     pub camera: Camera,
 }
 
-/// Budget de complexité appliqué à la scène showcase.
 #[derive(Debug, Clone, Copy)]
 pub struct SceneComplexity {
-    /// Nombre maximal de meshes showcase instanciés.
     pub showcase_mesh_budget: usize,
-    /// Nombre maximal de lumières surfaciques conservées.
     pub area_light_budget: usize,
-    /// Active ou non le panorama céleste additionnel.
     pub panorama_enabled: bool,
-    /// Active ou non le raffinement géométrique des meshes showcase.
     pub refined_showcase_meshes: bool,
-    /// Remplace les meshes showcase par des proxies low-poly.
     pub proxy_showcase_meshes: bool,
 }
 
 impl SceneComplexity {
-    /// Retourne la complexité maximale.
     pub fn full() -> Self {
         Self {
             showcase_mesh_budget: usize::MAX,
@@ -74,7 +59,6 @@ impl SceneComplexity {
 }
 
 impl EngineScene {
-    /// Construit une `EngineScene` à partir d'un catalogue de corps célestes et des gestionnaires de ressources.
     pub fn from_bodies(
         catalog: &CelestialBodies,
         camera_manager: &CameraManager,
@@ -94,7 +78,6 @@ impl EngineScene {
         )
     }
 
-    /// Construit une `EngineScene` en appliquant un budget explicite de complexité géométrique et lumineuse.
     pub fn from_bodies_with_complexity(
         catalog: &CelestialBodies,
         camera_manager: &CameraManager,
@@ -189,7 +172,6 @@ impl EngineScene {
         Self { scene, camera, graph }
     }
 
-    /// Construit uniquement la caméra showcase temps réel pour un graphe déjà préparé.
     pub fn realtime_camera(
         camera_manager: &CameraManager,
         graph: &SceneGraph,
@@ -200,12 +182,10 @@ impl EngineScene {
         build_showcase_camera(camera_manager, graph, showcase_anchor, aspect_ratio, time)
     }
 
-    /// Retourne le nombre de nœuds dans le graphe de la scène.
     pub fn node_count(&self) -> usize {
         self.graph.node_count()
     }
 
-    /// Retourne les prises de vue galerie prédéfinies (voiture, arbre, maison, planète, soleil…).
     pub fn dedicated_gallery_shots() -> Vec<ShowcaseShot> {
         vec![
             build_car_showcase(),

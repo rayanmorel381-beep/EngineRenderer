@@ -1,19 +1,12 @@
-//! Engine configuration module.
-
 use std::path::PathBuf;
 
 use crate::core::engine::rendering::renderer::types::RenderPreset;
 
-/// Configuration runtime principale du moteur de rendu.
 #[derive(Debug, Clone)]
 pub struct EngineConfig {
-    /// Largeur cible du rendu.
     pub width: usize,
-    /// Hauteur cible du rendu.
     pub height: usize,
-    /// Chemin de sortie image principal.
     pub output_path: PathBuf,
-    /// Preset de rendu utilisé.
     pub render_preset: RenderPreset,
 }
 
@@ -30,7 +23,6 @@ impl EngineConfig {
         PathBuf::from("output").join(file_name)
     }
 
-    /// Preset Ultra HD orienté qualité CPU.
     pub fn ultra_hd_cpu() -> Self {
         Self {
             width: 2560,
@@ -40,7 +32,6 @@ impl EngineConfig {
         }
     }
 
-    /// Preset référence production (résolution maximale prévue).
     pub fn production_reference() -> Self {
         Self {
             width: 3840,
@@ -50,18 +41,15 @@ impl EngineConfig {
         }
     }
 
-    /// Preset temps réel pour aperçu interactif.
     pub fn realtime_preview() -> Self {
         Self {
-            width: 1280,
-            height: 720,
+            width: 1920,
+            height: 1080,
             output_path: Self::default_output_path("realtime_preview.ppm"),
-            render_preset: RenderPreset::AnimationFast,
+            render_preset: RenderPreset::UltraHdCpu,
         }
     }
 
-    /// Minimal config for integration tests — tiny resolution to avoid
-    /// blowing up CPU/RAM.
     pub fn test_minimal() -> Self {
         Self {
             width: 80,
@@ -71,7 +59,6 @@ impl EngineConfig {
         }
     }
 
-    /// Retourne le ratio d'aspect `width / height`.
     pub fn aspect_ratio(&self) -> f64 {
         self.width as f64 / self.height as f64
     }

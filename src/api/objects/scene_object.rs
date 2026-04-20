@@ -1,38 +1,23 @@
 use crate::api::materials::catalog::MaterialCatalog;
 use crate::core::engine::rendering::raytracing::{Material, Sphere, Triangle, Vec3};
 
-/// A scene object that can be a sphere, a triangle, or a composite group.
-///
-/// AI agents build scenes by creating `SceneObject`s and adding them to a
-/// [`SceneBuilder`](crate::api::scenes::builder::SceneBuilder).
 #[derive(Debug, Clone)]
 pub enum SceneObject {
-    /// Sphère paramétrique.
     Sphere {
-        /// Centre de la sphère.
         center: Vec3,
-        /// Rayon de la sphère.
         radius: f64,
-        /// Matériau appliqué.
         material: Material,
     },
-    /// Triangle plat.
     Triangle {
-        /// Sommet A.
         a: Vec3,
-        /// Sommet B.
         b: Vec3,
-        /// Sommet C.
         c: Vec3,
-        /// Matériau appliqué.
         material: Material,
     },
-    /// Groupe récursif d'objets.
     Group(Vec<SceneObject>),
 }
 
 impl SceneObject {
-    /// Sphere from plain arrays.
     pub fn sphere(center: [f64; 3], radius: f64, material_name: &str) -> Self {
         Self::Sphere {
             center: Vec3::new(center[0], center[1], center[2]),
@@ -41,7 +26,6 @@ impl SceneObject {
         }
     }
 
-    /// Sphere with an explicit [`Material`].
     pub fn sphere_with(center: Vec3, radius: f64, material: Material) -> Self {
         Self::Sphere {
             center,
@@ -50,7 +34,6 @@ impl SceneObject {
         }
     }
 
-    /// Flat triangle from plain arrays.
     pub fn triangle(a: [f64; 3], b: [f64; 3], c: [f64; 3], material_name: &str) -> Self {
         Self::Triangle {
             a: Vec3::new(a[0], a[1], a[2]),
@@ -60,12 +43,10 @@ impl SceneObject {
         }
     }
 
-    /// Group multiple objects together (e.g. a composite "house" or "tree").
     pub fn group(objects: Vec<SceneObject>) -> Self {
         Self::Group(objects)
     }
 
-    /// Flatten into raw engine primitives.
     pub fn into_primitives(self) -> (Vec<Sphere>, Vec<Triangle>) {
         let mut spheres = Vec::new();
         let mut triangles = Vec::new();

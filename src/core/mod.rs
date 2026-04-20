@@ -1,3 +1,12 @@
+#[macro_export]
+macro_rules! runtime_log {
+	($($arg:tt)*) => {
+		if cfg!(debug_assertions) {
+			::std::eprintln!($($arg)*);
+		}
+	};
+}
+
 pub mod animation;
 pub mod coremanager;
 pub mod debug;

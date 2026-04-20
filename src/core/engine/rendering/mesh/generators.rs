@@ -1,5 +1,3 @@
-//! Procedural mesh generators: asteroid, cube, ground plane, torus,
-//! and icosphere.
 
 use std::collections::HashMap;
 
@@ -9,7 +7,6 @@ use super::vertex::{MeshDescriptor, Vertex};
 use super::asset::MeshAsset;
 
 impl MeshAsset {
-    /// Generates a procedurally displaced asteroid mesh.
     pub fn procedural_asteroid(name: &str, base_radius: f64, subdivisions: u32) -> Self {
         let roughness = 0.25;
         let mut asset = icosphere(subdivisions, base_radius);
@@ -28,8 +25,6 @@ impl MeshAsset {
     }
 }
 
-/// Generates an axis-aligned unit cube (`±0.5`) with outward normals
-/// and basic UV coordinates.
 pub fn unit_cube() -> MeshAsset {
     let mut vertices = Vec::with_capacity(24);
     let mut indices = Vec::with_capacity(36);
@@ -69,11 +64,6 @@ pub fn unit_cube() -> MeshAsset {
     }
 }
 
-/// Generates a subdivided ground plane on the XZ plane centred at
-/// the origin.
-///
-/// * `subdivisions` – number of divisions along each axis.
-/// * `half_extent`  – half the side length of the plane.
 pub fn ground_plane(subdivisions: usize, half_extent: f64) -> MeshAsset {
     let n = subdivisions + 1;
     let mut vertices = Vec::with_capacity(n * n);
@@ -118,13 +108,6 @@ pub fn ground_plane(subdivisions: usize, half_extent: f64) -> MeshAsset {
     }
 }
 
-/// Generates a torus on the XZ plane.
-///
-/// * `major_radius` – distance from the centre of the tube to the
-///   centre of the torus.
-/// * `minor_radius` – radius of the tube.
-/// * `major_segments` – subdivisions around the main ring.
-/// * `minor_segments` – subdivisions around the tube cross-section.
 pub fn torus(
     major_radius: f64,
     minor_radius: f64,
@@ -186,11 +169,6 @@ pub fn torus(
     }
 }
 
-/// Generates a subdivided icosphere.
-///
-/// * `subdivisions` – number of recursive subdivisions (0 =
-///   icosahedron, each step quadruples the triangle count).
-/// * `radius` – sphere radius.
 pub fn icosphere(subdivisions: u32, radius: f64) -> MeshAsset {
     let subdivisions = subdivisions.min(8);
     let t = (1.0 + 5.0_f64.sqrt()) / 2.0;
@@ -266,8 +244,6 @@ pub fn icosphere(subdivisions: u32, radius: f64) -> MeshAsset {
     }
 }
 
-/// Returns the index of the midpoint between `a` and `b`, creating
-/// and caching it if needed.
 fn get_midpoint(
     a: usize,
     b: usize,

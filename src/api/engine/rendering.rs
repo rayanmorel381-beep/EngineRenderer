@@ -25,64 +25,55 @@ pub use crate::core::engine::rendering::utils::{
     rgb_to_hsv, smoothstep, spherical_to_cartesian, srgb_to_linear, triangle_area, uncharted2_tonemap,
 };
 
-/// Paramètres d'une session de rendu temps réel.
+/// Realtime run request.
 #[derive(Debug, Clone)]
 pub struct RealtimeRequest {
-    /// Largeur de la fenêtre en pixels.
     pub width: u32,
-    /// Hauteur de la fenêtre en pixels.
     pub height: u32,
-    /// Fréquence d'images cible en Hz.
     pub target_fps: u32,
-    /// Durée de la session en secondes.
     pub duration_seconds: u32,
 }
 
 impl Default for RealtimeRequest {
     fn default() -> Self {
         Self {
-            width: 640,
-            height: 360,
-            target_fps: 60,
-            duration_seconds: 8,
+            width: 1920,
+            height: 1080,
+            target_fps: 120,
+            duration_seconds: 10,
         }
     }
 }
 
-/// Résultat d'une session de rendu temps réel.
+/// Realtime run result summary.
 #[derive(Debug, Clone)]
 pub struct RealtimeResult {
-    /// Largeur effective en pixels.
     pub width: u32,
-    /// Hauteur effective en pixels.
     pub height: u32,
-    /// Fréquence d'images cible en Hz.
     pub target_fps: u32,
-    /// Durée de la session en secondes.
     pub duration_seconds: u32,
-    /// Durée réelle écoulée en millisecondes.
     pub elapsed_ms: f64,
 }
 
 impl EngineApi {
     // -- render requests ----------------------------------------------------
 
-    /// Retourne une `RenderRequest` en qualité HD (1920×1080).
+    /// Returns a standard HD render request.
     pub fn request_hd(&self) -> RenderRequest {
         RenderRequest::hd()
     }
 
-    /// Retourne une `RenderRequest` en qualité production (3840×2160).
+    /// Returns a production render request.
     pub fn request_production(&self) -> RenderRequest {
         RenderRequest::production()
     }
 
-    /// Retourne une `RenderRequest` en qualité préview (1280×720).
+    /// Returns a preview render request.
     pub fn request_preview(&self) -> RenderRequest {
         RenderRequest::preview()
     }
 
-    /// Retourne une `RenderRequest` avec les dimensions et la qualité spécifiées.
+    /// Builds a custom render request with clamped resolution.
     pub fn request_custom(
         &self,
         width: usize,
@@ -100,7 +91,7 @@ impl EngineApi {
 
     // -- rendering ----------------------------------------------------------
 
-    /// Rend une scène construite par un `SceneBuilder`.
+    /// Renders a scene built through [`SceneBuilder`].
     pub fn render(
         &self,
         builder: SceneBuilder,
@@ -127,7 +118,7 @@ impl EngineApi {
         })
     }
 
-    /// Rend la scène de démonstration intégrée.
+    /// Renders the engine showcase scene.
     pub fn render_showcase(
         &self,
         request: &RenderRequest,
@@ -157,7 +148,7 @@ impl EngineApi {
         })
     }
 
-    /// Lance une session de rendu temps réel dans une fenêtre native.
+    /// Runs realtime rendering with explicit runtime settings.
     pub fn render_realtime(
         &self,
         request: &RealtimeRequest,
@@ -180,17 +171,17 @@ impl EngineApi {
         })
     }
 
-    /// Retourne une `RealtimeRequest` HD (1920×1080 @ 60 fps, 10 s).
+    /// Returns the default realtime HD profile.
     pub fn realtime_hd(&self) -> RealtimeRequest {
         RealtimeRequest {
             width: 1920,
             height: 1080,
-            target_fps: 60,
+            target_fps: 120,
             duration_seconds: 10,
         }
     }
 
-    /// Retourne une `RealtimeRequest` mobile (640×360 @ 120 fps, 8 s).
+    /// Returns a lightweight mobile realtime profile.
     pub fn realtime_mobile(&self) -> RealtimeRequest {
         RealtimeRequest {
             width: 640,
@@ -200,7 +191,7 @@ impl EngineApi {
         }
     }
 
-    /// Retourne une `RealtimeRequest` ultra HD (3840×2160 @ 30 fps, 5 s).
+    /// Returns an ultra-resolution realtime profile.
     pub fn realtime_ultra(&self) -> RealtimeRequest {
         RealtimeRequest {
             width: 3840,
@@ -219,25 +210,19 @@ fn preset_for(request: &RenderRequest) -> RenderPreset {
     }
 }
 
-/// Paramètres de génération d'une animation (frames + encodage MP4).
+/// Video generation request.
 #[derive(Debug, Clone)]
 pub struct GeneratorRequest {
-    /// Largeur des frames en pixels.
     pub width: usize,
-    /// Hauteur des frames en pixels.
     pub height: usize,
-    /// Qualité de rendu.
     pub quality: Quality,
-    /// Répertoire de sortie pour les frames individuelles.
     pub output_dir: PathBuf,
-    /// Chemin du fichier MP4 final.
     pub output_mp4: PathBuf,
-    /// Préfixe des noms de fichier des frames (ex. `"frame"` → `frame_0001.ppm`).
     pub frame_prefix: String,
 }
 
 impl GeneratorRequest {
-    /// Crée une requête de génération en qualité préview (1280×720).
+    /// Returns the preview generation profile.
     pub fn preview() -> Self {
         Self {
             width: 1280,
@@ -249,7 +234,7 @@ impl GeneratorRequest {
         }
     }
 
-    /// Convertit en [`RenderRequest`] compatible avec le pipeline de rendu.
+    /// Converts this generator request to a render request.
     pub fn to_render_request(&self) -> RenderRequest {
         RenderRequest::preview()
             .with_quality(self.quality)
@@ -257,7 +242,7 @@ impl GeneratorRequest {
             .with_output(self.output_dir.clone(), String::from("frame.ppm"))
     }
 
-    /// Retourne le [`RenderPreset`] correspondant à la qualité demandée.
+    /// Converts this generator request to a renderer preset.
     pub fn to_preset(&self) -> RenderPreset {
         match self.quality {
             Quality::Preview => RenderPreset::AnimationFast,
@@ -267,7 +252,7 @@ impl GeneratorRequest {
     }
 }
 
-/// Rend toutes les frames de l'animation et les encode en MP4.
+/// Renders and encodes a full animation sequence.
 pub fn generate_video(
     base: SceneDescriptor,
     clip: AnimationClip,
@@ -284,7 +269,7 @@ pub fn generate_video(
     Ok(sequence)
 }
 
-/// Rend l'animation frame par frame en l'affichant dans une fenêtre de prévisualisation.
+/// Renders an animation sequence for live preview.
 pub fn preview_window(
     base: SceneDescriptor,
     clip: AnimationClip,

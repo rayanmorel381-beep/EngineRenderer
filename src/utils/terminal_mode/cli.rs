@@ -1,4 +1,3 @@
-//! CLI command parsing and dispatch for the terminal mode.
 
 use std::error::Error;
 use std::io::{self, Write};
@@ -14,7 +13,6 @@ use enginerenderer::api::engine::diagnostics::{
     DiagnosticsOptions,
 };
 
-/// Dispatches top-level CLI arguments to the corresponding terminal command.
 pub fn run_cli(args: &[String]) -> Result<(), Box<dyn Error>> {
     let Some(first) = args.first().map(|s| s.as_str()) else {
         print_help();

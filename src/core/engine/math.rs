@@ -123,7 +123,7 @@ impl Mat4 {
         ],
     };
 
-    pub fn as_ref(&self) -> &[f32; 16] {
+    pub fn as_flat_array(&self) -> &[f32; 16] {
         unsafe { std::mem::transmute(&self.m) }
     }
 

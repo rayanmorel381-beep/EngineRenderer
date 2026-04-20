@@ -8,36 +8,24 @@ use crate::core::scheduler::adaptive::TileScheduler;
 
 use super::clip::AnimationClip;
 
-/// Résultat de rendu d'une frame.
 #[derive(Debug, Clone)]
 pub struct FrameResult {
-    /// Index de frame.
     pub frame:       usize,
-    /// Temps de frame en secondes.
     pub time_secs:   f64,
-    /// Fichier de sortie.
     pub output_path: PathBuf,
-    /// Durée en millisecondes.
     pub duration_ms: u128,
 }
 
-/// Résultat global d'une séquence rendue.
 #[derive(Debug, Clone)]
 pub struct SequenceResult {
-    /// Liste des frames rendues.
     pub frames:      Vec<FrameResult>,
-    /// Durée totale en ms.
     pub total_ms:    u128,
-    /// Dossier de sortie.
     pub output_dir:  PathBuf,
-    /// Nombre de frames attendu.
     pub frame_count: usize,
-    /// FPS cible.
     pub fps:         f64,
 }
 
 impl SequenceResult {
-    /// Durée moyenne par frame en ms.
     pub fn average_frame_ms(&self) -> f64 {
         if self.frames.is_empty() {
             return 0.0;
@@ -46,26 +34,17 @@ impl SequenceResult {
     }
 }
 
-/// Orchestrateur de rendu de séquence image par image.
 pub struct FrameSequencer {
-    /// Scène de base.
     pub base:         SceneDescriptor,
-    /// Clip d'animation.
     pub clip:         AnimationClip,
-    /// Dossier de sortie.
     pub output_dir:   PathBuf,
-    /// Préfixe des fichiers frame.
     pub frame_prefix: String,
-    /// Preset de rendu.
     pub preset:       RenderPreset,
-    /// Largeur de rendu.
     pub width:        usize,
-    /// Hauteur de rendu.
     pub height:       usize,
 }
 
 impl FrameSequencer {
-    /// Crée un séquenceur complet.
     pub fn new(
         base:         SceneDescriptor,
         clip:         AnimationClip,
@@ -86,7 +65,6 @@ impl FrameSequencer {
         }
     }
 
-    /// Rend toute la séquence sur disque.
     pub fn render_all(&self) -> Result<SequenceResult, Box<dyn Error>> {
         use crate::core::engine::acces_hardware::{precise_timestamp_ns, elapsed_ms as hw_elapsed};
 
@@ -106,7 +84,7 @@ impl FrameSequencer {
         let t_bvh = precise_timestamp_ns();
         let bvh = BvhNode::build(&base_scene);
         let bvh_ms = hw_elapsed(t_bvh, precise_timestamp_ns());
-        eprintln!("animation: BVH cached in {:.2}ms for {} frames", bvh_ms, frame_count);
+        crate::runtime_log!("animation: BVH cached in {:.2}ms for {} frames", bvh_ms, frame_count);
 
         let config = renderer.config_for(self.preset);
         let pixel_work = config.width * config.height * config.base_samples_per_pixel as usize;
@@ -117,7 +95,7 @@ impl FrameSequencer {
             .max(1);
         let thread_count = logical_threads.max(max_threads).min(16);
         let scheduler = TileScheduler::new(self.width, self.height, thread_count);
-        eprintln!(
+        crate::runtime_log!(
             "animation: scheduler cached — {} threads/{} for {} frames",
             thread_count, max_threads, frame_count,
         );
@@ -166,7 +144,7 @@ impl FrameSequencer {
             )?;
             let frame_ms = hw_elapsed(t_frame, precise_timestamp_ns());
 
-            eprintln!("animation: frame {}/{} t={:.3}s → {} ({:.1}ms)",
+            crate::runtime_log!("animation: frame {}/{} t={:.3}s → {} ({:.1}ms)",
                 idx + 1, frame_count, time, output_path.display(), frame_ms);
 
             frames.push(FrameResult {
@@ -188,7 +166,6 @@ impl FrameSequencer {
         })
     }
 
-    /// Rend toute la séquence en fenêtre native.
     pub fn render_all_to_window(&self) -> Result<SequenceResult, Box<dyn Error>> {
         use crate::core::engine::acces_hardware::{
             precise_timestamp_ns, elapsed_ms as hw_elapsed,
@@ -220,10 +197,10 @@ impl FrameSequencer {
         let t_bvh = precise_timestamp_ns();
         let bvh = BvhNode::build(&base_scene);
         let bvh_ms = hw_elapsed(t_bvh, precise_timestamp_ns());
-        eprintln!("window: BVH cached in {:.2}ms for {} frames", bvh_ms, frame_count);
+        crate::runtime_log!("window: BVH cached in {:.2}ms for {} frames", bvh_ms, frame_count);
 
         let mut scheduler = TileScheduler::new(internal_width, internal_height, realtime_threads);
-        eprintln!(
+        crate::runtime_log!(
             "window: scheduler cached — {} threads for {} frames",
             realtime_threads, frame_count,
         );
@@ -231,14 +208,16 @@ impl FrameSequencer {
         let title = format!("EngineRenderer — {}x{} @ {}fps", output_width, output_height, self.clip.fps as u32);
         let mut window = NativeWindow::open(output_width, output_height, &title);
         if window.is_none() {
-            eprintln!("window: display unavailable, falling back to disk render");
+            crate::runtime_log!("window: display unavailable, falling back to disk render");
             return self.render_all();
         }
-        let window = window.as_mut().unwrap();
+        let Some(window) = window.as_mut() else {
+            return self.render_all();
+        };
 
         for idx in 0..frame_count {
             if window.should_close() {
-                eprintln!("window: closed by user at frame {}", idx);
+                crate::runtime_log!("window: closed by user at frame {}", idx);
                 break;
             }
 
@@ -291,7 +270,7 @@ impl FrameSequencer {
             );
             window.present_frame(&argb, output_width, output_height);
 
-            eprintln!("window: frame {}/{} t={:.3}s ({:.1}ms)",
+            crate::runtime_log!("window: frame {}/{} t={:.3}s ({:.1}ms)",
                 idx + 1, frame_count, time, frame_ms);
 
             if frame_ms > frame_budget_ms * 1.15 && internal_width > 160 && internal_height > 90 {

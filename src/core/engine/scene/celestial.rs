@@ -5,27 +5,20 @@ use crate::core::engine::rendering::{
     effects::volumetric_effects::medium::VolumetricMedium,
 };
 
-/// Corps céleste décrit par sa masse, son rayon, sa position et son matériau de surface.
 #[derive(Debug, Clone, Copy)]
 pub struct CelestialBody {
-    /// Masse du corps (unités arbitraires, utilisée pour le centre de masse).
     pub mass: f64,
-    /// Rayon du corps.
     pub radius: f64,
-    /// Position du centre dans l'espace monde.
     pub position: Vec3,
-    /// Matériau de surface du corps.
     pub material: Material,
 }
 
-/// Collection de corps célestes formant un système.
 #[derive(Debug, Clone)]
 pub struct CelestialBodies {
     bodies: Vec<CelestialBody>,
 }
 
 impl CelestialBodies {
-    /// Retourne un système de démonstration avec cinq corps prédéfinis.
     pub fn showcase() -> Self {
         Self {
             bodies: vec![
@@ -63,12 +56,10 @@ impl CelestialBodies {
         }
     }
 
-    /// Retourne la liste de tous les corps célestes du système.
     pub fn bodies(&self) -> &[CelestialBody] {
         &self.bodies
     }
 
-    /// Calcule le centre de masse pondéré du système.
     pub fn scene_center(&self) -> Vec3 {
         let mut weighted_sum = Vec3::ZERO;
         let mut total_mass = 0.0;
@@ -85,7 +76,6 @@ impl CelestialBodies {
         }
     }
 
-    /// Calcule le rayon minimal englobant tous les corps depuis le centre de masse.
     pub fn scene_radius(&self) -> f64 {
         let center = self.scene_center();
         self.bodies
@@ -94,7 +84,6 @@ impl CelestialBodies {
             .fold(1.0, f64::max)
     }
 
-    /// Convertit le système en `Scene` prête au rendu.
     pub fn to_scene(&self) -> Scene {
         let objects = self
             .bodies

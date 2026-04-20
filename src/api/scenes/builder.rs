@@ -8,17 +8,7 @@ use crate::core::engine::rendering::raytracing::{
 };
 use crate::core::engine::rendering::effects::volumetric_effects::medium::VolumetricMedium;
 
-/// Fluent, AI-friendly scene builder.
-///
-/// ```ignore
-/// let scene = SceneBuilder::new()
-///     .add_sphere(Vec3::new(0.0, 0.0, 0.0), 1.6, mat_star)
-///     .add_sphere(Vec3::new(5.0, 0.3, 0.0), 0.55, mat_planet)
-///     .sun_direction([-0.6, -0.4, -1.0])
-///     .sun_intensity(1.5)
-///     .with_camera(CameraDesc { eye: [12.0, 6.0, 12.0], ..Default::default() })
-///     .build(16.0 / 9.0);
-/// ```
+/// Fluent scene construction helper for API consumers.
 #[derive(Debug, Clone)]
 pub struct SceneBuilder {
     spheres: Vec<Sphere>,
@@ -42,7 +32,7 @@ impl Default for SceneBuilder {
 }
 
 impl SceneBuilder {
-    /// Crée un `SceneBuilder` avec environnement et lumière par défaut.
+    /// Creates an empty scene builder with cinematic defaults.
     pub fn new() -> Self {
         Self {
             spheres: Vec::new(),
@@ -64,7 +54,7 @@ impl SceneBuilder {
     // Objects
     // -----------------------------------------------------------------------
 
-    /// Ajoute une sphère explicite.
+    /// Adds a sphere object.
     pub fn add_sphere(mut self, center: Vec3, radius: f64, material: Material) -> Self {
         self.spheres.push(Sphere {
             center,
@@ -74,14 +64,13 @@ impl SceneBuilder {
         self
     }
 
-    /// Ajoute une sphère en résolvant le matériau par son nom.
+    /// Adds a sphere object using a material name from the catalog.
     pub fn add_sphere_named(self, center: Vec3, radius: f64, material_name: &str) -> Self {
         let material = MaterialCatalog.by_name(material_name);
         self.add_sphere(center, radius, material)
     }
 
-    /// Add a [`SceneObject`] (sphere, triangle, or composite group).
-    /// Groups are flattened recursively.
+    /// Adds a high-level object and expands it to primitives.
     pub fn add_object(mut self, object: SceneObject) -> Self {
         let (spheres, triangles) = object.into_primitives();
         self.spheres.extend(spheres);
@@ -89,13 +78,13 @@ impl SceneBuilder {
         self
     }
 
-    /// Add a raw triangle.
+    /// Adds a triangle primitive.
     pub fn add_triangle(mut self, a: Vec3, b: Vec3, c: Vec3, material: Material) -> Self {
         self.triangles.push(Triangle::flat(a, b, c, material));
         self
     }
 
-    /// Add all triangles from a [`MeshAsset`] with the given transform and material.
+    /// Adds a mesh by expanding it to triangles.
     pub fn add_mesh(
         mut self,
         mesh: &crate::core::engine::rendering::mesh::asset::MeshAsset,
@@ -111,25 +100,25 @@ impl SceneBuilder {
     // Lighting
     // -----------------------------------------------------------------------
 
-    /// Définit la direction solaire.
+    /// Sets the directional light direction.
     pub fn sun_direction(mut self, dir: [f64; 3]) -> Self {
         self.sun_direction = Vec3::new(dir[0], dir[1], dir[2]).normalize();
         self
     }
 
-    /// Définit la couleur solaire.
+    /// Sets the directional light color.
     pub fn sun_color(mut self, rgb: [f64; 3]) -> Self {
         self.sun_color = Vec3::new(rgb[0], rgb[1], rgb[2]);
         self
     }
 
-    /// Définit l'intensité solaire.
+    /// Sets the directional light intensity.
     pub fn sun_intensity(mut self, intensity: f64) -> Self {
         self.sun_intensity = intensity.max(0.0);
         self
     }
 
-    /// Ajoute une lumière de surface rectangulaire.
+    /// Adds an area light.
     pub fn add_area_light(
         mut self,
         position: [f64; 3],
@@ -151,32 +140,32 @@ impl SceneBuilder {
     // Environment
     // -----------------------------------------------------------------------
 
-    /// Définit les couleurs de ciel haut/bas.
+    /// Sets top and bottom sky colors.
     pub fn sky(mut self, top: [f64; 3], bottom: [f64; 3]) -> Self {
         self.sky_top = Vec3::new(top[0], top[1], top[2]);
         self.sky_bottom = Vec3::new(bottom[0], bottom[1], bottom[2]);
         self
     }
 
-    /// Définit l'exposition globale.
+    /// Sets global scene exposure.
     pub fn exposure(mut self, exposure: f64) -> Self {
         self.exposure = exposure.max(0.01);
         self
     }
 
-    /// Active un volume dense prédéfini.
+    /// Enables a denser volumetric medium preset.
     pub fn with_dense_volume(mut self) -> Self {
         self.volume = VolumetricMedium::cinematic_nebula().with_density_multiplier(1.8);
         self
     }
 
-    /// Active un volume de vide.
+    /// Uses vacuum medium (no volumetrics).
     pub fn with_vacuum(mut self) -> Self {
         self.volume = VolumetricMedium::vacuum();
         self
     }
 
-    /// Set a custom volumetric medium.
+    /// Sets an explicit volumetric medium.
     pub fn with_volume(mut self, medium: VolumetricMedium) -> Self {
         self.volume = medium;
         self
@@ -186,26 +175,26 @@ impl SceneBuilder {
     // Camera
     // -----------------------------------------------------------------------
 
-    /// Définit la caméra complète.
+    /// Replaces camera descriptor.
     pub fn with_camera(mut self, desc: CameraDesc) -> Self {
         self.camera = desc;
         self
     }
 
-    /// Définit position et cible caméra.
+    /// Sets camera eye and target positions.
     pub fn camera_position(mut self, eye: [f64; 3], target: [f64; 3]) -> Self {
         self.camera.eye = eye;
         self.camera.target = target;
         self
     }
 
-    /// Définit le champ de vision vertical.
+    /// Sets camera vertical field of view in degrees.
     pub fn camera_fov(mut self, degrees: f64) -> Self {
         self.camera.fov_degrees = degrees.clamp(10.0, 120.0);
         self
     }
 
-    /// Définit l'ouverture caméra.
+    /// Sets camera aperture value.
     pub fn camera_aperture(mut self, aperture: f64) -> Self {
         self.camera.aperture = aperture.max(0.0);
         self
@@ -215,21 +204,38 @@ impl SceneBuilder {
     // Auto framing
     // -----------------------------------------------------------------------
 
-    /// Automatically position the camera to frame all objects.
+    /// Automatically frames the current scene content.
     pub fn auto_frame(mut self) -> Self {
-        if self.spheres.is_empty() {
+        if self.spheres.is_empty() && self.triangles.is_empty() {
             return self;
         }
-        let center = self
+        let sphere_center_sum = self
             .spheres
             .iter()
-            .fold(Vec3::ZERO, |a, s| a + s.center)
-            / self.spheres.len() as f64;
-        let extent = self
+            .fold(Vec3::ZERO, |a, s| a + s.center);
+        let triangle_center_sum = self
+            .triangles
+            .iter()
+            .fold(Vec3::ZERO, |a, t| a + (t.a + t.b + t.c) / 3.0);
+        let sample_count = (self.spheres.len() + self.triangles.len()) as f64;
+        let center = (sphere_center_sum + triangle_center_sum) / sample_count.max(1.0);
+
+        let sphere_extent = self
             .spheres
             .iter()
             .map(|s| (s.center - center).length() + s.radius)
-            .fold(1.0_f64, f64::max);
+            .fold(0.0_f64, f64::max);
+        let triangle_extent = self
+            .triangles
+            .iter()
+            .map(|t| {
+                (t.a - center)
+                    .length()
+                    .max((t.b - center).length())
+                    .max((t.c - center).length())
+            })
+            .fold(0.0_f64, f64::max);
+        let extent = sphere_extent.max(triangle_extent).max(1.0);
         let dist = extent * 2.8;
         self.camera.eye = [center.x + dist * 0.7, center.y + dist * 0.45, center.z + dist * 0.7];
         self.camera.target = [center.x, center.y, center.z];
@@ -240,7 +246,7 @@ impl SceneBuilder {
     // Build
     // -----------------------------------------------------------------------
 
-    /// Consume the builder and produce a renderable `(Scene, Camera)`.
+    /// Builds final scene and camera pair for rendering.
     pub fn build(self, aspect_ratio: f64) -> (Scene, Camera) {
         let scene = Scene {
             objects: self.spheres,
@@ -281,22 +287,15 @@ impl SceneBuilder {
     }
 }
 
-/// Données brutes d'une sphère dans un descripteur de scène.
+/// Serializable sphere input entry used by descriptor parsing.
 #[derive(Debug, Clone)]
 pub struct SphereEntry {
-    /// Position dans l'espace monde `[x, y, z]`.
     pub position: [f64; 3],
-    /// Rayon de la sphère, en unités monde.
     pub radius:   f64,
-    /// Nom du matériau du catalogue, prioritaire sur les champs PBR ci-dessous.
     pub material_name: Option<String>,
-    /// Couleur de base (albédo) `[r, g, b]` en espace linéaire.
     pub albedo:    [f64; 3],
-    /// Rugosité de la surface, de `0.0` (miroir) à `1.0` (totalement mat).
     pub roughness: f64,
-    /// Facteur métallique de la surface, de `0.0` (diélectrique) à `1.0` (métal).
     pub metallic:  f64,
-    /// Intensité d'émission de la surface.
     pub emission:  f64,
 }
 
@@ -314,24 +313,16 @@ impl Default for SphereEntry {
     }
 }
 
-/// Données brutes d'un triangle dans un descripteur de scène.
+/// Serializable triangle input entry used by descriptor parsing.
 #[derive(Debug, Clone)]
 pub struct TriangleEntry {
-    /// Premier sommet du triangle `[x, y, z]`.
     pub a: [f64; 3],
-    /// Deuxième sommet du triangle `[x, y, z]`.
     pub b: [f64; 3],
-    /// Troisième sommet du triangle `[x, y, z]`.
     pub c: [f64; 3],
-    /// Nom du matériau du catalogue, prioritaire sur les champs PBR ci-dessous.
     pub material_name: Option<String>,
-    /// Couleur de base (albédo) `[r, g, b]` en espace linéaire.
     pub albedo: [f64; 3],
-    /// Rugosité de la surface, de `0.0` (miroir) à `1.0` (totalement mat).
     pub roughness: f64,
-    /// Facteur métallique de la surface, de `0.0` (diélectrique) à `1.0` (métal).
     pub metallic: f64,
-    /// Intensité d'émission de la surface.
     pub emission: f64,
 }
 
@@ -350,16 +341,11 @@ impl Default for TriangleEntry {
     }
 }
 
-/// Données brutes d'une lumière surfacique dans un descripteur de scène.
 #[derive(Debug, Clone)]
 pub struct AreaLightEntry {
-    /// Position du centre de la lumière `[x, y, z]`.
     pub position:  [f64; 3],
-    /// Couleur émise `[r, g, b]` en espace linéaire.
     pub color:     [f64; 3],
-    /// Intensité lumineuse.
     pub intensity: f64,
-    /// Dimensions de la surface `[largeur, hauteur]`.
     pub size:      [f64; 2],
 }
 
@@ -374,31 +360,17 @@ impl Default for AreaLightEntry {
     }
 }
 
-/// Descripteur déclaratif d'une scène complète, sérialisable vers/depuis un fichier texte.
-///
-/// Utilisé pour décrire la scène de façon portable avant de la convertir en [`SceneBuilder`]
-/// exécutable via [`SceneDescriptor::into_builder`].
 #[derive(Debug, Clone)]
 pub struct SceneDescriptor {
-    /// Description de la caméra (position, cible, champ de vision, ouverture).
     pub camera:        CameraDesc,
-    /// Direction du soleil `[x, y, z]` (non normalisée, normalisée à la construction).
     pub sun_direction: [f64; 3],
-    /// Couleur du soleil `[r, g, b]` en espace linéaire.
     pub sun_color:     [f64; 3],
-    /// Intensité du soleil.
     pub sun_intensity: f64,
-    /// Couleur du ciel en haut `[r, g, b]`.
     pub sky_top:       [f64; 3],
-    /// Couleur du ciel en bas (horizon) `[r, g, b]`.
     pub sky_bottom:    [f64; 3],
-    /// Facteur d'exposition global de la scène.
     pub exposure:      f64,
-    /// Liste des sphères de la scène.
     pub spheres:       Vec<SphereEntry>,
-    /// Liste des triangles de la scène.
     pub triangles:     Vec<TriangleEntry>,
-    /// Liste des lumières surfaciques de la scène.
     pub area_lights:   Vec<AreaLightEntry>,
 }
 
@@ -420,13 +392,11 @@ impl Default for SceneDescriptor {
 }
 
 impl SceneDescriptor {
-    /// Charge un descripteur de scène depuis un fichier texte.
     pub fn load_from_file<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let text = fs::read_to_string(path)?;
         Self::parse(&text).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
 
-    /// Sérialise et enregistre le descripteur dans un fichier texte.
     pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> io::Result<()> {
         if let Some(parent) = path.as_ref().parent()
             && !parent.as_os_str().is_empty()
@@ -436,7 +406,6 @@ impl SceneDescriptor {
         fs::write(path, self.serialize())
     }
 
-    /// Parse un descripteur de scène depuis une chaîne de texte.
     pub fn parse(text: &str) -> Result<Self, String> {
         let mut desc = SceneDescriptor::default();
 
@@ -517,7 +486,6 @@ impl SceneDescriptor {
         Ok(desc)
     }
 
-    /// Sérialise le descripteur en chaîne de texte.
     pub fn serialize(&self) -> String {
         let mut s = String::new();
         s.push_str("version 1\n");
@@ -599,7 +567,6 @@ impl SceneDescriptor {
         s
     }
 
-    /// Convertit le descripteur en [`SceneBuilder`] prêt à être rendu.
     pub fn into_builder(self) -> SceneBuilder {
         let mut builder = SceneBuilder::new()
             .sun_direction(self.sun_direction)
@@ -617,8 +584,8 @@ impl SceneDescriptor {
                     Vec3::new(entry.albedo[0], entry.albedo[1], entry.albedo[2]),
                     entry.roughness,
                     entry.metallic,
-                    entry.metallic,
-                    Vec3::new(entry.emission, entry.emission, entry.emission) * entry.emission,
+                    entry.metallic.clamp(0.0, 1.0),
+                    Vec3::new(entry.emission, entry.emission, entry.emission),
                 )
             };
             builder = builder.add_sphere(
@@ -636,8 +603,8 @@ impl SceneDescriptor {
                     Vec3::new(entry.albedo[0], entry.albedo[1], entry.albedo[2]),
                     entry.roughness,
                     entry.metallic,
-                    entry.metallic,
-                    Vec3::new(entry.emission, entry.emission, entry.emission) * entry.emission,
+                    entry.metallic.clamp(0.0, 1.0),
+                    Vec3::new(entry.emission, entry.emission, entry.emission),
                 )
             };
             builder = builder.add_triangle(

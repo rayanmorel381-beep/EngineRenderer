@@ -1,4 +1,3 @@
-//! Diagnostic API for compute, hardware and dispatch capabilities.
 
 use std::time::Instant;
 
@@ -6,17 +5,13 @@ use crate::api::engine::engine_api::EngineApi;
 use crate::core::engine::acces_hardware::arch::compute_dispatch;
 use crate::core::engine::acces_hardware::NativeHardwareBackend;
 
-/// CPU architecture family exposed by the diagnostic API.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ComputeArch {
-    /// Architecture x86 / x86-64 / AMD64.
     X86,
-    /// Architecture ARM / AArch64.
     Arm,
 }
 
 impl ComputeArch {
-    /// Returns the stable textual representation used by the CLI and JSON output.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::X86 => "x86",
@@ -24,7 +19,6 @@ impl ComputeArch {
         }
     }
 
-    /// Parses a CLI or JSON-compatible architecture identifier.
     pub fn parse(input: &str) -> Option<Self> {
         match input.trim().to_ascii_lowercase().as_str() {
             "x86" | "x86_64" | "amd64" => Some(Self::X86),
@@ -34,19 +28,14 @@ impl ComputeArch {
     }
 }
 
-/// Operating system family exposed by the diagnostic API.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ComputeOs {
-    /// Linux.
     Linux,
-    /// Windows.
     Windows,
-    /// macOS / Darwin.
     Macos,
 }
 
 impl ComputeOs {
-    /// Returns the stable textual representation used by the CLI and JSON output.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Linux => "linux",
@@ -55,7 +44,6 @@ impl ComputeOs {
         }
     }
 
-    /// Parses a CLI or JSON-compatible OS identifier.
     pub fn parse(input: &str) -> Option<Self> {
         match input.trim().to_ascii_lowercase().as_str() {
             "linux" => Some(Self::Linux),
@@ -66,21 +54,15 @@ impl ComputeOs {
     }
 }
 
-/// Hardware vendor exposed by the diagnostic API.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ComputeVendor {
-    /// AMD.
     Amd,
-    /// Intel.
     Intel,
-    /// Apple Silicon.
     Apple,
-    /// Vendeur non identifié.
     Unknown,
 }
 
 impl ComputeVendor {
-    /// Returns the stable textual representation used by the CLI and JSON output.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Amd => "amd",
@@ -90,7 +72,6 @@ impl ComputeVendor {
         }
     }
 
-    /// Parses a CLI or JSON-compatible vendor identifier.
     pub fn parse(input: &str) -> Option<Self> {
         match input.trim().to_ascii_lowercase().as_str() {
             "amd" => Some(Self::Amd),
@@ -102,21 +83,15 @@ impl ComputeVendor {
     }
 }
 
-/// Selects a single subsystem to print or serialize.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DiagnosticComponent {
-    /// Diagnostic du CPU.
     Cpu,
-    /// Diagnostic du GPU.
     Gpu,
-    /// Diagnostic de la RAM.
     Ram,
-    /// Diagnostic de l'affichage.
     Display,
 }
 
 impl DiagnosticComponent {
-    /// Returns the stable textual representation used by the CLI and JSON output.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Cpu => "cpu",
@@ -126,7 +101,6 @@ impl DiagnosticComponent {
         }
     }
 
-    /// Parses a CLI component selector.
     pub fn parse(input: &str) -> Option<Self> {
         match input.trim().to_ascii_lowercase().as_str() {
             "cpu" => Some(Self::Cpu),
@@ -138,174 +112,105 @@ impl DiagnosticComponent {
     }
 }
 
-/// Optional runtime overrides used to simulate another environment.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct DiagnosticOverrides {
-    /// Overrides the detected architecture in the public report.
     pub arch: Option<ComputeArch>,
-    /// Overrides the detected operating system in the public report.
     pub os: Option<ComputeOs>,
-    /// Overrides the detected vendor in component reports.
     pub vendor: Option<ComputeVendor>,
 }
 
-/// High-level options that control diagnostic generation and rendering.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct DiagnosticsOptions {
-    /// Emits machine-readable JSON instead of text output.
     pub json: bool,
-    /// Enables the extended low-level diagnostic path.
     pub verbose: bool,
-    /// Runs a synthetic scheduling benchmark.
     pub bench: bool,
-    /// Restricts the output to a single component.
     pub component: Option<DiagnosticComponent>,
-    /// Applies simulated architecture, OS or vendor values.
     pub overrides: DiagnosticOverrides,
 }
 
-/// Generic schedule summary used by CPU, GPU, display and RAM reports.
 #[derive(Clone, Debug)]
 pub struct ScheduleReport {
-    /// Number of chunks produced by the scheduler.
     pub chunks: usize,
-    /// Work items processed per chunk.
     pub chunk_size: usize,
-    /// Expected frame budget in microseconds.
     pub frame_budget_us: u64,
 }
 
-/// CPU-specific diagnostic report.
 #[derive(Clone, Debug)]
 pub struct CpuReport {
-    /// Detected or simulated CPU vendor.
     pub vendor: ComputeVendor,
-    /// Scheduler hint for worker allocation.
     pub worker_hint: usize,
-    /// Effective render worker count.
     pub render_workers: usize,
-    /// Target frame budget in microseconds.
     pub frame_budget_us: u64,
-    /// Indicates whether the profile is tuned for low power.
     pub low_power: bool,
-    /// Derived scheduling information for CPU work.
     pub schedule: ScheduleReport,
 }
 
-/// GPU-specific diagnostic report.
 #[derive(Clone, Debug)]
 pub struct GpuReport {
-    /// Detected or simulated GPU vendor.
     pub vendor: ComputeVendor,
-    /// Preferred workgroup size.
     pub workgroup_size: usize,
-    /// Number of compute queues exposed by the scheduler.
     pub compute_queues: usize,
-    /// Number of render threads derived for the backend.
     pub render_threads: usize,
-    /// Whether the backend assumes double buffering.
     pub double_buffered: bool,
-    /// Target frame budget in microseconds.
     pub frame_budget_us: u64,
-    /// Indicates whether the profile is tuned for low power.
     pub low_power: bool,
-    /// Derived scheduling information for GPU work.
     pub schedule: ScheduleReport,
 }
 
-/// Display-specific diagnostic report.
 #[derive(Clone, Debug)]
 pub struct DisplayReport {
-    /// Detected or simulated display vendor.
     pub vendor: ComputeVendor,
-    /// Page size used by the display profile.
     pub page_size: usize,
-    /// Target render frequency.
     pub target_render_fps: u32,
-    /// Presentation latency budget in microseconds.
     pub latency_budget_us: u64,
-    /// Scan-out latency in microseconds.
     pub scan_out_latency_us: u64,
-    /// Number of vertical-sync slots used by the profile.
     pub vsync_slots: usize,
-    /// Whether the display path assumes double buffering.
     pub double_buffered: bool,
-    /// Indicates whether the profile is tuned for low power.
     pub low_power: bool,
-    /// Derived scheduling information for display work.
     pub schedule: ScheduleReport,
 }
 
-/// RAM-specific diagnostic report.
 #[derive(Clone, Debug)]
 pub struct RamReport {
-    /// System page size.
     pub page_size: usize,
-    /// Total available RAM in bytes.
     pub total_bytes: u64,
-    /// Best-effort available RAM in bytes when known.
     pub available_bytes: Option<u64>,
-    /// Target frame budget in microseconds.
     pub frame_budget_us: u64,
-    /// Indicates whether the profile is tuned for low power.
     pub low_power: bool,
-    /// Derived scheduling information for RAM-bound work.
     pub schedule: ScheduleReport,
 }
 
-/// Aggregated hardware capacity summary.
 #[derive(Clone, Debug)]
 pub struct HardwareReport {
-    /// Logical CPU core count visible to the process.
     pub logical_cores: u32,
-    /// Best-effort VRAM estimate in bytes.
     pub vram_bytes: u64,
-    /// Total RAM observed by the dispatch configuration.
     pub total_ram_bytes: u64,
-    /// Suggested render thread count for the host.
     pub optimal_render_threads: usize,
-    /// Maximum framebuffer size derived from RAM constraints.
     pub max_framebuffer_bytes: u64,
-    /// Maximum GPU allocation size derived from VRAM constraints.
     pub max_gpu_allocation_bytes: u64,
 }
 
-/// Synthetic benchmark result for the scheduler path.
 #[derive(Clone, Debug)]
 pub struct BenchmarkReport {
-    /// Number of iterations executed.
     pub iterations: usize,
-    /// Total benchmark duration in milliseconds.
     pub total_ms: u128,
-    /// Average iteration time in microseconds.
     pub avg_us: u128,
 }
 
-/// Full structured report returned by the diagnostic API.
 #[derive(Clone, Debug)]
 pub struct ComputeEnvironmentReport {
-    /// Detected or overridden architecture.
     pub arch: ComputeArch,
-    /// Detected or overridden operating system.
     pub os: ComputeOs,
-    /// CPU subsystem report.
     pub cpu: CpuReport,
-    /// GPU subsystem report.
     pub gpu: GpuReport,
-    /// Display subsystem report.
     pub display: DisplayReport,
-    /// RAM subsystem report.
     pub ram: RamReport,
-    /// Host hardware summary.
     pub hardware: HardwareReport,
-    /// Optional benchmark summary.
     pub benchmark: Option<BenchmarkReport>,
-    /// Effective overrides applied to this report.
     pub overrides: DiagnosticOverrides,
 }
 
 impl EngineApi {
-    /// Builds a structured compute environment report suitable for text or JSON rendering.
     pub fn compute_environment_report(&self, options: &DiagnosticsOptions) -> ComputeEnvironmentReport {
         let config = compute_dispatch::default_config();
         let backend = NativeHardwareBackend::detect();
@@ -372,7 +277,6 @@ impl EngineApi {
         report
     }
 
-    /// Renders the compute environment report in text or JSON form.
     pub fn diagnose_compute_environment(&self, options: &DiagnosticsOptions) {
         let report = self.compute_environment_report(options);
         if options.json {
@@ -387,7 +291,6 @@ impl EngineApi {
 }
 
 impl ComputeEnvironmentReport {
-    /// Prints the report in a human-readable text format.
     pub fn print_text(&self, component: Option<DiagnosticComponent>, verbose: bool) {
         eprintln!("compute-detect: arch={} os={}", self.arch.as_str(), self.os.as_str());
         if let Some(arch) = self.overrides.arch {
@@ -483,7 +386,6 @@ impl ComputeEnvironmentReport {
         }
     }
 
-    /// Serializes the report to a compact JSON string.
     pub fn to_json(&self, component: Option<DiagnosticComponent>, verbose: bool) -> String {
         let mut fields: Vec<String> = Vec::new();
         fields.push(format!("\"arch\":\"{}\"", self.arch.as_str()));

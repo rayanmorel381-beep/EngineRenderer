@@ -16,12 +16,10 @@ pub use crate::core::scheduler::resource::ResourceManager;
 impl EngineApi {
     // -- scene construction -------------------------------------------------
 
-    /// Retourne un `SceneBuilder` vide.
     pub fn scene(&self) -> SceneBuilder {
         SceneBuilder::new()
     }
 
-    /// Construit une scène à partir d'une liste d'objets, avec cadrage automatique.
     pub fn scene_from_objects(&self, objects: Vec<SceneObject>) -> SceneBuilder {
         let mut builder = SceneBuilder::new();
         for obj in objects {

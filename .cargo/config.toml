@@ -27,3 +27,5 @@
 [target.aarch64-pc-windows-msvc]
 
 [target.aarch64-linux-android]
+
+[target.aarch64-apple-ios]

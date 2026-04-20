@@ -351,7 +351,7 @@ impl CpuRayTracer {
         let denoise_ms = hw_elapsed_ms(t_denoise, precise_timestamp_ns());
 
         let total_ms = hw_elapsed_ms(t_start, precise_timestamp_ns());
-        eprintln!(
+        crate::runtime_log!(
             "tracer: total={:.1}ms (dispatch={:.1} assemble={:.1} denoise={:.1} dma_flush={})",
             total_ms, dispatch_ms, assemble_ms, denoise_ms, dma_flushed,
         );
@@ -424,7 +424,7 @@ impl CpuRayTracer {
         let denoise_ms = hw_elapsed_ms(t_denoise, precise_timestamp_ns());
 
         let total_ms = hw_elapsed_ms(t_start, precise_timestamp_ns());
-        eprintln!(
+        crate::runtime_log!(
             "tracer: total={:.1}ms (dispatch={:.1} assemble={:.1} denoise={:.1} dma_flush={})",
             total_ms, dispatch_ms, assemble_ms, denoise_ms, dma_flushed,
         );
@@ -564,8 +564,6 @@ impl CpuRayTracer {
         }
     }
 
-    /// Parallelized denoise — splits the image into horizontal bands
-    /// and processes them across worker threads pinned to physical cores.
     fn parallel_denoise(
         &self,
         image: Image,

@@ -1,5 +1,3 @@
-//! Core ray-tracing pipeline: BVH acceleration, camera model,
-//! vector math, primitives, shading, and multi-threaded CPU tracer.
 
 pub mod acceleration;
 pub mod camera;

@@ -1,14 +1,6 @@
-//! Gaussian blur kernels and separable convolution passes.
-//!
-//! The blur is performed as two 1-D passes (horizontal then vertical)
-//! to keep the cost linear in kernel width.
 
 use crate::core::engine::rendering::raytracing::Vec3;
 
-/// Computes normalised 1-D Gaussian weights for a kernel of
-/// `2 * radius + 1` taps.
-///
-/// Returns an empty vector if `sigma` is not positive.
 pub fn gaussian_weights(radius: usize, sigma: f64) -> Vec<f64> {
     if sigma <= 0.0 {
         return Vec::new();
@@ -31,10 +23,6 @@ pub fn gaussian_weights(radius: usize, sigma: f64) -> Vec<f64> {
     weights
 }
 
-/// Applies a horizontal 1-D convolution to `src`, writing into
-/// `dst`.
-///
-/// Both buffers are row-major with `width` columns and `height` rows.
 pub fn horizontal_blur(
     src: &[Vec3],
     dst: &mut [Vec3],
@@ -57,7 +45,6 @@ pub fn horizontal_blur(
     }
 }
 
-/// Applies a vertical 1-D convolution to `src`, writing into `dst`.
 pub fn vertical_blur(
     src: &[Vec3],
     dst: &mut [Vec3],
@@ -80,8 +67,6 @@ pub fn vertical_blur(
     }
 }
 
-/// Performs a full separable Gaussian blur (horizontal then vertical)
-/// on `buffer` in place, using an intermediate scratch allocation.
 pub fn separable_blur(buffer: &mut [Vec3], width: usize, height: usize, radius: usize, sigma: f64) {
     let weights = gaussian_weights(radius, sigma);
     let mut tmp = vec![Vec3::ZERO; buffer.len()];

@@ -1,12 +1,7 @@
-//! Public audio mixing API for crate consumers.
-//!
-//! Provides [`Mixer`] — a high-level facade to configure and run spatial
-//! audio mixing.  Internally delegates to the engine's `AudioManager`.
 
 use crate::core::coremanager::audio_manager::{AudioManager, AudioMix};
 use crate::core::engine::scene::graph::SceneGraph;
 
-/// High-level spatial audio mixer exposed to crate consumers.
 #[derive(Debug, Clone)]
 pub struct Mixer {
     manager: AudioManager,
@@ -14,7 +9,6 @@ pub struct Mixer {
 }
 
 impl Mixer {
-    /// Create a mixer with a custom base gain.
     pub fn new(base_gain: f64) -> Self {
         Self {
             manager: AudioManager::new(base_gain),
@@ -22,7 +16,6 @@ impl Mixer {
         }
     }
 
-    /// Cinematic preset (gain = 0.85) — tuned for showcase renders.
     pub fn cinematic() -> Self {
         Self {
             manager: AudioManager::new(0.85),
@@ -30,7 +23,6 @@ impl Mixer {
         }
     }
 
-    /// Preview preset (gain = 0.5) — quieter for draft renders.
     pub fn preview() -> Self {
         Self {
             manager: AudioManager::new(0.5),
@@ -38,7 +30,6 @@ impl Mixer {
         }
     }
 
-    /// Produce an [`AudioMix`] for the current scene state.
     pub fn mix(
         &self,
         graph: &SceneGraph,
@@ -48,7 +39,6 @@ impl Mixer {
         self.manager.mix_for_scene(graph, camera_distance, exposure_bias)
     }
 
-    /// The preset label.
     pub fn label(&self) -> &str {
         self.label
     }

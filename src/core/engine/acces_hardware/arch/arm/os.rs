@@ -70,6 +70,26 @@ fn parse_os_override(value: &str) -> Option<Os> {
 	}
 }
 
+fn parse_vendor_override(value: &str) -> Option<Vendor> {
+	match value {
+		"amd" => Some(Vendor::Amd),
+		"intel" => Some(Vendor::Intel),
+		"apple" => Some(Vendor::Apple),
+		"unknown" => Some(Vendor::Unknown),
+		_ => None,
+	}
+}
+
+fn default_vendor() -> Vendor {
+	if let Ok(raw) = std::env::var("ENGINERENDERER_VENDOR_OVERRIDE") {
+		let normalized = raw.trim().to_ascii_lowercase();
+		if let Some(vendor) = parse_vendor_override(&normalized) {
+			return vendor;
+		}
+	}
+	Vendor::Unknown
+}
+
 pub(crate) fn detect_os() -> Os {
 	if let Ok(raw) = std::env::var("ENGINERENDERER_OS_OVERRIDE") {
 		let normalized = raw.trim().to_ascii_lowercase();
@@ -142,7 +162,7 @@ pub(crate) fn default_cpu_config() -> CpuConfig {
 			.unwrap_or(1)
 			.max(1);
 		return CpuConfig {
-			vendor: Vendor::Unknown,
+			vendor: default_vendor(),
 			worker_hint: workers,
 			render_workers: workers.saturating_sub(1).max(1),
 			frame_budget_us: 8_333,
@@ -151,7 +171,7 @@ pub(crate) fn default_cpu_config() -> CpuConfig {
 	}
 	#[allow(unreachable_code)]
 	CpuConfig {
-		vendor: Vendor::Unknown,
+		vendor: default_vendor(),
 		worker_hint: 1,
 		render_workers: 1,
 		frame_budget_us: 8_333,
@@ -174,7 +194,7 @@ pub(crate) fn clamp_cpu_workers(requested: usize) -> usize {
 			.map(|v| v.get())
 			.unwrap_or(1)
 			.max(1);
-		return requested.max(1).min(workers);
+		return requested.clamp(1, workers);
 	}
 	#[allow(unreachable_code)]
 	requested.max(1)
@@ -201,7 +221,7 @@ pub(crate) fn build_cpu_schedule(work_items: usize) -> Schedule {
 	}
 	#[cfg(target_os = "macos")]
 	{
-		let chunk_size = if work_items == 0 { 16 } else { ((work_items + 15) / 16) * 16 };
+		let chunk_size = if work_items == 0 { 16 } else { work_items.div_ceil(16) * 16 };
 		let chunks = if work_items == 0 { 1 } else { work_items.div_ceil(chunk_size) };
 		return Schedule {
 			chunks,
@@ -210,10 +230,14 @@ pub(crate) fn build_cpu_schedule(work_items: usize) -> Schedule {
 		};
 	}
 	#[allow(unreachable_code)]
-	Schedule {
-		chunks: 1,
-		chunk_size: 1,
-		frame_budget_us: 8_333,
+	{
+		let chunk_size = if work_items == 0 { 16 } else { work_items.div_ceil(16) * 16 };
+		let chunks = if work_items == 0 { 1 } else { work_items.div_ceil(chunk_size) };
+		Schedule {
+			chunks,
+			chunk_size,
+			frame_budget_us: 8_333,
+		}
 	}
 }
 
@@ -258,7 +282,7 @@ pub(crate) fn default_gpu_config() -> GpuConfig {
 	#[cfg(target_os = "macos")]
 	{
 		return GpuConfig {
-			vendor: Vendor::Unknown,
+			vendor: default_vendor(),
 			workgroup_size: 32,
 			compute_queues: 2,
 			render_threads: 16,
@@ -269,7 +293,7 @@ pub(crate) fn default_gpu_config() -> GpuConfig {
 	}
 	#[allow(unreachable_code)]
 	GpuConfig {
-		vendor: Vendor::Unknown,
+		vendor: default_vendor(),
 		workgroup_size: 1,
 		compute_queues: 1,
 		render_threads: 1,
@@ -290,7 +314,7 @@ pub(crate) fn clamp_gpu_workers(requested: usize) -> usize {
 	}
 	#[cfg(target_os = "macos")]
 	{
-		return requested.max(1).min(64);
+		return requested.clamp(1, 64);
 	}
 	#[allow(unreachable_code)]
 	requested.max(1)
@@ -317,7 +341,7 @@ pub(crate) fn build_gpu_schedule(work_items: usize) -> Schedule {
 	}
 	#[cfg(target_os = "macos")]
 	{
-		let chunk_size = if work_items == 0 { 64 } else { ((work_items + 63) / 64) * 64 };
+		let chunk_size = if work_items == 0 { 64 } else { work_items.div_ceil(64) * 64 };
 		let chunks = if work_items == 0 { 1 } else { work_items.div_ceil(chunk_size) };
 		return Schedule {
 			chunks,
@@ -326,10 +350,14 @@ pub(crate) fn build_gpu_schedule(work_items: usize) -> Schedule {
 		};
 	}
 	#[allow(unreachable_code)]
-	Schedule {
-		chunks: 1,
-		chunk_size: 1,
-		frame_budget_us: 8_333,
+	{
+		let chunk_size = if work_items == 0 { 64 } else { work_items.div_ceil(64) * 64 };
+		let chunks = if work_items == 0 { 1 } else { work_items.div_ceil(chunk_size) };
+		Schedule {
+			chunks,
+			chunk_size,
+			frame_budget_us: 8_333,
+		}
 	}
 }
 
@@ -376,7 +404,7 @@ pub(crate) fn default_display_config() -> DisplayConfig {
 	#[cfg(target_os = "macos")]
 	{
 		return DisplayConfig {
-			vendor: Vendor::Unknown,
+			vendor: default_vendor(),
 			page_size: 4096,
 			target_render_fps: 120,
 			latency_budget_us: 8_333,
@@ -388,7 +416,7 @@ pub(crate) fn default_display_config() -> DisplayConfig {
 	}
 	#[allow(unreachable_code)]
 	DisplayConfig {
-		vendor: Vendor::Unknown,
+		vendor: default_vendor(),
 		page_size: 4096,
 		target_render_fps: 120,
 		latency_budget_us: 8_333,
@@ -410,7 +438,7 @@ pub(crate) fn clamp_display_workers(requested: usize) -> usize {
 	}
 	#[cfg(target_os = "macos")]
 	{
-		return requested.max(1).min(2);
+		return requested.clamp(1, 2);
 	}
 	#[allow(unreachable_code)]
 	requested.max(1)
@@ -437,7 +465,7 @@ pub(crate) fn build_display_schedule(work_items: usize) -> Schedule {
 	}
 	#[cfg(target_os = "macos")]
 	{
-		let chunk_size = if work_items == 0 { 16 } else { ((work_items + 15) / 16) * 16 };
+		let chunk_size = if work_items == 0 { 16 } else { work_items.div_ceil(16) * 16 };
 		let chunks = if work_items == 0 { 1 } else { work_items.div_ceil(chunk_size) };
 		return Schedule {
 			chunks,
@@ -446,10 +474,14 @@ pub(crate) fn build_display_schedule(work_items: usize) -> Schedule {
 		};
 	}
 	#[allow(unreachable_code)]
-	Schedule {
-		chunks: 1,
-		chunk_size: 1,
-		frame_budget_us: 8_333,
+	{
+		let chunk_size = if work_items == 0 { 16 } else { work_items.div_ceil(16) * 16 };
+		let chunks = if work_items == 0 { 1 } else { work_items.div_ceil(chunk_size) };
+		Schedule {
+			chunks,
+			chunk_size,
+			frame_budget_us: 8_333,
+		}
 	}
 }
 
@@ -530,10 +562,14 @@ pub(crate) fn build_ram_schedule(work_items: usize) -> Schedule {
 		};
 	}
 	#[allow(unreachable_code)]
-	Schedule {
-		chunks: 1,
-		chunk_size: 1,
-		frame_budget_us: 8_333,
+	{
+		let chunk_size = if work_items == 0 { 32 } else { work_items.div_ceil(32) * 32 };
+		let chunks = if work_items == 0 { 1 } else { work_items.div_ceil(chunk_size) };
+		Schedule {
+			chunks,
+			chunk_size,
+			frame_budget_us: 8_333,
+		}
 	}
 }
 

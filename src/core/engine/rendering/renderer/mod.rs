@@ -1,17 +1,9 @@
-//! High-level render orchestration: presets, scene dispatch, and
-//! report generation.
-//!
-//! - [`types`] — [`RenderPreset`](types::RenderPreset) and
-//!   [`RenderReport`](types::RenderReport).
-//! - [`pipeline`] — Heavy rendering methods
-//!   (`render_scene_to_file`, `render`, etc.).
-//! - [`scene_builder`] — Realistic scene construction helpers.
 
 pub mod pipeline;
 pub mod scene_builder;
 pub mod types;
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::core::engine::acces_hardware::{
     self, CpuProfile, DrmDriver, GpuRenderBackend, HardwareCapabilities, KernelConfig,
@@ -50,26 +42,14 @@ impl std::fmt::Debug for Renderer {
     }
 }
 
-/// Hybrid CPU/GPU offline renderer.
-///
-/// Hardware is probed once at construction. The stored `hw_caps` and
-/// `cpu_profile` drive every scheduling and allocation decision —
-/// thread count, tile sizing, memory guards, GPU framebuffer, etc.
 pub struct Renderer {
-    /// Target width.
     pub(super) width: usize,
-    /// Target height.
     pub(super) height: usize,
-    /// Ray-tracing back-end.
     pub(super) tracer: CpuRayTracer,
-    /// Level-of-detail manager.
     pub(super) lod_manager: LodManager,
-    /// Hardware capabilities snapshot (CPU topology + memory + GPU detect).
     pub hw_caps: HardwareCapabilities,
-    /// Detailed CPU profile (SIMD, caches, frequencies).
     pub(super) cpu_profile: CpuProfile,
     pub(super) ram_config: RamRuntimeConfig,
-    /// GPU DRM backend (None if no GPU or DRM unavailable).
     pub(super) gpu: Option<GpuRenderBackend>,
     bvh_cache: Mutex<Option<CachedBvh>>,
     compute_dispatcher: Mutex<AdaptiveComputeDispatcher>,
@@ -83,7 +63,7 @@ impl Renderer {
             let cpu_profile = native_backend.cpu_profile().clone();
             let ram_config = native_backend.ram_config();
             let ram_available = ram_config.available_bytes.unwrap_or(ram_config.total_bytes);
-            eprintln!(
+            crate::runtime_log!(
                 "native-ram: page={} total={}MB available={}MB",
                 ram_config.page_size,
                 ram_config.total_bytes / (1024 * 1024),
@@ -91,7 +71,7 @@ impl Renderer {
             );
             let native_cpu = acces_hardware::native_cpu_call(&cpu_profile);
             let optimal_workgroup = acces_hardware::arch_optimal_workgroup();
-            eprintln!(
+            crate::runtime_log!(
                 "native-cpu: arch={} logical_cores={} vec={}bit workgroup={}",
                 native_cpu.architecture,
                 native_cpu.logical_cores,
@@ -99,7 +79,7 @@ impl Renderer {
                 optimal_workgroup,
             );
             let (matrix_probe, basis_probe, tone_probe) = Self::runtime_transform_probe(width, height);
-            eprintln!(
+            crate::runtime_log!(
                 "native-math: mvp_probe={:.4} basis_probe={:.4} tone_probe={:.4}",
                 matrix_probe,
                 basis_probe,
@@ -110,7 +90,7 @@ impl Renderer {
             let pixel_bytes = (width * height * 24) as u64;
             let max_bytes = hw_caps.max_framebuffer_bytes_for_input(width.saturating_mul(height));
             if pixel_bytes > max_bytes {
-                eprintln!(
+                crate::runtime_log!(
                     "renderer: WARNING {}×{} needs {}MB, only {}MB available — consider lower resolution",
                     width, height,
                     pixel_bytes / (1024 * 1024),
@@ -131,7 +111,7 @@ impl Renderer {
                     DrmDriver::Unknown => "unknown",
                 };
                 if g.has_valid_metrics() {
-                    eprintln!(
+                    crate::runtime_log!(
                         "renderer: GPU DRM backend active (driver={} family={} vram={}MB, CU={}, device={:04x})",
                         g.driver_name(),
                         driver_family,
@@ -140,17 +120,17 @@ impl Renderer {
                         g.info().device_id,
                     );
                 } else {
-                    eprintln!(
+                    crate::runtime_log!(
                         "renderer: GPU DRM backend active (driver={} family={}, telemetry unavailable)",
                         g.driver_name(),
                         driver_family,
                     );
                 }
                 if let Some(dt_compatible) = g.dt_compatible.as_deref() {
-                    eprintln!("renderer: GPU device-tree node={}", dt_compatible);
+                    crate::runtime_log!("renderer: GPU device-tree node={}", dt_compatible);
                 }
                 if let Some(ptr) = g.alloc_framebuffer(width, height) {
-                    eprintln!(
+                    crate::runtime_log!(
                         "renderer: GPU framebuffer allocated ({}×{}, ptr={:p}, gem={})",
                         width,
                         height,
@@ -158,14 +138,14 @@ impl Renderer {
                         g.has_gem_framebuffer(),
                     );
                 } else {
-                    eprintln!("renderer: GPU framebuffer alloc failed, GPU command path disabled");
+                    crate::runtime_log!("renderer: GPU framebuffer alloc failed, GPU command path disabled");
                 }
             } else {
-                eprintln!("hardware: no DRM GPU available, using CPU-only rendering");
+                crate::runtime_log!("hardware: no DRM GPU available, using CPU-only rendering");
             }
 
             let native_gpu = acces_hardware::native_gpu_call(gpu.as_ref(), width.saturating_mul(height));
-            eprintln!(
+            crate::runtime_log!(
                 "native-gpu: init_ok={} dispatch_ok={} framebuffer_ok={}",
                 native_gpu.init_ok,
                 native_gpu.dispatch_ok,
@@ -203,7 +183,7 @@ impl Renderer {
             * Mat4::scale(1.0, 1.0, 1.0);
         let mvp = projection * view * model * Mat4::IDENTITY;
 
-        let m = mvp.as_ref();
+        let m = mvp.as_flat_array();
         let basis_forward = (center - eye).normalize();
         let basis_right = basis_forward.cross(up).normalize();
         let alignment = basis_forward.dot(up.normalize());
@@ -224,17 +204,11 @@ impl Renderer {
         path
     }
 
-    /// Creates a renderer targeting `width × height`.
-    ///
-    /// Probes CPU topology, SIMD features, per-core frequencies, memory,
-    /// and attempts to open the GPU via DRM. All subsequent operations
-    /// use the stored snapshots — no re-detection.
     pub fn with_resolution(width: usize, height: usize) -> Self {
         let native_backend = acces_hardware::NativeHardwareBackend::detect();
         Self::with_resolution_from_backend(width, height, &native_backend)
     }
 
-    /// Convenience constructor for 1920 × 1080.
     pub fn default_cpu_hd() -> Self {
         Self::with_resolution(1920, 1080)
     }
@@ -244,7 +218,6 @@ impl Renderer {
             .optimal_render_threads_for_input(self.width.saturating_mul(self.height))
     }
 
-    /// Creates a renderer configured for the given [`RenderPreset`].
     pub fn from_preset(preset: RenderPreset) -> Self {
         match preset {
             RenderPreset::AnimationFast | RenderPreset::PreviewCpu => Self::default_cpu_hd(),
@@ -253,9 +226,6 @@ impl Renderer {
         }
     }
 
-    /// Maps a [`RenderPreset`] to a concrete [`RenderConfig`].
-    ///
-    /// Uses stored `hw_caps` — no re-detection per frame.
     pub fn config_for(&self, preset: RenderPreset) -> RenderConfig {
         let (cfg_w, cfg_h) = match preset {
             RenderPreset::AnimationFast => (self.width, self.height),
@@ -326,7 +296,7 @@ impl Renderer {
         let cache_path = Self::persistent_bvh_cache_path(signature, object_count, triangle_count);
 
         {
-            let cache = self.bvh_cache.lock().unwrap();
+            let cache = Self::lock_unpoisoned(&self.bvh_cache);
             if let Some(cached) = cache.as_ref()
                 && cached.signature == signature
                 && cached.object_count == object_count
@@ -341,13 +311,13 @@ impl Renderer {
             let loaded = Arc::new(loaded);
             let stats = loaded.stats();
             let load_ms = acces_hardware::elapsed_ms(t_load, acces_hardware::precise_timestamp_ns());
-            eprintln!(
+            crate::runtime_log!(
                 "tracer: BVH disk-load {:.2}ms (nodes={} leaves={})",
                 load_ms,
                 stats.node_count,
                 stats.leaf_count,
             );
-            let mut cache = self.bvh_cache.lock().unwrap();
+            let mut cache = Self::lock_unpoisoned(&self.bvh_cache);
             *cache = Some(CachedBvh {
                 signature,
                 object_count,
@@ -362,17 +332,17 @@ impl Renderer {
         if let Some(ref bvh) = built {
             let stats = bvh.stats();
             let build_ms = acces_hardware::elapsed_ms(t_build, acces_hardware::precise_timestamp_ns());
-            eprintln!(
+            crate::runtime_log!(
                 "tracer: BVH build {:.2}ms (nodes={} leaves={})",
                 build_ms,
                 stats.node_count,
                 stats.leaf_count,
             );
             if let Err(error) = bvh.save_to_path(&cache_path) {
-                eprintln!("tracer: BVH disk-save failed: {}", error);
+                crate::runtime_log!("tracer: BVH disk-save failed: {}", error);
             }
         }
-        let mut cache = self.bvh_cache.lock().unwrap();
+        let mut cache = Self::lock_unpoisoned(&self.bvh_cache);
         *cache = built.as_ref().map(|bvh| CachedBvh {
             signature,
             object_count,
@@ -383,7 +353,7 @@ impl Renderer {
     }
 
     pub(super) fn submit_compute_workload(&self, scene: &Scene, width: usize, height: usize) -> bool {
-        let mut dispatcher = self.compute_dispatcher.lock().unwrap();
+        let mut dispatcher = Self::lock_unpoisoned(&self.compute_dispatcher);
         if dispatcher.device_count() == 0 {
             return false;
         }
@@ -417,6 +387,12 @@ impl Renderer {
             })
             .is_ok()
     }
+    fn lock_unpoisoned<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+        match mutex.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        }
+    }
 
     pub(super) fn upload_framebuffer_to_gpu(&self, framebuffer: &FrameBuffer) -> bool {
         let Some(gpu) = self.gpu.as_ref() else {
@@ -432,7 +408,6 @@ impl Renderer {
         gpu.write_framebuffer_rgb(&rgb)
     }
 
-    /// GPU info string for logging.
     pub(super) fn gpu_info_tag(&self) -> String {
         match &self.gpu {
             Some(g) if g.has_valid_metrics() => format!(
@@ -447,7 +422,6 @@ impl Renderer {
         }
     }
 
-    /// SIMD tag from the stored CPU profile (e.g. "AVX2", "SSE4.2").
     pub(super) fn simd_tag(&self) -> &'static str {
         let s = &self.cpu_profile.simd_features;
         if s.avx512f { "AVX-512" }
@@ -460,11 +434,6 @@ impl Renderer {
         else { "scalar" }
     }
 
-    /// Submit a GPU fence instruction buffer and sync, reporting timing.
-    ///
-    /// Only submits the NOP IB if a GPU framebuffer GEM object was
-    /// successfully allocated (confirming the DRM command path is functional).
-    /// Otherwise just does a passive sync.
     pub(super) fn gpu_fence_and_sync(&self) -> Option<f64> {
         if let Some(ref g) = self.gpu {
             let t0 = acces_hardware::precise_timestamp_ns();
@@ -480,11 +449,11 @@ impl Renderer {
                     Ok(cs_id) => {
                         g.sync_framebuffer();
                         let elapsed = acces_hardware::elapsed_ms(t0, acces_hardware::precise_timestamp_ns());
-                        eprintln!("gpu: fence cs_id={} sync={:.2}ms", cs_id, elapsed);
+                        crate::runtime_log!("gpu: fence cs_id={} sync={:.2}ms", cs_id, elapsed);
                         return Some(elapsed);
                     }
                     Err(e) => {
-                        eprintln!("gpu: fence submit failed ({}), fallback sync", e);
+                        crate::runtime_log!("gpu: fence submit failed ({}), fallback sync", e);
                     }
                 }
             }

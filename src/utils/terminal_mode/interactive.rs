@@ -1,4 +1,3 @@
-//! Interactive REPL implementation for the terminal mode.
 
 use std::error::Error;
 use std::io::{self, Write};
@@ -8,7 +7,6 @@ use super::cli;
 use super::docs;
 use super::ui;
 
-/// Runs the interactive terminal loop.
 pub fn run_interactive() -> Result<(), Box<dyn Error>> {
     const MODULES: [&str; 8] = [
         "ai",

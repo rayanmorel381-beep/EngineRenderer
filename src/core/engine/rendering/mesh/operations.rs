@@ -1,5 +1,3 @@
-//! Post-hoc mesh operations: normal recalculation, tangent
-//! computation, and subdivision.
 
 use std::collections::HashMap;
 
@@ -7,10 +5,6 @@ use crate::core::engine::rendering::raytracing::Vec3;
 
 use super::asset::MeshAsset;
 
-/// Recomputes smooth normals by averaging face normals weighted by
-/// area at each vertex.
-///
-/// Modifies `asset.vertices[*].normal` in place.
 pub fn recalculate_normals(asset: &mut MeshAsset) {
     // Zero out existing normals.
     for v in &mut asset.vertices {
@@ -37,10 +31,6 @@ pub fn recalculate_normals(asset: &mut MeshAsset) {
     }
 }
 
-/// Computes per-vertex tangent vectors using the Lengyel method
-/// (MikkTSpace-compatible direction, without the bi-tangent sign).
-///
-/// Requires UV coordinates in `vertex.uv` `(u, v, _)`.
 pub fn compute_tangents(asset: &mut MeshAsset) {
     for v in &mut asset.vertices {
         v.tangent = Vec3::ZERO;
@@ -78,11 +68,6 @@ pub fn compute_tangents(asset: &mut MeshAsset) {
     }
 }
 
-/// Performs one step of Loop subdivision (topology only; does not
-/// apply the smoothing weights).
-///
-/// Each triangle is split into four by inserting midpoints on every
-/// edge.
 pub fn subdivide(asset: &mut MeshAsset) {
     let mut new_indices: Vec<usize> = Vec::with_capacity(asset.indices.len() * 4);
     let mut midpoint_cache: HashMap<(usize, usize), usize> = HashMap::new();
@@ -101,8 +86,6 @@ pub fn subdivide(asset: &mut MeshAsset) {
     asset.indices = new_indices;
 }
 
-/// Returns the vertex index for the midpoint of the edge `(a, b)`,
-/// creating a new vertex if one does not yet exist.
 fn edge_midpoint(
     a: usize,
     b: usize,

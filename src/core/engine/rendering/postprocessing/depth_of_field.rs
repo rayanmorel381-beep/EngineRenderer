@@ -1,21 +1,15 @@
-//! Depth-of-field simulation with circle-of-confusion blur.
 
 use crate::core::engine::rendering::raytracing::Vec3;
 use crate::core::engine::rendering::framebuffer::FrameBuffer;
 
-/// Depth-of-field parameters.
 #[derive(Debug, Clone, Copy)]
 pub struct DepthOfField {
-    /// Distance to the sharp focal plane.
     pub focal_distance: f64,
-    /// Size of the aperture (larger = more blur).
     pub aperture: f64,
-    /// Maximum blur radius in pixels.
     pub max_blur: f64,
 }
 
 impl DepthOfField {
-    /// Creates a new depth-of-field configuration.
     pub fn new(focal_distance: f64, aperture: f64, max_blur: f64) -> Self {
         Self {
             focal_distance,
@@ -24,10 +18,6 @@ impl DepthOfField {
         }
     }
 
-    /// Applies the depth-of-field blur to a [`FrameBuffer`] in place.
-    ///
-    /// For each pixel the circle-of-confusion radius is computed from
-    /// the depth buffer, then a disc-shaped gather blur is performed.
     pub fn apply(&self, fb: &mut FrameBuffer) {
         let w = fb.width;
         let h = fb.height;
@@ -68,15 +58,11 @@ impl DepthOfField {
         }
     }
 
-    /// Returns the maximum CoC radius across a depth range.
-    /// Useful to skip DoF entirely when no pixel would be blurred.
     pub fn max_coc_for_range(&self, depth_min: f64, depth_max: f64) -> f64 {
         self.circle_of_confusion(depth_min)
             .max(self.circle_of_confusion(depth_max))
     }
 
-    /// Computes the circle-of-confusion radius (in pixels) for a
-    /// given `depth`.
     fn circle_of_confusion(&self, depth: f64) -> f64 {
         let diff = (depth - self.focal_distance).abs();
         let coc = self.aperture * diff / depth.max(0.001);

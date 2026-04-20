@@ -17,7 +17,6 @@ pub struct SceneEnvironment {
     pub solar_elevation: f64,
 }
 
-/// Gestionnaire des ressources de rendu dérivées de la configuration moteur.
 #[derive(Debug, Clone)]
 pub struct ResourceManager {
     output_path: PathBuf,
@@ -26,7 +25,6 @@ pub struct ResourceManager {
 }
 
 impl ResourceManager {
-    /// Construit un gestionnaire de ressources à partir de la configuration moteur.
     pub fn from_config(config: &EngineConfig) -> Self {
         let pixel_count = (config.width * config.height) as f64;
         let hd_reference = (1280 * 720) as f64;
@@ -60,17 +58,14 @@ impl ResourceManager {
         }
     }
 
-    /// Retourne le répertoire de sortie configuré pour les rendus.
     pub fn output_path(&self) -> &Path {
         &self.output_path
     }
 
-    /// Retourne l'environnement procédural préconfiguré pour la scène.
     pub fn environment(&self) -> SceneEnvironment {
         self.environment
     }
 
-    /// Retourne le facteur d'échelle de détail basé sur la résolution de sortie.
     pub fn surface_detail_scale(&self) -> f64 {
         self.surface_detail_scale
     }

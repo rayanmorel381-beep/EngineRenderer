@@ -1,7 +1,3 @@
-//! Progressive rendering accumulation and tile-based buffer access.
-//!
-//! Extends [`FrameBuffer`] with methods for incremental sample
-//! accumulation, buffer merging, and region-based read/write (tiles).
 
 use crate::core::engine::rendering::raytracing::Vec3;
 
@@ -10,11 +6,6 @@ use super::FrameBuffer;
 impl FrameBuffer {
     // ── Progressive accumulation ────────────────────────────────────────
 
-    /// Accumulates a new `color` sample at `(x, y)`, running a weighted
-    /// average with all previous samples.
-    ///
-    /// The depth buffer is updated only when the new sample is closer
-    /// than the existing value.
     pub fn accumulate(&mut self, x: usize, y: usize, color: Vec3, depth: f64) {
         if x >= self.width || y >= self.height {
             return;
@@ -28,10 +19,6 @@ impl FrameBuffer {
         self.sample_count[idx] += 1;
     }
 
-    /// Merges `other` into `self` using per-pixel sample-count weighting.
-    ///
-    /// Both buffers must have matching dimensions; a mismatch is a silent
-    /// no-op.
     pub fn merge(&mut self, other: &FrameBuffer) {
         if self.width != other.width || self.height != other.height {
             return;
@@ -52,10 +39,6 @@ impl FrameBuffer {
 
     // ── Tile access ─────────────────────────────────────────────────────
 
-    /// Extracts a rectangular sub-region of the colour buffer.
-    ///
-    /// The returned `Vec` is in row-major order and may be shorter than
-    /// `tile_w × tile_h` when the tile exceeds the buffer edges.
     pub fn tile_region(
         &self,
         tile_x: usize,
@@ -72,8 +55,6 @@ impl FrameBuffer {
         pixels
     }
 
-    /// Writes `pixels` (row-major) into the colour buffer starting at
-    /// `(tile_x, tile_y)` for a region of `tile_w × tile_h`.
     pub fn write_tile(
         &mut self,
         tile_x: usize,

@@ -1,5 +1,3 @@
-//! Luminance statistics, histograms, auto-exposure, and depth
-//! visualisation utilities for [`FrameBuffer`].
 
 use crate::core::engine::rendering::raytracing::Vec3;
 use crate::core::engine::rendering::utils::luminance;
@@ -9,7 +7,6 @@ use super::FrameBuffer;
 impl FrameBuffer {
     // ── Luminance analysis ──────────────────────────────────────────────
 
-    /// Arithmetic mean of per-pixel luminance.
     pub fn average_luminance(&self) -> f64 {
         if self.color.is_empty() {
             0.0
@@ -19,8 +16,6 @@ impl FrameBuffer {
         }
     }
 
-    /// Geometric (log-average) luminance — preferred for exposure metering
-    /// because it is more robust to outliers than the arithmetic mean.
     pub fn log_average_luminance(&self) -> f64 {
         if self.color.is_empty() {
             return 0.0;
@@ -34,7 +29,6 @@ impl FrameBuffer {
         (sum / self.color.len() as f64).exp()
     }
 
-    /// Returns `(min_luminance, max_luminance)` across the colour buffer.
     pub fn luminance_range(&self) -> (f64, f64) {
         if self.color.is_empty() {
             (0.0, 0.0)
@@ -49,7 +43,6 @@ impl FrameBuffer {
         }
     }
 
-    /// Returns the colour of the brightest pixel (by luminance).
     pub fn brightest_pixel(&self) -> Vec3 {
         self.color
             .iter()
@@ -64,8 +57,6 @@ impl FrameBuffer {
 
     // ── Histogram ───────────────────────────────────────────────────────
 
-    /// Builds a luminance histogram with `bins` evenly-spaced buckets
-    /// over the range `[min_luminance, max_luminance]`.
     pub fn luminance_histogram(&self, bins: usize) -> Vec<u32> {
         let bins = bins.max(1);
         let mut histogram = vec![0u32; bins];
@@ -82,8 +73,6 @@ impl FrameBuffer {
         histogram
     }
 
-    /// Returns the luminance value at the given percentile (0.0–1.0)
-    /// using a 256-bin histogram.
     pub fn percentile_luminance(&self, percentile: f64) -> f64 {
         let histogram = self.luminance_histogram(256);
         let target = (self.color.len() as f64 * percentile.clamp(0.0, 1.0)) as u32;
@@ -102,15 +91,12 @@ impl FrameBuffer {
 
     // ── Auto exposure ───────────────────────────────────────────────────
 
-    /// Computes an exposure multiplier from the log-average luminance,
-    /// targeting `target_mid_gray` and clamped to `[min_ev, max_ev]`.
     pub fn auto_exposure(&self, target_mid_gray: f64, min_ev: f64, max_ev: f64) -> f64 {
         let avg = self.log_average_luminance().max(0.0001);
         let ev = (target_mid_gray / avg).log2().clamp(min_ev, max_ev);
         2.0_f64.powf(ev)
     }
 
-    /// Multiplies every pixel by `factor`.
     pub fn apply_exposure(&mut self, factor: f64) {
         for pixel in &mut self.color {
             *pixel = *pixel * factor;
@@ -119,7 +105,6 @@ impl FrameBuffer {
 
     // ── Depth buffer utilities ──────────────────────────────────────────
 
-    /// Returns `(min_depth, max_depth)` ignoring infinite values.
     pub fn depth_range(&self) -> (f64, f64) {
         let mut min_d = f64::INFINITY;
         let mut max_d = f64::NEG_INFINITY;
@@ -132,8 +117,6 @@ impl FrameBuffer {
         (min_d, max_d)
     }
 
-    /// Converts the depth buffer into a greyscale image (dark = far,
-    /// bright = near).  Infinite depths map to black.
     pub fn depth_to_color(&self) -> Vec<Vec3> {
         let (min_d, max_d) = self.depth_range();
         let range = (max_d - min_d).max(f64::EPSILON);

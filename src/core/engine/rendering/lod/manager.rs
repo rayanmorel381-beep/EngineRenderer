@@ -1,33 +1,21 @@
-//! Central LOD management: tier selection, hysteresis, screen-space
-//! error, and horizon detail helpers.
 
 use crate::core::engine::rendering::raytracing::Vec3;
 
 use super::selection::LodSelection;
 use super::tier::{LodThresholds, LodTier};
 
-/// Private per-object tracking state used by hysteresis logic.
 #[derive(Debug, Clone, Copy)]
 struct LodState {
-    /// Tier assigned last frame.
     tier: LodTier,
-    /// Number of consecutive frames at this tier.
     stable_frames: u32,
 }
 
-/// Manages LOD transitions with configurable thresholds and
-/// hysteresis to prevent tier flickering.
 #[derive(Debug, Clone)]
 pub struct LodManager {
-    /// Distance breakpoints.
     pub thresholds: LodThresholds,
-    /// Extra distance margin before a tier change is committed.
     pub hysteresis_margin: f64,
-    /// Minimum consecutive frames before a tier transition is accepted.
     pub min_stable_frames: u32,
-    /// Screen-space pixel error below which refinement is unnecessary.
     pub screen_error_threshold: f64,
-    /// Internal per-object state indexed by caller-managed IDs.
     states: Vec<LodState>,
 }
 
@@ -44,31 +32,21 @@ impl Default for LodManager {
 }
 
 impl LodManager {
-    /// Overrides the distance thresholds.
     pub fn with_thresholds(mut self, t: LodThresholds) -> Self {
         self.thresholds = t;
         self
     }
 
-    /// Sets the hysteresis margin in world-space units.
     pub fn with_hysteresis(mut self, margin: f64) -> Self {
         self.hysteresis_margin = margin;
         self
     }
 
-    /// Selects a tier for an object at `distance` (no hysteresis).
-    ///
-    /// Quality knobs (samples, bounces, etc.) are derived automatically
-    /// from the resulting tier.
     pub fn select(&self, distance: f64, screen_size: f64) -> LodSelection {
         let tier = LodTier::from_distance(distance, &self.thresholds);
         LodSelection::from_tier(tier, distance, screen_size)
     }
 
-    /// Selects a tier with per-object hysteresis applied.
-    ///
-    /// `object_id` is a stable index that identifies the object across
-    /// frames.  Internal state is grown automatically.
     pub fn select_with_hysteresis(
         &mut self,
         object_id: usize,
@@ -111,17 +89,10 @@ impl LodManager {
         LodSelection::from_tier(state.tier, distance, screen_size)
     }
 
-    /// Directly returns a [`LodSelection`] for a forced tier.
     pub fn select_for_tier(&self, tier: LodTier) -> LodSelection {
         LodSelection::from_tier(tier, 0.0, 0.0)
     }
 
-    /// Estimates the screen-space geometric error in pixels.
-    ///
-    /// * `geometric_error` – world-space error of the simplified mesh.
-    /// * `distance`        – camera distance.
-    /// * `screen_height`   – viewport height in pixels.
-    /// * `fov_y`           – vertical field of view in **radians**.
     pub fn screen_space_error(
         &self,
         geometric_error: f64,
@@ -136,8 +107,6 @@ impl LodManager {
         projected * screen_height
     }
 
-    /// Returns `true` when the current mesh should be refined to a
-    /// higher LOD based on the screen-space error criterion.
     pub fn should_refine(
         &self,
         geometric_error: f64,
@@ -149,13 +118,6 @@ impl LodManager {
             > self.screen_error_threshold
     }
 
-    /// Computes a detail factor `[0, 1]` for objects near the horizon
-    /// where atmospheric haze reduces perceived detail.
-    ///
-    /// * `horizon_distance` – distance at which detail fades to zero.
-    ///
-    /// Returns `1.0` when most objects are close, `0.0` when
-    /// the average tracked distance exceeds `horizon_distance`.
     pub fn horizon_detail(&self, horizon_distance: f64) -> f64 {
         if self.states.is_empty() {
             return 1.0;
@@ -173,11 +135,6 @@ impl LodManager {
         base * (1.0 - (1.0 / count) * 0.05)
     }
 
-    /// Computes a detail factor `[0, 1]` between two specific points.
-    ///
-    /// * `camera_pos`       – world-space camera position.
-    /// * `object_pos`       – world-space object position.
-    /// * `horizon_distance` – fade-out distance.
     pub fn horizon_detail_for(
         &self,
         camera_pos: Vec3,

@@ -1,50 +1,32 @@
-//! Native platform calls and host detection helpers.
 
 use crate::core::engine::acces_hardware::cpu::CpuProfile;
 use crate::core::engine::acces_hardware::gpu::{gpu_dispatch_tiles, GpuRenderBackend};
 
-/// SIMD feature map detected on the current host.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct HostSimdFeatures {
-    /// AVX-512 Foundation availability.
     pub avx512f: bool,
-    /// AVX2 availability.
     pub avx2: bool,
-    /// AVX availability.
     pub avx: bool,
-    /// FMA availability.
     pub fma: bool,
-    /// SSE 4.2 availability.
     pub sse4_2: bool,
-    /// SSE2 availability.
     pub sse2: bool,
-    /// NEON availability.
     pub neon: bool,
-    /// SVE availability.
     pub sve: bool,
 }
 
-/// Per-core host frequency sample.
 #[derive(Debug, Clone, Copy)]
 pub struct HostCoreFrequency {
-    /// Logical core index.
     pub core_id: u32,
-    /// Frequency in hertz.
     pub frequency_hz: u64,
 }
 
-/// Summary of a native CPU call outcome.
 #[derive(Debug, Clone, Copy)]
 pub struct NativeCpuCall {
-    /// Architecture label for the current target.
     pub architecture: &'static str,
-    /// Logical cores selected in the CPU profile.
     pub logical_cores: u8,
-    /// Effective vector width in bits.
     pub vector_width_bits: u32,
 }
 
-/// Returns a canonical architecture name for the current target.
 pub fn host_architecture_name() -> &'static str {
     if cfg!(target_arch = "x86_64") {
         "x86_64"
@@ -59,7 +41,6 @@ pub fn host_architecture_name() -> &'static str {
     }
 }
 
-/// Detects SIMD capabilities for the active host target.
 pub fn host_detect_simd_features() -> HostSimdFeatures {
     let mut features = HostSimdFeatures::default();
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -83,13 +64,11 @@ pub fn host_detect_simd_features() -> HostSimdFeatures {
     features
 }
 
-/// Returns whether at least one SIMD path is available.
 pub fn host_has_simd() -> bool {
     let f = host_detect_simd_features();
     f.avx512f || f.avx2 || f.avx || f.fma || f.sse4_2 || f.sse2 || f.neon || f.sve
 }
 
-/// Detects the L2 cache size estimate in KiB.
 pub fn host_detect_l2_cache_kb() -> u32 {
     #[cfg(target_os = "linux")]
     {
@@ -114,7 +93,6 @@ pub fn host_detect_l2_cache_kb() -> u32 {
     256
 }
 
-/// Detects the number of physical cores when available.
 pub fn host_detect_physical_cores() -> usize {
     #[cfg(target_os = "linux")]
     {
@@ -141,7 +119,6 @@ pub fn host_detect_physical_cores() -> usize {
         .unwrap_or(1)
 }
 
-/// Detects per-core frequencies using OS-specific mechanisms.
 pub fn host_detect_core_frequencies() -> Vec<HostCoreFrequency> {
     #[cfg(target_os = "linux")]
     {
@@ -188,7 +165,6 @@ pub fn host_detect_core_frequencies() -> Vec<HostCoreFrequency> {
         .collect()
 }
 
-/// Returns the current affinity mask for the running thread.
 pub fn host_thread_affinity_mask() -> usize {
     #[cfg(all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64")))]
     {
@@ -205,7 +181,6 @@ pub fn host_thread_affinity_mask() -> usize {
     usize::MAX
 }
 
-/// Pins the current thread to a specific core when supported.
 pub fn host_pin_thread_to_core(core_id: usize) {
     #[cfg(all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64")))]
     {
@@ -223,7 +198,6 @@ pub fn host_pin_thread_to_core(core_id: usize) {
     }
 }
 
-/// Builds a lightweight native CPU call report.
 pub fn native_cpu_call(cpu: &CpuProfile) -> NativeCpuCall {
     NativeCpuCall {
         architecture: host_architecture_name(),
@@ -232,18 +206,13 @@ pub fn native_cpu_call(cpu: &CpuProfile) -> NativeCpuCall {
     }
 }
 
-/// Summary of a native GPU call outcome.
 #[derive(Debug, Clone, Copy)]
 pub struct NativeGpuCall {
-    /// Indicates whether the GPU backend is initialized.
     pub init_ok: bool,
-    /// Indicates whether the dispatch call produced work.
     pub dispatch_ok: bool,
-    /// Indicates whether a framebuffer is active.
     pub framebuffer_ok: bool,
 }
 
-/// Builds a lightweight native GPU call report.
 pub fn native_gpu_call(gpu: Option<&GpuRenderBackend>, workgroup_size: usize) -> NativeGpuCall {
     let dispatched = gpu_dispatch_tiles(1, workgroup_size.max(1) as u32);
     let init_ok = gpu.is_some();
@@ -257,6 +226,7 @@ pub fn native_gpu_call(gpu: Option<&GpuRenderBackend>, workgroup_size: usize) ->
 }
 
 #[cfg(target_os = "macos")]
+#[allow(clashing_extern_declarations)]
 unsafe extern "C" {
     fn sysctlbyname(
         name: *const core::ffi::c_char,

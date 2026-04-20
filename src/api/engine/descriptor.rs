@@ -6,7 +6,7 @@ use crate::api::types::core::{RenderRequest, RenderResult};
 use super::engine_api::EngineApi;
 
 impl EngineApi {
-    /// Rend une scène décrite par un [`SceneDescriptor`].
+    /// Renders a scene descriptor through the standard engine pipeline.
     pub fn render_descriptor(
         &self,
         descriptor: SceneDescriptor,
@@ -16,7 +16,7 @@ impl EngineApi {
         self.render(builder, request)
     }
 
-    /// Charge un fichier `.scene` et le rend immédiatement.
+    /// Loads a descriptor from disk and renders it.
     pub fn load_and_render<P: AsRef<std::path::Path>>(
         &self,
         scene_path: P,

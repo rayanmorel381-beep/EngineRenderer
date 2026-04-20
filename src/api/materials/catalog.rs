@@ -1,17 +1,10 @@
 use crate::core::engine::rendering::materials::material::MaterialLibrary;
 use crate::core::engine::rendering::raytracing::{Material, Vec3};
 
-/// Named material catalogue — maps human-readable string names to engine
-/// materials. AI agents can use [`by_name()`] with any preset string from
-/// [`Capabilities::material_presets`].
 #[derive(Debug)]
 pub struct MaterialCatalog;
 
 impl MaterialCatalog {
-    /// Look up a material preset by its lowercase name.
-    ///
-    /// Unrecognised names return a neutral grey diffuse material so that the
-    /// render never panics.
     pub fn by_name(&self, name: &str) -> Material {
         match name {
             "stellar_surface" => MaterialLibrary::stellar_surface(),
@@ -35,17 +28,14 @@ impl MaterialCatalog {
         }
     }
 
-    /// Parametric rocky world with a custom base colour.
     pub fn rocky_world_colored(&self, r: f64, g: f64, b: f64) -> Material {
         MaterialLibrary::rocky_world(Vec3::new(r, g, b))
     }
 
-    /// Parametric automotive paint with a custom colour.
     pub fn automotive_paint_colored(&self, r: f64, g: f64, b: f64) -> Material {
         MaterialLibrary::automotive_paint(Vec3::new(r, g, b))
     }
 
-    /// Build a fully custom material from raw parameters.
     pub fn custom(
         &self,
         albedo: [f64; 3],
@@ -63,7 +53,6 @@ impl MaterialCatalog {
         )
     }
 
-    /// All preset names, useful for listing in a tool‐use description.
     pub fn all_names(&self) -> &'static [&'static str] {
         &[
             "stellar_surface",

@@ -1,4 +1,5 @@
-//! Binaire principal d'EngineRenderer : sélectionne le mode CLI, temps réel ou génération vidéo.
+
+//! EngineRenderer main binary: selects CLI, realtime, or video generation mode.
 
 mod utils;
 mod realtime;

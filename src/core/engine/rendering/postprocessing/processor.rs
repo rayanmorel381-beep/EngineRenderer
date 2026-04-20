@@ -1,5 +1,3 @@
-//! Full-pipeline post-processor with bloom, grain, aberration,
-//! sharpening, and tone-mapping.
 
 use crate::core::engine::rendering::raytracing::Vec3;
 use crate::core::engine::rendering::framebuffer::FrameBuffer;
@@ -7,30 +5,19 @@ use crate::core::engine::rendering::framebuffer::FrameBuffer;
 use super::blur::separable_blur;
 use super::effects::{chromatic_aberration_sample, extract_bright, film_grain, sharpen_pixel};
 
-/// Configurable post-processing pipeline applied after rendering.
 #[derive(Debug, Clone, Copy)]
 pub struct PostProcessor {
-    /// Bloom luminance threshold.
     pub bloom_threshold: f64,
-    /// Bloom blur radius (pixels).
     pub bloom_radius: usize,
-    /// Bloom blur sigma.
     pub bloom_sigma: f64,
-    /// Bloom blend intensity.
     pub bloom_intensity: f64,
-    /// Film-grain strength.
     pub grain_intensity: f64,
-    /// Chromatic-aberration strength.
     pub aberration_strength: f64,
-    /// Sharpening amount.
     pub sharpen_amount: f64,
-    /// Exposure multiplier for final tone-map.
     pub exposure: f64,
 }
 
 impl PostProcessor {
-    /// Cinematic preset with moderate bloom, subtle grain, and mild
-    /// aberration.
     pub fn cinematic() -> Self {
         Self {
             bloom_threshold: 1.2,
@@ -44,58 +31,41 @@ impl PostProcessor {
         }
     }
 
-    /// Sets the bloom threshold.
     pub fn with_bloom_threshold(mut self, t: f64) -> Self {
         self.bloom_threshold = t;
         self
     }
 
-    /// Sets the bloom blur radius.
     pub fn with_bloom_radius(mut self, r: usize) -> Self {
         self.bloom_radius = r;
         self
     }
 
-    /// Sets the bloom intensity.
     pub fn with_bloom_intensity(mut self, i: f64) -> Self {
         self.bloom_intensity = i;
         self
     }
 
-    /// Sets the film-grain intensity.
     pub fn with_grain(mut self, g: f64) -> Self {
         self.grain_intensity = g;
         self
     }
 
-    /// Sets the chromatic-aberration strength.
     pub fn with_aberration(mut self, a: f64) -> Self {
         self.aberration_strength = a;
         self
     }
 
-    /// Sets the sharpening amount.
     pub fn with_sharpen(mut self, s: f64) -> Self {
         self.sharpen_amount = s;
         self
     }
 
-    /// Sets the exposure multiplier.
     pub fn with_exposure(mut self, e: f64) -> Self {
         self.exposure = e;
         self
     }
 
-    /// Runs the full post-processing pipeline on a [`FrameBuffer`].
-    ///
-    /// Steps (in order):
-    /// 1. Extract bright pixels → bloom buffer.
-    /// 2. Blur the bloom buffer (separable Gaussian).
-    /// 3. Composite bloom back into the frame.
-    /// 4. Apply chromatic aberration.
-    /// 5. Apply film grain.
-    /// 6. Apply sharpening.
-    /// 7. Apply exposure (HDR-preserving, no tone-map).
     pub fn apply(&self, fb: &mut FrameBuffer) {
         let w = fb.width;
         let h = fb.height;
@@ -158,7 +128,6 @@ impl PostProcessor {
         }
     }
 
-    /// A lighter pipeline that **only** applies bloom and exposure.
     pub fn apply_bloom_only(&self, fb: &mut FrameBuffer) {
         let w = fb.width;
         let h = fb.height;
@@ -180,7 +149,6 @@ impl PostProcessor {
     }
 }
 
-/// Simple Reinhard tone-mapping operator.
 pub fn reinhard_tonemap(c: Vec3) -> Vec3 {
     Vec3::new(
         c.x / (1.0 + c.x),
@@ -189,7 +157,6 @@ pub fn reinhard_tonemap(c: Vec3) -> Vec3 {
     )
 }
 
-/// Fast integer-seeded pseudo-noise in `[-1, 1]` for grain.
 fn pseudo_noise(seed: f64) -> f64 {
     let s = (seed * 12.9898 + 78.233).sin() * 43758.5453;
     s.fract() * 2.0 - 1.0

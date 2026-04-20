@@ -49,6 +49,7 @@ pub struct EngineManager {
     physics_manager: PhysicsManager,
     debug_tools: DebugTools,
     serializer: SerializationManager,
+    nbody: NBodySystem,
 }
 
 impl EngineManager {
@@ -65,11 +66,7 @@ impl EngineManager {
 
         let hardware_backend = NativeHardwareBackend::detect();
 
-        let renderer = if config.width == 1600 && config.height == 900 {
-            Renderer::with_resolution_using_backend(1920, 1080, &hardware_backend)
-        } else {
-            Renderer::with_resolution_using_backend(config.width, config.height, &hardware_backend)
-        };
+        let renderer = Renderer::with_resolution_using_backend(config.width, config.height, &hardware_backend);
 
         Self {
             hardware_backend,
@@ -80,9 +77,9 @@ impl EngineManager {
             ),
             bodies,
             resource_manager,
-            time_manager: TimeManager::new(0.024),
+            time_manager: TimeManager::new(1.0 / 120.0),
             profiler: FrameProfiler,
-            loop_controller: LoopController::new(60.0, 1),
+            loop_controller: LoopController::new(120.0, 1),
             input_manager: InputManager::new(true),
             event_bus: EventBus::default(),
             logger,
@@ -92,12 +89,13 @@ impl EngineManager {
             physics_manager,
             debug_tools: DebugTools,
             serializer: SerializationManager,
+            nbody: NBodySystem::showcase(),
             config,
         }
     }
 
     pub fn render_frame(&mut self) -> Result<RenderReport, Box<dyn Error>> {
-        let frame_step = self.time_manager.advance_frame(0.024, 1);
+        let frame_step = self.time_manager.advance_frame(1.0 / 120.0, 1);
 
         let delta = frame_step.delta_seconds;
         let substeps = frame_step.integration_steps;
@@ -165,30 +163,15 @@ impl EngineManager {
         });
 
         // ── N-body simulation ───────────────────────────────────────────
-        let mut nbody = NBodySystem::showcase();
-        nbody.advance(frame_step.absolute_time * 0.01, substeps);
-        let nbody_center = nbody.scene_center();
-        let nbody_radius = nbody.scene_radius();
-        eprintln!("nbody: center=({:.2},{:.2},{:.2}) radius={:.2}", nbody_center.x, nbody_center.y, nbody_center.z, nbody_radius);
+        self.nbody.advance(frame_step.delta_seconds * 0.01, substeps);
+        let nbody_center = self.nbody.scene_center();
+        let nbody_radius = self.nbody.scene_radius();
+        crate::runtime_log!("nbody: center=({:.2},{:.2},{:.2}) radius={:.2}", nbody_center.x, nbody_center.y, nbody_center.z, nbody_radius);
 
         // ── Input facades ───────────────────────────────────────────────
 
         let rig = CameraRig::cinematic(graph.scene_radius());
         let rig_cam = rig.build_camera(self.config.aspect_ratio(), frame_step.absolute_time);
-
-
-
-
-
-
-
-
-
-
-
-
-        // ── Debug profiling functions ───────────────────────────────────
-        // (used after profiler.finish_frame below)
 
         let audio_mix = self.audio_manager.mix_for_scene(
             &graph,
@@ -205,8 +188,6 @@ impl EngineManager {
             self.resource_manager.output_path(),
             self.config.render_preset,
         )?;
-        let preview_report: Option<RenderReport> = None;
-        let gallery_reports: Vec<RenderReport> = Vec::new();
 
         let summary = self
             .profiler
@@ -240,19 +221,6 @@ impl EngineManager {
                 "Frame {} luminance drifted to {:.4}",
                 summary.frame_index,
                 report.average_luminance
-            ));
-        }
-        if let Some(preview_report) = &preview_report {
-            self.logger.info(format!(
-                "Generated preview reference at {} ({} px)",
-                preview_report.output_path.display(),
-                preview_report.rendered_pixels
-            ));
-        }
-        if !gallery_reports.is_empty() {
-            self.logger.info(format!(
-                "Generated {} dedicated showcase renders",
-                gallery_reports.len()
             ));
         }
 
@@ -523,7 +491,7 @@ impl EngineManager {
         } else {
             1.0 - (over_budget_frames as f64 / rendered_samples as f64)
         };
-        eprintln!(
+        crate::runtime_log!(
             "realtime: frames={} target_fps={} achieved_fps={:.1} stable_ratio={:.2} avg_render_ms={:.2} internal={}x{} output={}x{} headless={}",
             rendered_frames,
             target_fps,
@@ -575,13 +543,7 @@ impl EngineManager {
 
 fn realtime_scene_complexity(target_fps: u32, hardware_backend: &NativeHardwareBackend) -> SceneComplexity {
     if target_fps >= 120 {
-        return SceneComplexity {
-            showcase_mesh_budget: 1,
-            area_light_budget: 0,
-            panorama_enabled: false,
-            refined_showcase_meshes: false,
-            proxy_showcase_meshes: true,
-        };
+        return SceneComplexity::full();
     }
 
     let logical_cores = hardware_backend.hw_caps().logical_cores;
@@ -610,7 +572,6 @@ fn realtime_scene_complexity(target_fps: u32, hardware_backend: &NativeHardwareB
     SceneComplexity::full()
 }
 
-/// Façade publique de haut niveau du moteur.
 #[derive(Debug)]
 pub struct Engine {
     manager: EngineManager,
@@ -625,14 +586,12 @@ impl Default for Engine {
 }
 
 impl Engine {
-    /// Crée une instance en preset temps réel.
     pub fn realtime() -> Self {
         Self {
             manager: EngineManager::new(EngineConfig::realtime_preview()),
         }
     }
 
-    /// Crée une instance temps réel avec résolution explicite.
     pub fn realtime_with_resolution(width: usize, height: usize) -> Self {
         let mut config = EngineConfig::realtime_preview();
         config.width = width.max(1);
@@ -642,27 +601,22 @@ impl Engine {
         }
     }
 
-    /// Crée une instance en preset production.
     pub fn production_reference() -> Self {
         Self {
             manager: EngineManager::new(EngineConfig::production_reference()),
         }
     }
 
-    /// Tiny resolution engine for integration tests. Avoids blowing up
-    /// CPU/RAM on a full render pipeline.
     pub fn test_minimal() -> Self {
         Self {
             manager: EngineManager::new(EngineConfig::test_minimal()),
         }
     }
 
-    /// Exécute un rendu image unique et retourne le rapport.
     pub fn run(mut self) -> Result<RenderReport, Box<dyn Error>> {
         self.manager.render_frame()
     }
 
-    /// Exécute le rendu galerie et retourne l'ensemble des rapports.
     pub fn render_gallery(self) -> Result<Vec<RenderReport>, Box<dyn Error>> {
         let config = self.manager.config.clone();
         let mut loop_runner = EngineLoop::new(config);
@@ -670,7 +624,6 @@ impl Engine {
         loop_runner.run_gallery()
     }
 
-    /// Exécute la boucle temps réel pendant `seconds` à la cible `fps`.
     pub fn run_realtime(mut self, seconds: u32, fps: u32) -> Result<(), Box<dyn Error>> {
         self.manager.run_realtime(seconds, fps)
     }

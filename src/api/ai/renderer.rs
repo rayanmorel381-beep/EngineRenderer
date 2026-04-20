@@ -8,26 +8,7 @@ use crate::core::engine::rendering::renderer::Renderer;
 use super::capabilities;
 use super::prompt;
 
-/// AI-facing facade for the rendering engine.
-///
-/// This is the main entry point for any AI agent, LLM tool, or automated
-/// pipeline that wants to produce images. Every method accepts and returns
-/// simple, serialisable types so they can travel over JSON, MCP, or any
-/// other wire format.
-///
-/// # Quick start
-///
-/// ```ignore
-/// use enginerenderer::api::ai::AiRenderer;
-/// use enginerenderer::api::types::RenderRequest;
-///
-/// let ai = AiRenderer::new();
-/// let request = RenderRequest::hd();
-/// let result = ai.render_scene_builder(
-///     ai.scene_from_prompt("a blue ocean planet orbiting a yellow star"),
-///     &request,
-/// )?;
-/// ```
+/// High-level AI rendering facade.
 #[derive(Debug)]
 pub struct AiRenderer {
     preset_hd: RenderPreset,
@@ -41,7 +22,7 @@ impl Default for AiRenderer {
 }
 
 impl AiRenderer {
-    /// Crée un `AiRenderer` avec les préréglages HD et production par défaut.
+    /// Creates a renderer with default HD and production presets.
     pub fn new() -> Self {
         Self {
             preset_hd: RenderPreset::UltraHdCpu,
@@ -49,8 +30,7 @@ impl AiRenderer {
         }
     }
 
-    /// Render a scene described by a [`SceneBuilder`] with the given request
-    /// parameters. Returns a [`RenderResult`] with paths and quality metrics.
+    /// Renders a scene built from a [`SceneBuilder`] and request parameters.
     pub fn render_scene_builder(
         &self,
         builder: SceneBuilder,
@@ -77,7 +57,7 @@ impl AiRenderer {
         })
     }
 
-    /// Render the built-in realistic showcase scene.
+    /// Renders the built-in showcase scene.
     pub fn render_showcase(&self, request: &RenderRequest) -> Result<RenderResult, Box<dyn Error>> {
         let renderer = Renderer::with_resolution(request.width, request.height);
         let preset = self.preset_for(request);
@@ -99,7 +79,7 @@ impl AiRenderer {
         })
     }
 
-    /// Render directly from a natural-language prompt.
+    /// Builds a scene from a text prompt and renders it.
     pub fn render_prompt(
         &self,
         prompt: &str,
@@ -109,12 +89,12 @@ impl AiRenderer {
         self.render_scene_builder(builder, request)
     }
 
-    /// Build a [`SceneBuilder`] from a natural-language prompt.
+    /// Converts a text prompt into a scene builder.
     pub fn scene_from_prompt(&self, prompt: &str) -> SceneBuilder {
         prompt::scene_from_prompt(prompt)
     }
 
-    /// List every capability the engine exposes.
+    /// Returns runtime capabilities available to the AI renderer.
     pub fn capabilities(&self) -> capabilities::Capabilities {
         capabilities::discover()
     }

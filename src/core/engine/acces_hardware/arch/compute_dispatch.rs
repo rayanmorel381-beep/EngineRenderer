@@ -654,6 +654,12 @@ pub struct ComputeQueue {
     idle_signal: (Mutex<()>, Condvar),
 }
 
+impl Default for ComputeQueue {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ComputeQueue {
     pub fn new() -> Self {
         Self {
@@ -687,15 +693,27 @@ impl ComputeQueue {
         if self.is_idle() {
             return;
         }
-        let mut guard = self.idle_signal.0.lock().unwrap();
+        let mut guard = match self.idle_signal.0.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
         while !self.is_idle() {
-            guard = self.idle_signal.1.wait(guard).unwrap();
+            guard = match self.idle_signal.1.wait(guard) {
+                Ok(guard) => guard,
+                Err(poisoned) => poisoned.into_inner(),
+            };
         }
     }
 }
 
 pub struct CommandBuffer {
     data: Vec<u8>,
+}
+
+impl Default for CommandBuffer {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CommandBuffer {
@@ -723,7 +741,14 @@ impl CommandBuffer {
         self.data.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
     pub fn clear(&mut self) {
+        if self.is_empty() {
+            return;
+        }
         self.data.clear();
     }
 

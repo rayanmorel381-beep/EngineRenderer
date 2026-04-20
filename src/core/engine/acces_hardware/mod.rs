@@ -1,3 +1,4 @@
+
 //! Hardware access layer exports used by rendering and diagnostics.
 
 pub(crate) mod arch;

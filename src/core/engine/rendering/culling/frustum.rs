@@ -1,31 +1,15 @@
-//! Frustum geometry primitives for view-volume culling.
-//!
-//! Provides [`Plane`], [`Frustum`] and [`CullResult`] — the foundational types
-//! used by every culling pass (distance, contribution, frustum, occlusion).
 
 use crate::core::engine::rendering::raytracing::{Camera, Vec3};
 
 // ── Half-space plane ────────────────────────────────────────────────────
 
-/// An oriented half-space defined by a unit normal and a signed distance
-/// from the origin.
-///
-/// Points on the positive side (`signed_distance > 0`) are considered
-/// *inside* the half-space.
 #[derive(Debug, Clone, Copy)]
 pub struct Plane {
-    /// Outward-pointing unit normal.
     pub normal: Vec3,
-    /// Signed distance from the world origin along `normal`.
     pub distance: f64,
 }
 
 impl Plane {
-    /// Constructs a plane from a (possibly non-unit) normal and a point
-    /// that lies on the plane.
-    ///
-    /// The normal is normalised internally; callers do **not** need to
-    /// pre-normalise it.
     pub fn new(normal: Vec3, point: Vec3) -> Self {
         let n = normal.normalize();
         Self {
@@ -34,11 +18,6 @@ impl Plane {
         }
     }
 
-    /// Returns the signed perpendicular distance from `point` to this plane.
-    ///
-    /// * **Positive** → the point is on the normal side (inside).
-    /// * **Negative** → on the opposite side (outside).
-    /// * **Zero**     → exactly on the plane.
     #[inline]
     pub fn signed_distance(&self, point: Vec3) -> f64 {
         self.normal.dot(point) - self.distance
@@ -47,39 +26,21 @@ impl Plane {
 
 // ── Cull result ─────────────────────────────────────────────────────────
 
-/// Result of a containment test against a convex volume (frustum, AABB…).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CullResult {
-    /// Entirely inside the volume — no clipping needed.
     Inside,
-    /// Partially overlapping — may require clipping or conservative accept.
     Intersecting,
-    /// Completely outside — safe to discard.
     Outside,
 }
 
 // ── View frustum ────────────────────────────────────────────────────────
 
-/// A six-plane convex frustum extracted from camera parameters.
-///
-/// Plane order: **near, far, left, right, top, bottom**.  All normals
-/// point *inward* so that a positive signed-distance means "inside the
-/// frustum".
 #[derive(Debug, Clone, Copy)]
 pub struct Frustum {
-    /// The six bounding planes `[near, far, left, right, top, bottom]`.
     pub planes: [Plane; 6],
 }
 
 impl Frustum {
-    /// Builds a perspective frustum from camera pose and lens parameters.
-    ///
-    /// # Arguments
-    /// * `camera`  – camera providing origin + direction.
-    /// * `fov_rad` – vertical field-of-view **in radians**.
-    /// * `aspect`  – width / height ratio.
-    /// * `near`    – near-clip distance (> 0).
-    /// * `far`     – far-clip distance  (> near).
     pub fn from_camera(camera: &Camera, fov_rad: f64, aspect: f64, near: f64, far: f64) -> Self {
         let forward = camera.direction.normalize();
         let world_up = if forward.y.abs() > 0.999 {
@@ -118,7 +79,6 @@ impl Frustum {
         }
     }
 
-    /// Ensures the plane normal points toward `interior_point`.
     fn orient_plane(normal: Vec3, plane_point: Vec3, interior_point: Vec3) -> Plane {
         let plane = Plane::new(normal, plane_point);
         if plane.signed_distance(interior_point) < 0.0 {
@@ -128,8 +88,6 @@ impl Frustum {
         }
     }
 
-    /// Tests whether a bounding sphere is inside, intersecting, or outside
-    /// this frustum.
     pub fn contains_sphere(&self, center: Vec3, radius: f64) -> CullResult {
         let mut all_inside = true;
         for plane in &self.planes {
@@ -148,18 +106,12 @@ impl Frustum {
         }
     }
 
-    /// Returns `true` when `point` lies within (or on) every half-space.
     pub fn contains_point(&self, point: Vec3) -> bool {
         self.planes
             .iter()
             .all(|plane| plane.signed_distance(point) >= 0.0)
     }
 
-    /// Tests an axis-aligned bounding box against the frustum.
-    ///
-    /// Uses the *P-vertex / N-vertex* method for each plane: the positive
-    /// vertex (furthest along the normal) determines early-out; the
-    /// negative vertex determines full containment.
     pub fn contains_aabb(&self, aabb_min: Vec3, aabb_max: Vec3) -> CullResult {
         let mut all_inside = true;
         for plane in &self.planes {

@@ -1,4 +1,3 @@
-//! Public render entry-points: scene-to-file, inline render, PPM output.
 
 use std::{
     error::Error,
@@ -29,7 +28,6 @@ use super::super::types::{RenderPreset, RenderReport};
 use super::super::Renderer;
 
 impl Renderer {
-    /// Render the built-in realistic showcase scene directly to `output_path`.
     pub fn render_to_file<P: AsRef<Path>>(
         &self,
         output_path: P,
@@ -40,7 +38,6 @@ impl Renderer {
         self.render_scene_to_file(&scene, &camera, output_path, preset)
     }
 
-    /// Renders `scene` from `camera` to `output_path` using `preset`.
     pub fn render_scene_to_file<P: AsRef<Path>>(
         &self,
         scene: &Scene,
@@ -92,7 +89,7 @@ impl Renderer {
 
         let (distance_culled, cull_stats) = culler.cull_scene_with_stats(scene, camera);
         let mut render_scene = culler.cull_with_frustum(&distance_culled, &frustum);
-        eprintln!(
+        crate::runtime_log!(
             "culled {:.0}% spheres, {:.0}% triangles",
             cull_stats.sphere_ratio() * 100.0,
             cull_stats.triangle_ratio() * 100.0,
@@ -137,7 +134,7 @@ impl Renderer {
         let pixel_threads = pixel_work.div_ceil(4_000).clamp(1, max_threads);
         let complexity_threads = input_scene_objects.div_ceil(20_000).clamp(1, max_threads);
         config.thread_count = pixel_threads.max(complexity_threads);
-        eprintln!(
+        crate::runtime_log!(
             "adaptive-threads: {} objects, {}x{} @{}spp → {} threads (max={})",
             input_scene_objects, config.width, config.height,
             config.base_samples_per_pixel, config.thread_count, max_threads,
@@ -150,14 +147,14 @@ impl Renderer {
 
         let t_trace = precise_timestamp_ns();
         let (cached_bvh, cache_hit) = self.cached_bvh_for_scene(&render_scene);
-        eprintln!("tracer: BVH cache {}", if cache_hit { "hit" } else { "miss" });
+        crate::runtime_log!("tracer: BVH cache {}", if cache_hit { "hit" } else { "miss" });
         let (image, bvh_stats) = self
             .tracer
             .render_with_bvh(&render_scene, camera, &config, &self.lod_manager, cached_bvh.as_deref());
         let trace_ms = hw_elapsed_ms(t_trace, precise_timestamp_ns());
 
         if let Some(sync_ms) = self.gpu_fence_and_sync() {
-            eprintln!("gpu-sync: {:.2}ms", sync_ms);
+            crate::runtime_log!("gpu-sync: {:.2}ms", sync_ms);
         }
 
         // ── FrameBuffer ─────────────────────────────────────────────────
@@ -221,7 +218,7 @@ impl Renderer {
 
         if std::env::var_os("ENGINE_RENDER_INLINE_PROBE").is_some() {
             let inline_report = self.render(scene, camera, preset);
-            eprintln!(
+            crate::runtime_log!(
                 "inline-probe: {}x{} {:.1}ms",
                 inline_report.width,
                 inline_report.height,
@@ -236,14 +233,14 @@ impl Renderer {
         let frust_hh = preprocessed.camera_info.frustum_half_height;
         let point_inside = frustum.contains_point(camera.origin + camera.direction.normalize() * 5.0);
         let aabb_vis = frustum.contains_aabb(scene_bounds_min, scene_bounds_max);
-        eprintln!(
+        crate::runtime_log!(
             "frustum: point_inside={} aabb={:?} frust_hw={:.2} frust_hh={:.2}",
             point_inside, aabb_vis, frust_hw, frust_hh
         );
 
         let ev100 = ev100_from_luminance(avg_luma.max(0.001));
         let exposure = exposure_from_ev100(ev100);
-        eprintln!(
+        crate::runtime_log!(
             "exposure: ev100={:.2} exposure={:.4} sorted_objects={} sorted_triangles={} sample_mult={:.2} bounce_lim={} vol_qual={:.2} dominant_light=({:.2},{:.2},{:.2}) avg_obj_r={:.2} total_cascade_bias={:.4}",
             ev100, exposure,
             preprocessed.sorted_object_indices.len(),
@@ -257,7 +254,7 @@ impl Renderer {
 
         // ── Per-phase timing summary ────────────────────────────────────
         let total_frame_ms = hw_elapsed_ms(t_frame, precise_timestamp_ns());
-        eprintln!(
+        crate::runtime_log!(
             "pipeline: total={:.1}ms trace={:.1} post={:.1} complexity={} | {} simd={} gpu_fb={}",
             total_frame_ms, trace_ms, post_ms,
             scene_complexity,
@@ -265,13 +262,13 @@ impl Renderer {
             self.simd_tag(),
             uploaded_to_gpu,
         );
-        eprintln!("compute: submitted={}", compute_submitted);
+        crate::runtime_log!("compute: submitted={}", compute_submitted);
 
         // ── Analysis ────────────────────────────────────────────────────
         let average_luminance = framebuffer.average_luminance();
         let (min_luminance, max_luminance) = framebuffer.luminance_range();
         let brightest_pixel = framebuffer.brightest_pixel();
-        eprintln!(
+        crate::runtime_log!(
             "luminance: avg={:.4} range=[{:.4},{:.4}]",
             average_luminance, min_luminance, max_luminance,
         );
@@ -394,7 +391,7 @@ impl Renderer {
             self.cached_bvh_for_scene(&render_scene)
         };
         if !reuse_input_bvh {
-            eprintln!("tracer: BVH cache {}", if cache_hit { "hit" } else { "miss" });
+            crate::runtime_log!("tracer: BVH cache {}", if cache_hit { "hit" } else { "miss" });
         }
         let selected_bvh = if reuse_input_bvh { bvh } else { cached_bvh.as_deref() };
         let (image, bvh_stats) = self
@@ -459,11 +456,11 @@ impl Renderer {
         let post_ms = hw_elapsed_ms(t_post, precise_timestamp_ns());
 
         let total_frame_ms = hw_elapsed_ms(t_frame, precise_timestamp_ns());
-        eprintln!(
+        crate::runtime_log!(
             "anim-frame: total={:.1}ms trace={:.1} post={:.1} threads={} cascade_bias={:.4} gpu_fb={}",
             total_frame_ms, trace_ms, post_ms, scheduler.worker_count(), total_cascade_bias, uploaded_to_gpu,
         );
-        eprintln!("compute: submitted={}", compute_submitted);
+        crate::runtime_log!("compute: submitted={}", compute_submitted);
 
         let average_luminance = framebuffer.average_luminance();
         let (min_luminance, max_luminance) = framebuffer.luminance_range();
@@ -507,7 +504,7 @@ impl Renderer {
             let compute_submitted = self.submit_compute_workload(scene, config.width, config.height);
             let cached_bvh = if bvh.is_none() {
                 let (cached_bvh, cache_hit) = self.cached_bvh_for_scene(scene);
-                eprintln!("tracer: BVH cache {}", if cache_hit { "hit" } else { "miss" });
+                crate::runtime_log!("tracer: BVH cache {}", if cache_hit { "hit" } else { "miss" });
                 cached_bvh
             } else {
                 None
@@ -540,7 +537,7 @@ impl Renderer {
                 bvh: bvh_stats,
             };
 
-            eprintln!("compute: submitted={}", compute_submitted);
+            crate::runtime_log!("compute: submitted={}", compute_submitted);
 
             return Ok((pixels, report));
         }
@@ -620,7 +617,7 @@ impl Renderer {
 
         let t_trace = precise_timestamp_ns();
         let (cached_bvh, cache_hit) = self.cached_bvh_for_scene(&render_scene);
-        eprintln!("tracer: BVH cache {}", if cache_hit { "hit" } else { "miss" });
+        crate::runtime_log!("tracer: BVH cache {}", if cache_hit { "hit" } else { "miss" });
         let (image, bvh_stats) = self
             .tracer
             .render_with_scheduler(
@@ -683,11 +680,11 @@ impl Renderer {
         let post_ms = hw_elapsed_ms(t_post, precise_timestamp_ns());
 
         let total_frame_ms = hw_elapsed_ms(t_frame, precise_timestamp_ns());
-        eprintln!(
+        crate::runtime_log!(
             "anim-frame-buf: total={:.1}ms trace={:.1} post={:.1} threads={} cascade_bias={:.4} gpu_fb={}",
             total_frame_ms, trace_ms, post_ms, scheduler.worker_count(), total_cascade_bias, uploaded_to_gpu,
         );
-        eprintln!("compute: submitted={}", compute_submitted);
+        crate::runtime_log!("compute: submitted={}", compute_submitted);
 
         let average_luminance = framebuffer.average_luminance();
         let (min_luminance, max_luminance) = framebuffer.luminance_range();
@@ -718,7 +715,6 @@ impl Renderer {
         Ok((pixels, report))
     }
 
-    /// Renders a scene without writing to disk.
     pub fn render(&self, scene: &Scene, camera: &Camera, preset: RenderPreset) -> RenderReport {
         let mut config = self.config_for(preset);
         let is_preview = matches!(preset, RenderPreset::PreviewCpu);
@@ -758,7 +754,7 @@ impl Renderer {
 
         let (distance_culled, stats) = culler.cull_scene_with_stats(scene, camera);
         let mut render_scene = culler.cull_with_frustum(&distance_culled, &frustum);
-        eprintln!(
+        crate::runtime_log!(
             "culled {:.0}% spheres, {:.0}% triangles",
             stats.sphere_ratio() * 100.0,
             stats.triangle_ratio() * 100.0,
@@ -780,7 +776,7 @@ impl Renderer {
         let pixel_threads = pixel_work.div_ceil(4_000).clamp(1, max_threads);
         let complexity_threads = input_scene_objects.div_ceil(20_000).clamp(1, max_threads);
         config.thread_count = pixel_threads.max(complexity_threads);
-        eprintln!(
+        crate::runtime_log!(
             "adaptive-threads: {} objects, {}x{} @{}spp → {} threads (max={})",
             input_scene_objects, config.width, config.height,
             config.base_samples_per_pixel, config.thread_count, max_threads,
@@ -790,7 +786,7 @@ impl Renderer {
         let start = HwInstant::now();
         let t_trace = precise_timestamp_ns();
         let (cached_bvh, cache_hit) = self.cached_bvh_for_scene(&render_scene);
-        eprintln!("tracer: BVH cache {}", if cache_hit { "hit" } else { "miss" });
+        crate::runtime_log!("tracer: BVH cache {}", if cache_hit { "hit" } else { "miss" });
         let (image, bvh_stats) = self
             .tracer
             .render_with_bvh(&render_scene, camera, &config, &self.lod_manager, cached_bvh.as_deref());
@@ -816,11 +812,11 @@ impl Renderer {
         }
         let uploaded_to_gpu = self.upload_framebuffer_to_gpu(&framebuffer);
         let post_ms = hw_elapsed_ms(t_post, precise_timestamp_ns());
-        eprintln!(
+        crate::runtime_log!(
             "render: trace={:.1}ms post={:.1}ms | {} simd={} gpu_fb={}",
             trace_ms, post_ms, self.gpu_info_tag(), self.simd_tag(), uploaded_to_gpu,
         );
-        eprintln!("compute: submitted={}", compute_submitted);
+        crate::runtime_log!("compute: submitted={}", compute_submitted);
 
         let average_luminance = framebuffer.average_luminance();
         let (min_luminance, max_luminance) = framebuffer.luminance_range();

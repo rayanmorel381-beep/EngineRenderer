@@ -57,7 +57,7 @@ impl HardwareCapabilities {
     }
 
     pub fn log_summary(&self) {
-        eprintln!(
+        crate::runtime_log!(
             "hardware: logical_cores={} vram={}MB ram={}MB",
             self.logical_cores,
             self.vram_bytes / (1024 * 1024),

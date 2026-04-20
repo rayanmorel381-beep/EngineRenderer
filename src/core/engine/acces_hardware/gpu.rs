@@ -163,10 +163,25 @@ impl GpuRenderBackend {
 	pub fn gem_handle(&self) -> u32 { self.gem_handle_val }
 	pub fn is_mmap_active(&self) -> bool { self.framebuffer.is_some() }
 	pub fn mmap_framebuffer_ptr(&self) -> Option<*mut u8> {
-		self.framebuffer.as_ref().map(|b| b.lock().unwrap().as_mut_ptr())
+		self.framebuffer.as_ref().map(|b| {
+			let mut guard = match b.lock() {
+				Ok(guard) => guard,
+				Err(poisoned) => poisoned.into_inner(),
+			};
+			guard.as_mut_ptr()
+		})
 	}
 	pub fn mmap_framebuffer_len(&self) -> usize {
-		self.framebuffer.as_ref().map(|b| b.lock().unwrap().len()).unwrap_or(0)
+		self.framebuffer
+			.as_ref()
+			.map(|b| {
+				let guard = match b.lock() {
+					Ok(guard) => guard,
+					Err(poisoned) => poisoned.into_inner(),
+				};
+				guard.len()
+			})
+			.unwrap_or(0)
 	}
 
 	pub fn alloc_framebuffer(&mut self, width: usize, height: usize) -> Option<*mut u8> {
@@ -190,7 +205,10 @@ impl GpuRenderBackend {
 		let Some(framebuffer) = self.framebuffer.as_ref() else {
 			return false;
 		};
-		let mut framebuffer = framebuffer.lock().unwrap();
+		let mut framebuffer = match framebuffer.lock() {
+			Ok(guard) => guard,
+			Err(poisoned) => poisoned.into_inner(),
+		};
 		if data.len() != framebuffer.len() {
 			return false;
 		}

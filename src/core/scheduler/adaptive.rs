@@ -12,7 +12,6 @@ use crate::core::engine::acces_hardware::cpu::{
 
 // ─── Hardware snapshot (cached once per scheduler) ─────────────────────
 
-/// Full hardware context for scheduling decisions.
 #[derive(Debug, Clone)]
 pub struct HwContext {
     pub caps: HardwareCapabilities,
@@ -21,7 +20,6 @@ pub struct HwContext {
 }
 
 impl HwContext {
-    /// Probe everything once.
     pub fn detect() -> Self {
         let backend = NativeHardwareBackend::detect();
         Self::from_backend(&backend)
@@ -34,25 +32,20 @@ impl HwContext {
         Self { caps, cpu, core_freqs }
     }
 
-    /// Fastest N cores sorted by frequency (descending).
     pub fn fastest_cores(&self, n: usize) -> Vec<u32> {
         let mut sorted: Vec<_> = self.core_freqs.clone();
         sorted.sort_by(|a, b| b.frequency_hz.cmp(&a.frequency_hz));
         sorted.iter().take(n).map(|c| c.core_id).collect()
     }
 
-    /// Max bytes we can safely allocate for pixel data.
     pub fn max_pixel_bytes(&self, input_pixels: usize) -> u64 {
         self.caps.max_framebuffer_bytes_for_input(input_pixels)
     }
 
-    /// SIMD-aligned tile width.
     pub fn simd_tile_width(&self) -> usize {
         self.cpu.optimal_tile_width()
     }
 
-    /// L2 cache-friendly tile area (pixels).
-    /// Target: one tile's pixel data fits in L2 per core.
     pub fn l2_tile_pixels(&self) -> usize {
         let l2_bytes = (self.cpu.l2_cache_kb as usize) * 1024;
         // Each pixel = Vec3 = 3×f64 = 24 bytes. Use 75% of L2.
@@ -60,7 +53,6 @@ impl HwContext {
         (usable / 24).max(64)
     }
 
-    /// Log SIMD capability string.
     pub fn simd_tag(&self) -> &'static str {
         let s = &self.cpu.simd_features;
         if s.avx512f { "AVX-512" }
@@ -116,7 +108,7 @@ impl SchedulerReport {
     }
 
     pub fn log_summary(&self) {
-        eprintln!(
+        crate::runtime_log!(
             "scheduler: {} tiles, {} pixels, {:.1}ms, {} workers, simd={}, gpu={}, dma={}",
             self.total_tiles, self.total_pixels,
             self.dispatch_ms(),
@@ -127,7 +119,7 @@ impl SchedulerReport {
         );
         for w in &self.worker_stats {
             let ms = elapsed_ms(0, w.total_ns);
-            eprintln!(
+            crate::runtime_log!(
                 "  worker-{}: core={} tiles={} pixels={} {:.1}ms affinity=0x{:x}",
                 w.worker_id, w.core_id, w.tiles_rendered, w.pixels_rendered,
                 ms, w.affinity_mask,
@@ -138,12 +130,6 @@ impl SchedulerReport {
 
 // ─── Adaptive tile scheduler ───────────────────────────────────────────
 
-/// Adaptive work-stealing tile scheduler for CPU ray tracing.
-///
-/// Uses full hardware detection: CPU topology, SIMD vector width for tile
-/// alignment, L2 cache size for tile area, per-core frequency for core
-/// pinning, DMA-coherent framebuffer allocation, GPU dispatch tracking,
-/// and nanosecond-precision timing for per-worker profiling.
 #[derive(Debug)]
 pub struct TileScheduler {
     total_tiles: usize,
@@ -158,16 +144,11 @@ pub struct TileScheduler {
 }
 
 impl TileScheduler {
-    /// Build a scheduler that covers `image_width × image_height` pixels.
-    ///
-    /// Probes hardware once: CPU topology, SIMD features, per-core
-    /// frequencies, memory limits. Allocates DMA framebuffer if possible.
     pub fn new(image_width: usize, image_height: usize, hint_threads: usize) -> Self {
         let backend = NativeHardwareBackend::detect();
         Self::new_with_backend(image_width, image_height, hint_threads, &backend)
     }
 
-    /// Construit un scheduler en réutilisant un backend matériel déjà détecté.
     pub fn new_with_backend(
         image_width: usize,
         image_height: usize,
@@ -180,7 +161,7 @@ impl TileScheduler {
         let pixel_bytes = (image_width * image_height * 24) as u64; // 3×f64
         let max_bytes = hw.max_pixel_bytes(image_width.saturating_mul(image_height));
         if pixel_bytes > max_bytes {
-            eprintln!(
+            crate::runtime_log!(
                 "scheduler: WARNING resolution {}×{} needs {}MB but only {}MB available",
                 image_width, image_height,
                 pixel_bytes / (1024 * 1024),
@@ -198,7 +179,7 @@ impl TileScheduler {
         // ── Attempt DMA-coherent framebuffer allocation ─────────────────
         let dma_fb = alloc_dma_framebuffer(image_width, image_height);
         if let Some(ref fb) = dma_fb {
-            eprintln!(
+            crate::runtime_log!(
                 "scheduler: DMA framebuffer allocated ({}×{}, {}B, phys=0x{:x})",
                 image_width, image_height,
                 fb.byte_len(),
@@ -206,7 +187,7 @@ impl TileScheduler {
             );
         }
 
-        eprintln!(
+        crate::runtime_log!(
             "scheduler: {}×{} tiles={}×{}={} workers={}/{} simd={} l2_tile={}px fastest_cores={:?}",
             image_width, image_height,
             cols, rows, cols * rows,
@@ -229,32 +210,26 @@ impl TileScheduler {
         }
     }
 
-    /// Retourne le nombre total de tuiles.
     pub fn total_tiles(&self) -> usize {
         self.total_tiles
     }
 
-    /// Retourne le nombre de workers alloués.
     pub fn worker_count(&self) -> usize {
         self.worker_count
     }
 
-    /// Retourne le snapshot matériel utilisé par le scheduler.
     pub fn hw(&self) -> &HwContext {
         &self.hw
     }
 
-    /// Indique si un framebuffer DMA a été alloué.
     pub fn has_dma(&self) -> bool {
         self.dma_fb.is_some()
     }
 
-    /// Retourne le pointeur brut DMA si disponible.
     pub fn dma_ptr(&self) -> Option<*mut u8> {
         self.dma_fb.as_ref().map(|fb| fb.as_ptr())
     }
 
-    /// Resolve the tile at the given linear index into pixel coordinates.
     pub fn tile_at(&self, index: usize) -> Tile {
         let cols = self.image_width.div_ceil(self.tile_width.max(1));
         let tile_row = index / cols;
@@ -270,12 +245,6 @@ impl TileScheduler {
         }
     }
 
-    /// Execute `work_fn` across all tiles using work-stealing parallelism.
-    ///
-    /// Workers are pinned to the fastest physical cores in descending
-    /// frequency order. Each worker tracks its own nanosecond timing,
-    /// tile count, and pixel count. The GPU dispatch subsystem is notified
-    /// of the workload for tracking/bookkeeping.
     pub fn dispatch<F, T>(&self, work_fn: F) -> (Vec<(usize, Vec<T>)>, SchedulerReport)
     where
         F: Fn(Tile) -> Vec<T> + Sync,
@@ -317,7 +286,7 @@ impl TileScheduler {
                 let core_id = self.fastest_cores.get(worker_id).copied()
                     .unwrap_or(worker_id as u32);
 
-                let handle = thread::Builder::new()
+                let handle_result = thread::Builder::new()
                     .name(format!("tile-worker-{worker_id}"))
                     .stack_size(8 * 1024 * 1024)
                     .spawn_scoped(scope, move || {
@@ -345,10 +314,33 @@ impl TileScheduler {
                         let elapsed = precise_timestamp_ns().saturating_sub(worker_start);
                         ns.store(elapsed, Ordering::Relaxed);
                         local
-                    })
-                    .expect("failed to spawn tile worker");
+                    });
 
-                handles.push(handle);
+                match handle_result {
+                    Ok(handle) => handles.push(handle),
+                    Err(_) => {
+                        let worker_start = precise_timestamp_ns();
+                        let mut local = Vec::new();
+                        loop {
+                            if abort_ref.load(Ordering::Relaxed) {
+                                break;
+                            }
+                            let idx = next_ref.fetch_add(1, Ordering::Relaxed);
+                            if idx >= total {
+                                break;
+                            }
+                            let tile = self.tile_at(idx);
+                            let tile_pixels = tile.width * tile.height;
+                            let pixels = work_ref(tile);
+                            tc.fetch_add(1, Ordering::Relaxed);
+                            pc.fetch_add(tile_pixels, Ordering::Relaxed);
+                            local.push((idx, pixels));
+                        }
+                        let elapsed = precise_timestamp_ns().saturating_sub(worker_start);
+                        ns.store(elapsed, Ordering::Relaxed);
+                        all_results.extend(local);
+                    }
+                }
             }
 
             for h in handles {
@@ -394,9 +386,6 @@ impl TileScheduler {
     }
 }
 
-/// Pick the number of OS threads to use, based on actual CPU topology
-/// detected via the `hardware` crate (physical cores, avoiding HT
-/// contention on FP-heavy ray tracing workloads).
 fn effective_workers(hw: &HwContext, w: usize, h: usize, hint: usize) -> usize {
     let cpus = (hw.caps.logical_cores as usize).max(1);
     let max_by_pixels = (w * h).div_ceil(3_000).max(1);
@@ -404,12 +393,6 @@ fn effective_workers(hw: &HwContext, w: usize, h: usize, hint: usize) -> usize {
     hint.min(cpus).min(max_by_pixels).min(max_by_rows).max(1)
 }
 
-/// Choose tile dimensions using SIMD vector width and L2 cache size.
-///
-/// - Width is aligned to SIMD boundaries (via `CpuProfile::optimal_tile_width`)
-///   so inner pixel loops can process full vector registers without remainder.
-/// - Height is chosen so total tile pixels fit in L2 cache per core.
-/// - Tile count targets 8× workers for good load balance with work stealing.
 fn adaptive_tile_size(hw: &HwContext, w: usize, h: usize, workers: usize) -> (usize, usize) {
     let simd_w = hw.simd_tile_width();
     let l2_pixels = hw.l2_tile_pixels();

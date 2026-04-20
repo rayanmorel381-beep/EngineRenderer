@@ -1,3 +1,4 @@
+
 //! Volumetric light transport: medium, phase functions, and ray-march.
 //!
 //! * [`medium`]   — [`VolumetricMedium`] with density sampling, transmittance,

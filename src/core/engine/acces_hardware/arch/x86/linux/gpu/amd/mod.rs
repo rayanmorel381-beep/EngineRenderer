@@ -221,10 +221,10 @@ pub(crate) fn drm_radeon_alloc_gem(fd: RawFd, size_bytes: u64) -> Option<GemBuff
         raw_ioctl(fd, DRM_IOCTL_RADEON_GEM_CREATE, core::ptr::addr_of_mut!(args).cast())
     };
     if ret == 0 && args.handle != 0 {
-        eprintln!("gpu: radeon GEM created — handle={} size={}KB", args.handle, aligned / 1024);
+        crate::runtime_log!("gpu: radeon GEM created — handle={} size={}KB", args.handle, aligned / 1024);
         Some(GemBuffer { fd, handle: args.handle, size: aligned, mmap_offset: 0 })
     } else {
-        eprintln!("gpu: radeon GEM create failed (ret={})", ret);
+        crate::runtime_log!("gpu: radeon GEM create failed (ret={})", ret);
         None
     }
 }
@@ -265,7 +265,7 @@ pub(crate) fn drm_radeon_gem_mmap(fd: RawFd, handle: u32, size: u64) -> Option<u
     if ret == 0 && args.addr_ptr != 0 {
         Some(args.addr_ptr)
     } else {
-        eprintln!("gpu: radeon GEM mmap ioctl failed (ret={})", ret);
+        crate::runtime_log!("gpu: radeon GEM mmap ioctl failed (ret={})", ret);
         None
     }
 }
@@ -350,13 +350,13 @@ pub(crate) fn submit_radeon_cs(fd: RawFd, gem_handle: u32, packets: &[u32]) -> R
         raw_ioctl(fd, DRM_IOCTL_RADEON_CS, core::ptr::addr_of_mut!(cs).cast())
     };
     if ret == 0 {
-        eprintln!(
+        crate::runtime_log!(
             "gpu: radeon CS submitted — {} dwords, cs_id={}, gem_handle={}",
             packets.len(), cs.cs_id, gem_handle,
         );
         Ok(cs.cs_id as i64)
     } else {
-        eprintln!("gpu: radeon CS ioctl failed (ret={}, errno={})", ret, -ret);
+        crate::runtime_log!("gpu: radeon CS ioctl failed (ret={}, errno={})", ret, -ret);
         Err("radeon cs ioctl failed")
     }
 }
@@ -381,13 +381,13 @@ pub(crate) fn submit_amdgpu_cs(fd: RawFd, gem_handle: u32, packets: &[u32]) -> R
         raw_ioctl(fd, DRM_IOCTL_AMDGPU_CS, core::ptr::addr_of_mut!(cs_in).cast())
     };
     if ret == 0 {
-        eprintln!(
+        crate::runtime_log!(
             "gpu: amdgpu CS submitted — {} PM4 dwords, gem_handle={}",
             packets.len(), gem_handle,
         );
         Ok(packets.len() as i64)
     } else {
-        eprintln!("gpu: amdgpu CS ioctl failed (ret={})", ret);
+        crate::runtime_log!("gpu: amdgpu CS ioctl failed (ret={})", ret);
         Err("amdgpu cs ioctl failed")
     }
 }

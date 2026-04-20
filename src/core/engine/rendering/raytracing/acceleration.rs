@@ -226,9 +226,13 @@ impl BvhNode {
         let should_parallelize = parallel_depth > 0 && right_prims.len().saturating_add(primitives.len()) >= 2048;
         let (left, right) = if should_parallelize {
             thread::scope(|scope| {
+                let right_prims_fallback = right_prims.clone();
                 let handle = scope.spawn(move || Self::build_recursive(scene, right_prims, next_axis, parallel_depth - 1));
                 let left = Self::build_recursive(scene, primitives, next_axis, parallel_depth - 1);
-                let right = handle.join().expect("failed to build BVH branch");
+                let right = match handle.join() {
+                    Ok(right) => right,
+                    Err(_) => Self::build_recursive(scene, right_prims_fallback, next_axis, parallel_depth - 1),
+                };
                 (Box::new(left), Box::new(right))
             })
         } else {

@@ -1,3 +1,4 @@
+
 //! Visual effects modules: shadow mapping and volumetric light transport.
 //!
 //! * [`shadow_map`] — cascaded shadow maps, PCF, contact shadows.

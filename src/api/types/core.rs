@@ -1,19 +1,16 @@
 use std::path::PathBuf;
 
-/// Format de sortie pour les images rendues.
+/// Output image format.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum OutputFormat {
-    /// Format PPM.
     #[default]
     Ppm,
-    /// Format PNG.
     Png,
-    /// Format OpenEXR.
     Exr,
 }
 
 impl OutputFormat {
-    /// Retourne l'extension de fichier associée.
+    /// Returns the file extension for the selected format.
     pub fn extension(self) -> &'static str {
         match self {
             Self::Ppm => "ppm",
@@ -27,34 +24,26 @@ impl OutputFormat {
 // Quality / render request / result
 // ---------------------------------------------------------------------------
 
-/// Quality tier for a render request.
+/// Render quality profile.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Quality {
-    /// Qualité preview.
     Preview,
-    /// Qualité HD.
     Hd,
-    /// Qualité production.
     Production,
 }
 
-/// A render request — resolution, quality, output location.
+/// Input request used to render a frame.
 #[derive(Debug, Clone)]
 pub struct RenderRequest {
-    /// Largeur cible.
     pub width: usize,
-    /// Hauteur cible.
     pub height: usize,
-    /// Niveau de qualité.
     pub quality: Quality,
-    /// Dossier de sortie.
     pub output_dir: PathBuf,
-    /// Nom de fichier de sortie.
     pub file_name: String,
 }
 
 impl RenderRequest {
-    /// Crée une requête HD.
+    /// Returns the HD preset request.
     pub fn hd() -> Self {
         Self {
             width: 1920,
@@ -65,18 +54,18 @@ impl RenderRequest {
         }
     }
 
-    /// Crée une requête production.
+    /// Returns the production preset request.
     pub fn production() -> Self {
         Self {
-            width: 2560,
-            height: 1440,
+            width: 3840,
+            height: 2160,
             quality: Quality::Production,
             output_dir: PathBuf::from("output"),
             file_name: "ai_render_production.ppm".to_string(),
         }
     }
 
-    /// Crée une requête preview.
+    /// Returns the preview preset request.
     pub fn preview() -> Self {
         Self {
             width: 1280,
@@ -87,37 +76,37 @@ impl RenderRequest {
         }
     }
 
-    /// Surcharge la résolution.
+    /// Returns a copy with clamped output resolution.
     pub fn with_resolution(mut self, width: usize, height: usize) -> Self {
         self.width = width.clamp(64, 3840);
         self.height = height.clamp(64, 2160);
         self
     }
 
-    /// Surcharge la qualité.
+    /// Returns a copy with a different quality profile.
     pub fn with_quality(mut self, quality: Quality) -> Self {
         self.quality = quality;
         self
     }
 
-    /// Surcharge la sortie (dossier + nom).
+    /// Returns a copy with a custom output directory and file name.
     pub fn with_output(mut self, dir: impl Into<PathBuf>, name: impl Into<String>) -> Self {
         self.output_dir = dir.into();
         self.file_name = name.into();
         self
     }
 
-    /// Retourne le ratio d'aspect.
+    /// Computes width-to-height aspect ratio.
     pub fn aspect_ratio(&self) -> f64 {
         self.width as f64 / self.height as f64
     }
 
-    /// Retourne le chemin complet de sortie.
+    /// Returns the full output path.
     pub fn output_path(&self) -> PathBuf {
         self.output_dir.join(&self.file_name)
     }
 
-    /// Force un format de sortie via l'extension.
+    /// Returns a copy with the file extension set from the format.
     pub fn with_format(mut self, format: OutputFormat) -> Self {
         let stem = std::path::Path::new(&self.file_name)
             .file_stem()
@@ -135,30 +124,19 @@ impl Default for RenderRequest {
     }
 }
 
-/// Result of a completed render.
+/// Render output summary returned by the API.
 #[derive(Debug, Clone)]
 pub struct RenderResult {
-    /// Chemin du fichier rendu.
     pub output_path: PathBuf,
-    /// Largeur rendue.
     pub width: usize,
-    /// Hauteur rendue.
     pub height: usize,
-    /// Pixels rendus.
     pub rendered_pixels: usize,
-    /// Durée totale en ms.
     pub duration_ms: u128,
-    /// Nombre d'objets scène.
     pub object_count: usize,
-    /// Nombre de triangles scène.
     pub triangle_count: usize,
-    /// Luminance moyenne.
     pub average_luminance: f64,
-    /// Luminance minimale.
     pub min_luminance: f64,
-    /// Luminance maximale.
     pub max_luminance: f64,
-    /// SPP estimé.
     pub estimated_samples_per_pixel: usize,
 }
 
@@ -166,72 +144,51 @@ pub struct RenderResult {
 // Descriptors
 // ---------------------------------------------------------------------------
 
-/// Descripteur compact de matériau.
+/// Material descriptor used in declarative scene definitions.
 #[derive(Debug, Clone, Copy)]
 pub struct MaterialDesc {
-    /// Nom du matériau.
     pub name: &'static str,
-    /// Catégorie du matériau.
     pub category: &'static str,
-    /// Albédo linéaire.
     pub albedo: [f64; 3],
-    /// Rugosité.
     pub roughness: f64,
-    /// Métallicité.
     pub metallic: f64,
-    /// Présence d'émission.
     pub emissive: bool,
 }
 
-/// Descripteur compact d'objet sphérique.
+/// Sphere-like object descriptor used by high-level scene APIs.
 #[derive(Debug, Clone, Copy)]
 pub struct ObjectDesc {
-    /// Position monde.
     pub position: [f64; 3],
-    /// Rayon.
     pub radius: f64,
-    /// Nom du matériau.
     pub material_name: &'static str,
 }
 
-/// Descripteur compact de lumière.
+/// Light descriptor used by high-level scene APIs.
 #[derive(Debug, Clone, Copy)]
 pub struct LightDesc {
-    /// Type de lumière.
     pub kind: LightKind,
-    /// Couleur.
     pub color: [f64; 3],
-    /// Intensité.
     pub intensity: f64,
 }
 
-/// Variantes de sources lumineuses supportées.
+/// Supported light kinds for declarative scene definitions.
 #[derive(Debug, Clone, Copy)]
 pub enum LightKind {
-    /// Lumière directionnelle.
     Directional {
-        /// Direction normalisée de la lumière.
         direction: [f64; 3],
     },
-    /// Lumière surfacique rectangulaire.
     Area {
-        /// Position centrale de la source.
         position: [f64; 3],
-        /// Taille du rectangle émetteur.
         size: [f64; 2],
     },
 }
 
-/// Camera placement description.
+/// Camera descriptor used by scene builders.
 #[derive(Debug, Clone, Copy)]
 pub struct CameraDesc {
-    /// Position caméra.
     pub eye: [f64; 3],
-    /// Cible caméra.
     pub target: [f64; 3],
-    /// FOV vertical.
     pub fov_degrees: f64,
-    /// Ouverture de lentille.
     pub aperture: f64,
 }
 

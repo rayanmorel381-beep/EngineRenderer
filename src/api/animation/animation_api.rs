@@ -10,7 +10,7 @@ use crate::core::engine::rendering::renderer::types::RenderPreset;
 use crate::api::engine::EngineApi;
 
 impl EngineApi {
-    /// Rend une animation complète à partir d'une scène de base et d'un clip.
+    /// Renders a sequence of animation frames from a base descriptor and clip.
     pub fn render_animation(
         &self,
         base: SceneDescriptor,
@@ -37,7 +37,7 @@ impl EngineApi {
         sequencer.render_all()
     }
 
-    /// Encode une séquence de frames en MP4/H.264.
+    /// Encodes an existing rendered frame sequence into MP4.
     pub fn encode_animation_mp4<P: AsRef<std::path::Path>>(
         &self,
         sequence: &SequenceResult,

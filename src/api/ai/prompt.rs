@@ -2,25 +2,6 @@ use crate::api::materials::catalog::MaterialCatalog;
 use crate::api::scenes::builder::SceneBuilder;
 use crate::core::engine::rendering::raytracing::Vec3;
 
-/// Parse a natural-language prompt and return a populated [`SceneBuilder`].
-///
-/// The parser is keyword-based (case-insensitive). Recognised tokens:
-///
-/// | Token(s)                     | Effect                                       |
-/// |------------------------------|----------------------------------------------|
-/// | `star`, `sun`, `soleil`      | Emissive stellar sphere at the origin        |
-/// | `planet`, `planète`          | Rocky planet orbiting the star               |
-/// | `ocean`, `eau`, `water`      | Ocean world                                  |
-/// | `ice`, `glace`, `frozen`     | Icy world                                    |
-/// | `moon`, `lune`               | Small metallic moon                          |
-/// | `nebula`, `nébuleuse`        | Enable dense volumetric fog                  |
-/// | `car`, `voiture`             | Automotive sphere with paint material        |
-/// | `house`, `maison`            | Architectural plaster sphere                 |
-/// | `tree`, `arbre`              | Foliage sphere                               |
-/// | `black hole`, `trou noir`    | Event-horizon sphere with accretion disk     |
-/// | `ring`, `anneau`             | Accretion-disk torus approximated by spheres |
-///
-/// Unknown tokens are silently ignored.
 pub fn scene_from_prompt(prompt: &str) -> SceneBuilder {
     let lower = prompt.to_lowercase();
     let tokens = tokenize(&lower);

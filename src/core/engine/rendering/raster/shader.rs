@@ -62,7 +62,7 @@ impl ShaderProgram {
         gl_procs: &GlProcs,
     ) -> Result<u32, String> {
         let shader = (gl_procs.glCreateShader)(shader_type);
-        let c_src = CString::new(src).unwrap();
+        let c_src = CString::new(src).map_err(|_| "Shader source contains interior NUL byte".to_string())?;
         let src_ptr = c_src.as_ptr();
         (gl_procs.glShaderSource)(shader, 1, &src_ptr, std::ptr::null());
         (gl_procs.glCompileShader)(shader);
@@ -77,35 +77,43 @@ impl ShaderProgram {
 
     pub fn set_uniform_1f(&self, name: &str, value: f32, gl_procs: &GlProcs) {
         unsafe {
-            let loc = self.get_uniform_location(name, gl_procs);
+            let Ok(loc) = self.get_uniform_location(name, gl_procs) else {
+                return;
+            };
             (gl_procs.glUniform1f)(loc, value);
         }
     }
 
     pub fn set_uniform_3f(&self, name: &str, x: f32, y: f32, z: f32, gl_procs: &GlProcs) {
         unsafe {
-            let loc = self.get_uniform_location(name, gl_procs);
+            let Ok(loc) = self.get_uniform_location(name, gl_procs) else {
+                return;
+            };
             (gl_procs.glUniform3f)(loc, x, y, z);
         }
     }
 
     pub fn set_uniform_4f(&self, name: &str, x: f32, y: f32, z: f32, w: f32, gl_procs: &GlProcs) {
         unsafe {
-            let loc = self.get_uniform_location(name, gl_procs);
+            let Ok(loc) = self.get_uniform_location(name, gl_procs) else {
+                return;
+            };
             (gl_procs.glUniform4f)(loc, x, y, z, w);
         }
     }
 
     pub fn set_uniform_matrix4f(&self, name: &str, matrix: &[f32; 16], gl_procs: &GlProcs) {
         unsafe {
-            let loc = self.get_uniform_location(name, gl_procs);
+            let Ok(loc) = self.get_uniform_location(name, gl_procs) else {
+                return;
+            };
             (gl_procs.glUniformMatrix4fv)(loc, 1, 0, matrix.as_ptr());
         }
     }
 
-    unsafe fn get_uniform_location(&self, name: &str, gl_procs: &GlProcs) -> i32 {
-        let c_name = CString::new(name).unwrap();
-        (gl_procs.glGetUniformLocation)(self.handle, c_name.as_ptr())
+    unsafe fn get_uniform_location(&self, name: &str, gl_procs: &GlProcs) -> Result<i32, String> {
+        let c_name = CString::new(name).map_err(|_| "Uniform name contains interior NUL byte".to_string())?;
+        Ok((gl_procs.glGetUniformLocation)(self.handle, c_name.as_ptr()))
     }
 
     pub fn use_program(&self, gl_procs: &GlProcs) {
@@ -149,6 +157,8 @@ impl ShaderCache {
             let program = ShaderProgram::from_sources(vertex, fragment)?;
             self.programs.insert(key.to_string(), program);
         }
-        Ok(self.programs.get(key).unwrap())
+        self.programs
+            .get(key)
+            .ok_or_else(|| format!("Missing shader program for key '{}'", key))
     }
 }

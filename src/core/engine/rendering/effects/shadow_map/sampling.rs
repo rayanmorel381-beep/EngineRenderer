@@ -1,23 +1,8 @@
-//! Shadow sampling routines: Percentage-Closer Filtering (PCF) and
-//! screen-space contact shadows.
-//!
-//! These functions operate on the live scene geometry via ray casts —
-//! no pre-baked shadow map texture is required.
 
 use crate::core::engine::rendering::raytracing::{Ray, Scene, Vec3};
 
 // ── PCF shadow sampling ─────────────────────────────────────────────────
 
-/// Evaluates soft shadow visibility at `hit_point` using a
-/// Percentage-Closer Filter (PCF) with a square `kernel_size × kernel_size`
-/// grid of jittered rays.
-///
-/// Returns a visibility factor in `[0, 1]`: `0.0` = fully in shadow,
-/// `1.0` = fully lit.
-///
-/// # Bias
-/// * `bias`        – constant offset along `light_dir` to avoid shadow acne.
-/// * `normal_bias` – offset along the surface `normal`.
 pub fn pcf_shadow(
     scene: &Scene,
     hit_point: Vec3,
@@ -62,16 +47,6 @@ pub fn pcf_shadow(
 
 // ── Contact shadows (PCSS-like) ─────────────────────────────────────────
 
-/// Ray-marches from `hit_point` toward the light to detect short-range
-/// self-contact shadows.
-///
-/// Returns a visibility factor in `[0, 1]`:
-/// * `1.0` — no contact shadow detected.
-/// * `0.0 …` — occluded; the value fades linearly with the step at
-///   which the first occlusion was found (farther → lighter shadow).
-///
-/// `max_distance` controls how far the march extends;
-/// `steps` controls the quality / cost trade-off.
 pub fn contact_shadow(
     scene: &Scene,
     hit_point: Vec3,

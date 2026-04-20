@@ -408,51 +408,6 @@ enginerenderer::api::diagnose_compute_environment();
 
 <br>
 
-## 🗂️ Repository Structure
-
-```
-src/
-├── main.rs                     CLI dispatcher (video · run · interactive)
-├── lib.rs                      Public library exports
-├── generator.rs                Generic video rendering (CLI video mode)
-├── realtime.rs                 Realtime preview mode (CLI run mode)
-├── api/                        Public API layer
-│   ├── scene_descriptor.rs       Serializable scene description
-│   ├── generator.rs              GeneratorRequest API type
-│   ├── ai/                       AI capabilities, prompt parsing, renderer
-│   ├── animation/                Clips, timelines, sequencer
-│   ├── camera/                   Controller and presets
-│   ├── engine/                   EngineApi · diagnostics · cameras ·
-│   │                             descriptor · objects · rendering · scenes
-│   ├── materials/                Builder, catalog, spectrum, physics
-│   ├── objects/                  Primitives, composites, scene objects
-│   ├── scenes/                   Builder and presets
-│   └── types/                    Color, config, core types, transforms
-│
-├── core/                       Internal engine
-│   ├── animation/                Clip, timeline, easing, video export
-│   ├── coremanager/              All managers (engine, camera, config,
-│   │                             time, input, audio, resource, LOD, net)
-│   ├── debug/                    Logger, profiling, serialization
-│   ├── engine/
-│   │   ├── acces_hardware/       CPU · GPU · display · compute · DMA
-│   │   ├── config/               Engine configuration
-│   │   ├── engineloop/           Main render loop
-│   │   ├── event/                Event system
-│   │   ├── physics/              Rigid body, collision, raycasting
-│   │   ├── rendering/            Raytracing · BVH · shading · shadows
-│   │   │                         volumetrics · post-processing · culling
-│   │   │                         LOD · framebuffer · texture · loaders
-│   │   └── scene/                Graph, world, objects, celestial
-│   ├── input/                    Input, camera control, events, audio
-│   ├── scheduler/                Tile scheduler, loop control, profiling
-│   └── simulation/               N-body gravitational simulation
-│
-└── utils/                      CLI and interactive terminal
-```
-
-<br>
-
 <div align="center">
 
 ## License
