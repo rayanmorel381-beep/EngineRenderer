@@ -6,19 +6,26 @@ use crate::core::engine::rendering::{
 };
 
 #[derive(Debug, Clone, Copy)]
+/// Physical and rendering properties for one celestial body.
 pub struct CelestialBody {
+    /// Relative mass used for center-of-mass computations.
     pub mass: f64,
+    /// Body radius.
     pub radius: f64,
+    /// Body center position.
     pub position: Vec3,
+    /// Surface material.
     pub material: Material,
 }
 
 #[derive(Debug, Clone)]
+/// Collection of celestial bodies used by showcase scenes.
 pub struct CelestialBodies {
     bodies: Vec<CelestialBody>,
 }
 
 impl CelestialBodies {
+    /// Builds the default showcase body catalog.
     pub fn showcase() -> Self {
         Self {
             bodies: vec![
@@ -56,10 +63,12 @@ impl CelestialBodies {
         }
     }
 
+    /// Returns all celestial bodies.
     pub fn bodies(&self) -> &[CelestialBody] {
         &self.bodies
     }
 
+    /// Returns the mass-weighted scene center.
     pub fn scene_center(&self) -> Vec3 {
         let mut weighted_sum = Vec3::ZERO;
         let mut total_mass = 0.0;
@@ -76,6 +85,7 @@ impl CelestialBodies {
         }
     }
 
+    /// Returns the radial extent of the full body set.
     pub fn scene_radius(&self) -> f64 {
         let center = self.scene_center();
         self.bodies
@@ -84,6 +94,7 @@ impl CelestialBodies {
             .fold(1.0, f64::max)
     }
 
+    /// Converts the body catalog into a renderable scene.
     pub fn to_scene(&self) -> Scene {
         let objects = self
             .bodies

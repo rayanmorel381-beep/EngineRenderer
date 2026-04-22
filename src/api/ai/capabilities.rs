@@ -1,20 +1,34 @@
 
 #[derive(Debug, Clone)]
+/// Declarative capabilities exposed for AI clients.
 pub struct Capabilities {
+    /// Supported high-level object families.
     pub object_types: Vec<&'static str>,
+    /// Built-in material preset identifiers.
     pub material_presets: Vec<&'static str>,
+    /// Available quality levels.
     pub quality_levels: Vec<&'static str>,
+    /// Maximum supported output resolution `(width, height)`.
     pub max_resolution: (usize, usize),
+    /// Maximum supported bounce count.
     pub max_bounces: u32,
+    /// Maximum supported samples-per-pixel value.
     pub max_samples_per_pixel: u32,
+    /// Whether volumetric effects are supported.
     pub supports_volumetrics: bool,
+    /// Whether area lights are supported.
     pub supports_area_lights: bool,
+    /// Whether depth-of-field is supported.
     pub supports_depth_of_field: bool,
+    /// Whether motion blur is supported.
     pub supports_motion_blur: bool,
+    /// Whether procedural textures are supported.
     pub supports_procedural_textures: bool,
+    /// Default output format identifier.
     pub output_format: &'static str,
 }
 
+/// Discovers the current AI-facing feature set.
 pub fn discover() -> Capabilities {
     Capabilities {
         object_types: vec![

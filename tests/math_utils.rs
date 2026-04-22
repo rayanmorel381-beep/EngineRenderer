@@ -1,3 +1,5 @@
+//! Tests de stabilité sur les utilitaires mathématiques.
+
 use enginerenderer::api::engine::rendering::{bias, gain, inverse_lerp, remap, smoothstep};
 
 #[test]

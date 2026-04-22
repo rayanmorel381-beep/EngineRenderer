@@ -7,16 +7,25 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 pub struct SceneEnvironment {
+    /// Sky gradient top color.
     pub sky_top: Vec3,
+    /// Sky gradient bottom color.
     pub sky_bottom: Vec3,
+    /// Sun light direction.
     pub sun_direction: Vec3,
+    /// Sun light color.
     pub sun_color: Vec3,
+    /// Sun intensity multiplier.
     pub sun_intensity: f64,
+    /// Sun apparent angular radius.
     pub sun_angular_radius: f64,
+    /// Scene exposure value.
     pub exposure: f64,
+    /// Solar elevation value used by environment sampling.
     pub solar_elevation: f64,
 }
 
+/// Resource manager for output paths and derived scene environment.
 #[derive(Debug, Clone)]
 pub struct ResourceManager {
     output_path: PathBuf,
@@ -25,6 +34,7 @@ pub struct ResourceManager {
 }
 
 impl ResourceManager {
+    /// Builds resource manager data from engine configuration.
     pub fn from_config(config: &EngineConfig) -> Self {
         let pixel_count = (config.width * config.height) as f64;
         let hd_reference = (1280 * 720) as f64;
@@ -58,14 +68,17 @@ impl ResourceManager {
         }
     }
 
+    /// Returns the configured output path.
     pub fn output_path(&self) -> &Path {
         &self.output_path
     }
 
+    /// Returns the precomputed scene environment.
     pub fn environment(&self) -> SceneEnvironment {
         self.environment
     }
 
+    /// Returns derived surface detail scaling factor.
     pub fn surface_detail_scale(&self) -> f64 {
         self.surface_detail_scale
     }

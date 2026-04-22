@@ -9,6 +9,7 @@ use crate::api::types::CameraDesc;
 // Empty / minimal
 // ---------------------------------------------------------------------------
 
+/// Returns a minimal empty scene with no direct lighting.
 pub fn empty() -> SceneBuilder {
     SceneBuilder::new()
         .with_vacuum()
@@ -17,6 +18,7 @@ pub fn empty() -> SceneBuilder {
         .exposure(1.0)
 }
 
+/// Returns an empty scene with a configurable directional light.
 pub fn lit_void(direction: [f64; 3], color: [f64; 3], intensity: f64) -> SceneBuilder {
     empty()
         .sun_direction(direction)
@@ -28,6 +30,7 @@ pub fn lit_void(direction: [f64; 3], color: [f64; 3], intensity: f64) -> SceneBu
 // Studio / controlled lighting
 // ---------------------------------------------------------------------------
 
+/// Returns a balanced studio lighting setup.
 pub fn studio(eye: [f64; 3], target: [f64; 3]) -> SceneBuilder {
     SceneBuilder::new()
         .with_vacuum()
@@ -51,12 +54,14 @@ pub fn studio(eye: [f64; 3], target: [f64; 3]) -> SceneBuilder {
         .camera_position(eye, target)
 }
 
+/// Returns a bright high-key studio variant.
 pub fn studio_high_key(eye: [f64; 3], target: [f64; 3]) -> SceneBuilder {
     studio(eye, target)
         .sun_intensity(2.0)
         .exposure(1.6)
 }
 
+/// Returns a darker low-key studio variant.
 pub fn studio_low_key(eye: [f64; 3], target: [f64; 3]) -> SceneBuilder {
     studio(eye, target)
         .sun_intensity(0.6)
@@ -67,6 +72,7 @@ pub fn studio_low_key(eye: [f64; 3], target: [f64; 3]) -> SceneBuilder {
 // Outdoor / natural environments
 // ---------------------------------------------------------------------------
 
+/// Returns a configurable outdoor daylight setup.
 pub fn outdoor_daylight(
     sun_dir: [f64; 3],
     sun_color: [f64; 3],
@@ -83,6 +89,7 @@ pub fn outdoor_daylight(
         .exposure(1.4)
 }
 
+/// Returns a warm golden-hour outdoor preset.
 pub fn golden_hour() -> SceneBuilder {
     outdoor_daylight(
         [-0.15, -0.12, -1.0],
@@ -93,6 +100,7 @@ pub fn golden_hour() -> SceneBuilder {
     )
 }
 
+/// Returns a moonlit night preset.
 pub fn night(moon_dir: [f64; 3]) -> SceneBuilder {
     SceneBuilder::new()
         .with_vacuum()
@@ -107,6 +115,7 @@ pub fn night(moon_dir: [f64; 3]) -> SceneBuilder {
 // Volumetric / atmospheric
 // ---------------------------------------------------------------------------
 
+/// Returns a configurable volumetric atmosphere preset.
 pub fn volumetric(
     density: f64,
     anisotropy: f64,
@@ -136,6 +145,7 @@ pub fn volumetric(
         .exposure(1.4)
 }
 
+/// Returns a soft foggy atmosphere preset.
 pub fn foggy() -> SceneBuilder {
     volumetric(0.06, 0.2, 0.08, [0.7, 0.72, 0.75], [0.0, 0.0, 0.0])
 }
@@ -144,6 +154,7 @@ pub fn foggy() -> SceneBuilder {
 // Space / celestial
 // ---------------------------------------------------------------------------
 
+/// Returns a deep-space lighting preset.
 pub fn deep_space() -> SceneBuilder {
     SceneBuilder::new()
         .with_vacuum()
@@ -154,6 +165,7 @@ pub fn deep_space() -> SceneBuilder {
         .exposure(1.45)
 }
 
+/// Returns a nebula-themed volumetric preset.
 pub fn nebula(
     density: f64,
     color: [f64; 3],
@@ -168,6 +180,7 @@ pub fn nebula(
 // Testing / debug
 // ---------------------------------------------------------------------------
 
+/// Returns a simple single-sphere test scene.
 pub fn test_single_sphere() -> SceneBuilder {
     use crate::core::engine::rendering::raytracing::{Material, Vec3};
 
@@ -179,6 +192,7 @@ pub fn test_single_sphere() -> SceneBuilder {
         .camera_position([0.0, 0.0, 5.0], [0.0, 0.0, 0.0])
 }
 
+/// Arranges materials as a side-by-side sphere lineup.
 pub fn material_lineup(materials: Vec<crate::core::engine::rendering::raytracing::Material>, spacing: f64) -> SceneBuilder {
     use crate::core::engine::rendering::raytracing::Vec3;
 
@@ -195,6 +209,7 @@ pub fn material_lineup(materials: Vec<crate::core::engine::rendering::raytracing
     builder
 }
 
+/// Builds a turntable camera descriptor around a target point.
 pub fn turntable(target: [f64; 3], distance: f64, height: f64, angle_degrees: f64) -> CameraDesc {
     let angle = angle_degrees.to_radians();
     CameraDesc {

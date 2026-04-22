@@ -31,6 +31,7 @@ pub struct MeshDescriptor {
     pub bounding_radius: f64,
 }
 
+/// Returns descriptor stats for a UV sphere mesh.
 pub fn uv_sphere(stacks: usize, slices: usize, radius: f64) -> MeshDescriptor {
     let verts = (stacks + 1) * (slices + 1);
     let tris = stacks * slices * 2;
@@ -41,6 +42,7 @@ pub fn uv_sphere(stacks: usize, slices: usize, radius: f64) -> MeshDescriptor {
     }
 }
 
+/// Returns descriptor stats for a unit cube mesh.
 pub fn cube() -> MeshDescriptor {
     MeshDescriptor {
         vertex_count: 24,
@@ -48,6 +50,7 @@ pub fn cube() -> MeshDescriptor {
         bounding_radius: 3.0_f64.sqrt() * 0.5,
     }
 }
+/// Returns descriptor stats for a subdivided plane mesh.
 
 pub fn plane(subdivisions: usize, half_extent: f64) -> MeshDescriptor {
     let n = subdivisions + 1;
@@ -57,6 +60,7 @@ pub fn plane(subdivisions: usize, half_extent: f64) -> MeshDescriptor {
         bounding_radius: half_extent * 2.0_f64.sqrt(),
     }
 }
+/// Returns triangle density per unit surface area.
 
 pub fn geometric_density(descriptor: &MeshDescriptor, surface_area: f64) -> f64 {
     if surface_area < 1e-12 {

@@ -10,11 +10,16 @@ struct LodState {
     stable_frames: u32,
 }
 
+/// Runtime level-of-detail manager with hysteresis controls.
 #[derive(Debug, Clone)]
 pub struct LodManager {
+    /// Distance thresholds used for tier selection.
     pub thresholds: LodThresholds,
+    /// Hysteresis margin applied around threshold boundaries.
     pub hysteresis_margin: f64,
+    /// Minimum stable frames before tier transition.
     pub min_stable_frames: u32,
+    /// Screen-space error threshold for refinement.
     pub screen_error_threshold: f64,
     states: Vec<LodState>,
 }
@@ -32,21 +37,25 @@ impl Default for LodManager {
 }
 
 impl LodManager {
+    /// Overrides distance thresholds.
     pub fn with_thresholds(mut self, t: LodThresholds) -> Self {
         self.thresholds = t;
         self
     }
 
+    /// Overrides hysteresis margin.
     pub fn with_hysteresis(mut self, margin: f64) -> Self {
         self.hysteresis_margin = margin;
         self
     }
 
+    /// Selects LOD without stateful hysteresis.
     pub fn select(&self, distance: f64, screen_size: f64) -> LodSelection {
         let tier = LodTier::from_distance(distance, &self.thresholds);
         LodSelection::from_tier(tier, distance, screen_size)
     }
 
+    /// Selects LOD with per-object hysteresis state.
     pub fn select_with_hysteresis(
         &mut self,
         object_id: usize,
@@ -89,10 +98,12 @@ impl LodManager {
         LodSelection::from_tier(state.tier, distance, screen_size)
     }
 
+    /// Returns selection defaults for an explicit tier.
     pub fn select_for_tier(&self, tier: LodTier) -> LodSelection {
         LodSelection::from_tier(tier, 0.0, 0.0)
     }
 
+    /// Computes screen-space error for a geometric error value.
     pub fn screen_space_error(
         &self,
         geometric_error: f64,
@@ -107,6 +118,7 @@ impl LodManager {
         projected * screen_height
     }
 
+    /// Returns true when geometry should be refined.
     pub fn should_refine(
         &self,
         geometric_error: f64,
@@ -118,6 +130,7 @@ impl LodManager {
             > self.screen_error_threshold
     }
 
+            /// Estimates horizon detail from global thresholds.
     pub fn horizon_detail(&self, horizon_distance: f64) -> f64 {
         if self.states.is_empty() {
             return 1.0;
@@ -135,6 +148,7 @@ impl LodManager {
         base * (1.0 - (1.0 / count) * 0.05)
     }
 
+    /// Estimates horizon detail for a camera/object pair.
     pub fn horizon_detail_for(
         &self,
         camera_pos: Vec3,

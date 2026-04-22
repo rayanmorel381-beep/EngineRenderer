@@ -2,6 +2,7 @@ use crate::api::objects::SceneObject;
 use crate::core::engine::rendering::raytracing::Vec3;
 
 impl SceneObject {
+    /// Builds a simple procedural solar system.
     pub fn solar_system(center: [f64; 3], star_radius: f64, planet_count: usize) -> Self {
         let mut objects = vec![Self::star(center, star_radius)];
         for i in 0..planet_count {
@@ -24,6 +25,7 @@ impl SceneObject {
         Self::Group(objects)
     }
 
+    /// Builds a black-hole scene with an accretion ring.
     pub fn black_hole_system(center: [f64; 3], hole_radius: f64) -> Self {
         let mut objects = vec![Self::black_hole(center, hole_radius)];
         for i in 0..16 {
@@ -39,6 +41,7 @@ impl SceneObject {
         Self::Group(objects)
     }
 
+    /// Builds a stylized tree from spheres.
     pub fn tree(base: [f64; 3], height: f64) -> Self {
         let scale = height.max(0.2);
         let objects = vec![
@@ -57,6 +60,7 @@ impl SceneObject {
         Self::Group(objects)
     }
 
+    /// Builds a stylized house from grouped spheres.
     pub fn house(center: [f64; 3], size: f64) -> Self {
         let scale = size.max(0.2);
         let mut objects = vec![
@@ -81,6 +85,7 @@ impl SceneObject {
         Self::Group(objects)
     }
 
+    /// Builds a stylized car from grouped spheres.
     pub fn car(center: [f64; 3], length: f64) -> Self {
         let scale = length.max(0.3) * 0.45;
         let mut objects = vec![
@@ -115,6 +120,7 @@ impl SceneObject {
         Self::Group(objects)
     }
 
+    /// Places objects in a horizontal row with uniform spacing.
     pub fn row(objects: Vec<SceneObject>, spacing: f64, start_x: f64) -> Self {
         let mut positioned = Vec::with_capacity(objects.len());
         for (i, obj) in objects.into_iter().enumerate() {

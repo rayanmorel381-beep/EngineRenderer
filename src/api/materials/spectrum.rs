@@ -1,23 +1,29 @@
 use crate::core::engine::rendering::raytracing::Vec3;
 
+/// Number of discrete spectral bands used by Spectrum.
 pub const SPECTRAL_BANDS: usize = 16;
 
+/// Discrete spectral power distribution sampled over visible wavelengths.
 #[derive(Debug, Clone, Copy)]
 pub struct Spectrum {
+    /// Per-band power values.
     pub bands: [f64; SPECTRAL_BANDS],
 }
 
 impl Spectrum {
+    /// Zero-power spectrum.
     pub const ZERO: Self = Self {
         bands: [0.0; SPECTRAL_BANDS],
     };
 
+    /// Creates a flat spectrum with uniform power in all bands.
     pub fn flat(power: f64) -> Self {
         Self {
             bands: [power; SPECTRAL_BANDS],
         }
     }
 
+    /// Creates a Gaussian spectrum centered at a wavelength in nanometers.
     pub fn from_wavelength(wavelength_nm: f64, power: f64, spread_nm: f64) -> Self {
         let mut bands = [0.0; SPECTRAL_BANDS];
         let step = (780.0 - 380.0) / SPECTRAL_BANDS as f64;
@@ -29,6 +35,7 @@ impl Spectrum {
         Self { bands }
     }
 
+    /// Approximates black-body emission for a given temperature in kelvin.
     pub fn black_body(temperature_k: f64, peak_power: f64) -> Self {
         let mut bands = [0.0; SPECTRAL_BANDS];
         let step = (780.0 - 380.0) / SPECTRAL_BANDS as f64;
@@ -49,6 +56,7 @@ impl Spectrum {
         Self { bands }
     }
 
+    /// Converts the spectrum to linear RGB using the built-in XYZ table.
     pub fn to_rgb(&self) -> Vec3 {
         #[allow(clippy::excessive_precision)]
         const XYZ_TABLE: [[f64; 3]; SPECTRAL_BANDS] = [
@@ -83,6 +91,7 @@ impl Spectrum {
         Vec3::new(r.max(0.0), g.max(0.0), b.max(0.0))
     }
 
+    /// Converts the spectrum to RGB using a custom XYZ-to-RGB matrix.
     pub fn to_rgb_custom(&self, xyz_to_rgb: [[f64; 3]; 3]) -> Vec3 {
         #[allow(clippy::excessive_precision)]
         const XYZ_TABLE: [[f64; 3]; SPECTRAL_BANDS] = [
@@ -119,6 +128,7 @@ impl Spectrum {
         )
     }
 
+    /// Builds a coarse spectrum approximation from linear RGB values.
     pub fn from_rgb(rgb: Vec3) -> Self {
         let mut bands = [0.0; SPECTRAL_BANDS];
         for (i, b) in bands.iter_mut().enumerate() {

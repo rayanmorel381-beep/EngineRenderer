@@ -62,11 +62,12 @@ EngineRenderer includes a unified ultra-constrained realtime profile for `--fps 
 - Scene-side budget: proxy showcase geometry, reduced light budget, optional panorama removal
 - Runtime-side budget: cached showcase meshes, static realtime scene reuse, BVH reuse
 - Loop-side budget: deadline-based frame pacing with drift compensation
+- Runtime adaptation: smoothed quality bias, sample pressure, scheduler granularity, and hysteresis-based internal resolution scaling
 
 Validated runtime benchmarks (release, 3 seconds, `--fps 120 --width 1280 --height 720`):
 
-- Linux x86_64: achieved FPS above target 120
-- Android ARM64: achieved FPS above target 120
+- Linux x86_64: stable high-frequency cadence with adaptive runtime controls
+- Android ARM64: constrained-device adaptation validated with dynamic internal resolution and scheduler tuning
 
 ### 🎬 Animation
 
@@ -335,6 +336,42 @@ cargo run --release -- video --scene-file=my_scene.scene --output-mp4=output/ani
 | `--output-dir=PATH` | `output/video` | Dossier frames temporaires |
 | `--output-mp4=PATH` | `output/video/animation.mp4` | Fichier MP4 final |
 | `--prefix=NAME` | `frame` | Préfixe des frames |
+
+<br>
+
+## ✅ Validation Suite
+
+The workspace includes rendering validation tests under `tests/workspace_render_validation.rs`:
+
+- Visual determinism regression for preview outputs
+- Parallel stress rendering over multiple workers
+- Long-run pacing campaign (ignored by default)
+- Diagnostics benchmark matrix campaign (ignored by default)
+
+Run the standard suite:
+
+```bash
+cargo test
+```
+
+Run the dedicated workspace validation file:
+
+```bash
+cargo test --test workspace_render_validation
+```
+
+Run ignored long campaigns explicitly:
+
+```bash
+cargo test --test workspace_render_validation -- --ignored
+```
+
+Core quality gates used in this workspace:
+
+```bash
+cargo check --all-targets
+cargo clippy --all-targets
+```
 
 <br>
 

@@ -10,40 +10,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
-## `0.0.2` — 2026-04-16
-
-> Realtime 120 FPS profile hardening, cross-architecture runtime validation, and Windows target Clippy cleanup.
-
-### ⚡ Realtime Performance
-
-- Unified ultra-constrained 120 FPS profile across architectures
-- Realtime scene complexity budget added (proxy meshes, light budget, optional panorama)
-- Showcase mesh caching and BVH reuse moved outside the realtime frame loop
-- Deadline-based frame pacing with drift compensation for stable high-frequency loops
-- Ultra-constrained presentation path tuned to reduce per-frame overhead
-
-### 📊 Runtime Validation
-
-- Linux x86_64 release realtime benchmark (3s, target 120 FPS): achieved > 120 FPS
-- Android ARM64 release realtime benchmark (3s, target 120 FPS): achieved > 120 FPS
-- Runtime tuning now scales internal resolution and scene cost to preserve target cadence
-
-### 🪟 Windows Target Quality
-
-- Windows x86_64 vendor paths wired so CPU/GPU detection code is actively used
-- Dead-code warning sources on Windows vendor modules eliminated through integration
-- Clippy warnings fixed on `x86_64-pc-windows-gnu`:
-	- collapsed nested `if`
-	- replaced manual `div_ceil` patterns
-	- replaced manual clamp patterns with `clamp`
-	- renamed acronym aliases (`HKEY` → `Hkey`) to satisfy lint rules
-- `cargo clippy --target x86_64-pc-windows-gnu` now passes cleanly
-
-### 🧱 Build & Docs
-
-- Strict docs check kept clean (`RUSTFLAGS='-W missing-docs' cargo check`)
-- Cross-target checks revalidated after perf/runtime refactors
-
 ## `0.0.1` — 2026-04-14
 
 > Initial release — full rendering pipeline, animation system, multi-platform HAL.
@@ -107,3 +73,48 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - Engine logging — circular buffer · 3 severity levels
 - Adaptive tile-based work scheduler with profiling
 - Output formats — PPM · EXR · PNG · MP4
+
+### ⚡ Realtime Performance
+
+- Unified ultra-constrained 120 FPS profile across architectures
+- Realtime scene complexity budget with proxy geometry and light budget controls
+- Showcase mesh caching and BVH reuse moved outside the realtime frame loop
+- Deadline-based frame pacing with drift compensation for stable high-frequency loops
+- Ultra-constrained presentation path tuned to reduce per-frame overhead
+
+### 🎯 Runtime Adaptation
+
+- Smoothed runtime adaptation in engine loops using frame timing distribution (`p50`, `p95`, `p99`, jitter)
+- Runtime sample pressure integrated into scene and animation rendering entry points
+- Hysteresis/cooldown based internal resolution scaling for realtime and animation window paths
+- Scheduler granularity tuning via `SchedulerTuning` and runtime pressure mapping
+
+### 🔍 Observability & Debug
+
+- `RuntimeAdaptationState` propagated through debug overlay, serialization, and event summaries
+- Adaptation reporting added in engine loop and realtime manager logs
+- Overlay payload extended with adaptation metrics (pressure, scale, streaks, cooldown)
+
+### 📊 Runtime Validation
+
+- Linux x86_64 release realtime benchmark (3s, target 120 FPS): achieved target cadence
+- Android ARM64 release realtime benchmark (3s, target 120 FPS): constrained-device adaptation validated
+- Runtime tuning scales internal resolution and scene cost to preserve target cadence
+
+### 🪟 Windows Target Quality
+
+- Windows x86_64 vendor paths wired so CPU/GPU detection code is actively used
+- Dead-code warning sources on Windows vendor modules eliminated through integration
+- Clippy warning categories fixed on `x86_64-pc-windows-gnu`:
+	- collapsed nested `if`
+	- replaced manual `div_ceil` patterns
+	- replaced manual clamp patterns with `clamp`
+	- renamed acronym aliases (`HKEY` → `Hkey`) to satisfy lint rules
+
+### ✅ Validation & Quality Gates
+
+- Added `tests/workspace_render_validation.rs` with deterministic visual regression and parallel stress rendering
+- Added ignored long-run pacing campaign and diagnostics benchmark matrix campaign
+- Verified workspace gates:
+	- `cargo check --all-targets`
+	- `cargo clippy --all-targets`

@@ -112,6 +112,10 @@ impl SceneBuilder {
         self
     }
 
+        /// Light position.
+        /// Light color.
+        /// Light intensity.
+        /// Rectangular size.
     /// Sets the directional light intensity.
     pub fn sun_intensity(mut self, intensity: f64) -> Self {
         self.sun_intensity = intensity.max(0.0);
@@ -138,6 +142,16 @@ impl SceneBuilder {
 
     // -----------------------------------------------------------------------
     // Environment
+        /// Camera descriptor.
+        /// Sun direction.
+        /// Sun color.
+        /// Sun intensity.
+        /// Sky top color.
+        /// Sky bottom color.
+        /// Global exposure.
+        /// Sphere entries.
+        /// Triangle entries.
+        /// Area-light entries.
     // -----------------------------------------------------------------------
 
     /// Sets top and bottom sky colors.
@@ -290,12 +304,19 @@ impl SceneBuilder {
 /// Serializable sphere input entry used by descriptor parsing.
 #[derive(Debug, Clone)]
 pub struct SphereEntry {
+    /// Sphere center position.
     pub position: [f64; 3],
+    /// Sphere radius.
     pub radius:   f64,
+    /// Optional material preset name.
     pub material_name: Option<String>,
+    /// Fallback albedo color.
     pub albedo:    [f64; 3],
+    /// Surface roughness.
     pub roughness: f64,
+    /// Metallic factor.
     pub metallic:  f64,
+    /// Emission intensity.
     pub emission:  f64,
 }
 
@@ -316,13 +337,21 @@ impl Default for SphereEntry {
 /// Serializable triangle input entry used by descriptor parsing.
 #[derive(Debug, Clone)]
 pub struct TriangleEntry {
+    /// Vertex A position.
     pub a: [f64; 3],
+    /// Vertex B position.
     pub b: [f64; 3],
+    /// Vertex C position.
     pub c: [f64; 3],
+    /// Optional material preset name.
     pub material_name: Option<String>,
+    /// Fallback albedo color.
     pub albedo: [f64; 3],
+    /// Surface roughness.
     pub roughness: f64,
+    /// Metallic factor.
     pub metallic: f64,
+    /// Emission intensity.
     pub emission: f64,
 }
 
@@ -342,10 +371,15 @@ impl Default for TriangleEntry {
 }
 
 #[derive(Debug, Clone)]
+/// Serializable area-light entry used by descriptor parsing.
 pub struct AreaLightEntry {
+    /// Light position.
     pub position:  [f64; 3],
+    /// Light color.
     pub color:     [f64; 3],
+    /// Light intensity.
     pub intensity: f64,
+    /// Rectangular light size.
     pub size:      [f64; 2],
 }
 
@@ -361,16 +395,27 @@ impl Default for AreaLightEntry {
 }
 
 #[derive(Debug, Clone)]
+/// Serializable scene descriptor format.
 pub struct SceneDescriptor {
+    /// Camera descriptor.
     pub camera:        CameraDesc,
+    /// Sun direction.
     pub sun_direction: [f64; 3],
+    /// Sun color.
     pub sun_color:     [f64; 3],
+    /// Sun intensity.
     pub sun_intensity: f64,
+    /// Sky top color.
     pub sky_top:       [f64; 3],
+    /// Sky bottom color.
     pub sky_bottom:    [f64; 3],
+    /// Global exposure value.
     pub exposure:      f64,
+    /// Sphere entries.
     pub spheres:       Vec<SphereEntry>,
+    /// Triangle entries.
     pub triangles:     Vec<TriangleEntry>,
+    /// Area-light entries.
     pub area_lights:   Vec<AreaLightEntry>,
 }
 
@@ -392,11 +437,22 @@ impl Default for SceneDescriptor {
 }
 
 impl SceneDescriptor {
+    /// Loads a descriptor from a `.scene` text queue.
     pub fn load_from_file<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        let text = fs::read_to_string(path)?;
+        let path_ref = path.as_ref();
+        let metadata = fs::metadata(path_ref)?;
+        let size = metadata.len();
+        if size > MAX_SCENE_FILE_SIZE {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("scene file size {size} exceeds limit {MAX_SCENE_FILE_SIZE}"),
+            ));
+        }
+        let text = fs::read_to_string(path_ref)?;
         Self::parse(&text).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
 
+    /// Saves the descriptor to a `.scene` text queue.
     pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> io::Result<()> {
         if let Some(parent) = path.as_ref().parent()
             && !parent.as_os_str().is_empty()
@@ -406,11 +462,18 @@ impl SceneDescriptor {
         fs::write(path, self.serialize())
     }
 
+    /// Parses a descriptor from raw text content.
     pub fn parse(text: &str) -> Result<Self, String> {
         let mut desc = SceneDescriptor::default();
 
-        for raw_line in text.lines() {
-            let line = raw_line.trim();
+        for (zero_based, raw_line) in text.lines().enumerate() {
+            let line_number = zero_based + 1;
+            let stripped = if zero_based == 0 {
+                raw_line.strip_prefix('\u{feff}').unwrap_or(raw_line)
+            } else {
+                raw_line
+            };
+            let line = stripped.trim();
             if line.is_empty() || line.starts_with('#') {
                 continue;
             }
@@ -423,62 +486,135 @@ impl SceneDescriptor {
             match keyword {
                 "version" => {}
                 "camera" => {
-                    let kv = KvMap::parse(rest);
-                    if let Some(v) = kv.get("eye")   { desc.camera.eye    = parse_f64_vec3(v)?; }
-                    if let Some(v) = kv.get("target") { desc.camera.target = parse_f64_vec3(v)?; }
-                    if let Some(v) = kv.get("fov")    { desc.camera.fov_degrees = parse_f64_val(v)?; }
-                    if let Some(v) = kv.get("aperture") { desc.camera.aperture = parse_f64_val(v)?; }
+                    let kv = KvMap::parse(rest, line_number)?;
+                    if let Some(v) = kv.get("eye")      { desc.camera.eye         = parse_f64_vec3(v, line_number)?; }
+                    if let Some(v) = kv.get("target")   { desc.camera.target      = parse_f64_vec3(v, line_number)?; }
+                    if let Some(v) = kv.get("fov")      {
+                        let value = parse_f64_val(v, line_number)?;
+                        if value <= 0.0 || value >= 180.0 {
+                            return Err(format!("line {line_number}: fov must be in (0, 180), got {value}"));
+                        }
+                        desc.camera.fov_degrees = value;
+                    }
+                    if let Some(v) = kv.get("aperture") {
+                        let value = parse_f64_val(v, line_number)?;
+                        if value < 0.0 {
+                            return Err(format!("line {line_number}: aperture must be non-negative, got {value}"));
+                        }
+                        desc.camera.aperture = value;
+                    }
                 }
                 "sun" => {
-                    let kv = KvMap::parse(rest);
-                    if let Some(v) = kv.get("dir")       { desc.sun_direction = parse_f64_vec3(v)?; }
-                    if let Some(v) = kv.get("intensity")  { desc.sun_intensity  = parse_f64_val(v)?; }
-                    if let Some(v) = kv.get("color")      { desc.sun_color      = parse_f64_vec3(v)?; }
+                    let kv = KvMap::parse(rest, line_number)?;
+                    if let Some(v) = kv.get("dir")       { desc.sun_direction = parse_f64_vec3(v, line_number)?; }
+                    if let Some(v) = kv.get("intensity") {
+                        let value = parse_f64_val(v, line_number)?;
+                        if value < 0.0 {
+                            return Err(format!("line {line_number}: sun intensity must be non-negative, got {value}"));
+                        }
+                        desc.sun_intensity = value;
+                    }
+                    if let Some(v) = kv.get("color")     { desc.sun_color     = parse_f64_vec3(v, line_number)?; }
                 }
                 "sky" => {
-                    let kv = KvMap::parse(rest);
-                    if let Some(v) = kv.get("top")    { desc.sky_top    = parse_f64_vec3(v)?; }
-                    if let Some(v) = kv.get("bottom") { desc.sky_bottom = parse_f64_vec3(v)?; }
+                    let kv = KvMap::parse(rest, line_number)?;
+                    if let Some(v) = kv.get("top")    { desc.sky_top    = parse_f64_vec3(v, line_number)?; }
+                    if let Some(v) = kv.get("bottom") { desc.sky_bottom = parse_f64_vec3(v, line_number)?; }
                 }
                 "exposure" => {
-                    desc.exposure = parse_f64_val(rest)?;
+                    let value = parse_f64_val(rest, line_number)?;
+                    if value <= 0.0 {
+                        return Err(format!("line {line_number}: exposure must be positive, got {value}"));
+                    }
+                    desc.exposure = value;
                 }
                 "sphere" => {
-                    let kv = KvMap::parse(rest);
+                    if desc.spheres.len() >= MAX_SCENE_SPHERES {
+                        return Err(format!(
+                            "line {line_number}: sphere count exceeds limit {MAX_SCENE_SPHERES}"
+                        ));
+                    }
+                    let kv = KvMap::parse(rest, line_number)?;
                     let mut entry = SphereEntry::default();
-                    if let Some(v) = kv.get("pos")       { entry.position      = parse_f64_vec3(v)?; }
-                    if let Some(v) = kv.get("radius")    { entry.radius        = parse_f64_val(v)?; }
-                    if let Some(v) = kv.get("material")  { entry.material_name = Some(v.to_string()); }
-                    if let Some(v) = kv.get("albedo")    { entry.albedo        = parse_f64_vec3(v)?; }
-                    if let Some(v) = kv.get("roughness") { entry.roughness     = parse_f64_val(v)?; }
-                    if let Some(v) = kv.get("metallic")  { entry.metallic      = parse_f64_val(v)?; }
-                    if let Some(v) = kv.get("emission")  { entry.emission      = parse_f64_val(v)?; }
+                    if let Some(v) = kv.get("pos")       { entry.position      = parse_f64_vec3(v, line_number)?; }
+                    if let Some(v) = kv.get("radius")    {
+                        let value = parse_f64_val(v, line_number)?;
+                        if value <= 0.0 {
+                            return Err(format!("line {line_number}: sphere radius must be positive, got {value}"));
+                        }
+                        entry.radius = value;
+                    }
+                    if let Some(v) = kv.get("material")  {
+                        validate_material_name(v, line_number)?;
+                        entry.material_name = Some(v.to_string());
+                    }
+                    if let Some(v) = kv.get("albedo")    { entry.albedo        = parse_unit_vec3(v, line_number)?; }
+                    if let Some(v) = kv.get("roughness") { entry.roughness     = parse_unit_scalar(v, line_number)?; }
+                    if let Some(v) = kv.get("metallic")  { entry.metallic      = parse_unit_scalar(v, line_number)?; }
+                    if let Some(v) = kv.get("emission")  {
+                        let value = parse_f64_val(v, line_number)?;
+                        if value < 0.0 {
+                            return Err(format!("line {line_number}: emission must be non-negative, got {value}"));
+                        }
+                        entry.emission = value;
+                    }
                     desc.spheres.push(entry);
                 }
                 "triangle" => {
-                    let kv = KvMap::parse(rest);
+                    if desc.triangles.len() >= MAX_SCENE_TRIANGLES {
+                        return Err(format!(
+                            "line {line_number}: triangle count exceeds limit {MAX_SCENE_TRIANGLES}"
+                        ));
+                    }
+                    let kv = KvMap::parse(rest, line_number)?;
                     let mut entry = TriangleEntry::default();
-                    if let Some(v) = kv.get("a")         { entry.a             = parse_f64_vec3(v)?; }
-                    if let Some(v) = kv.get("b")         { entry.b             = parse_f64_vec3(v)?; }
-                    if let Some(v) = kv.get("c")         { entry.c             = parse_f64_vec3(v)?; }
-                    if let Some(v) = kv.get("material")  { entry.material_name = Some(v.to_string()); }
-                    if let Some(v) = kv.get("albedo")    { entry.albedo        = parse_f64_vec3(v)?; }
-                    if let Some(v) = kv.get("roughness") { entry.roughness     = parse_f64_val(v)?; }
-                    if let Some(v) = kv.get("metallic")  { entry.metallic      = parse_f64_val(v)?; }
-                    if let Some(v) = kv.get("emission")  { entry.emission      = parse_f64_val(v)?; }
+                    if let Some(v) = kv.get("a")         { entry.a             = parse_f64_vec3(v, line_number)?; }
+                    if let Some(v) = kv.get("b")         { entry.b             = parse_f64_vec3(v, line_number)?; }
+                    if let Some(v) = kv.get("c")         { entry.c             = parse_f64_vec3(v, line_number)?; }
+                    if let Some(v) = kv.get("material")  {
+                        validate_material_name(v, line_number)?;
+                        entry.material_name = Some(v.to_string());
+                    }
+                    if let Some(v) = kv.get("albedo")    { entry.albedo        = parse_unit_vec3(v, line_number)?; }
+                    if let Some(v) = kv.get("roughness") { entry.roughness     = parse_unit_scalar(v, line_number)?; }
+                    if let Some(v) = kv.get("metallic")  { entry.metallic      = parse_unit_scalar(v, line_number)?; }
+                    if let Some(v) = kv.get("emission")  {
+                        let value = parse_f64_val(v, line_number)?;
+                        if value < 0.0 {
+                            return Err(format!("line {line_number}: emission must be non-negative, got {value}"));
+                        }
+                        entry.emission = value;
+                    }
                     desc.triangles.push(entry);
                 }
                 "area_light" => {
-                    let kv = KvMap::parse(rest);
+                    if desc.area_lights.len() >= MAX_SCENE_AREA_LIGHTS {
+                        return Err(format!(
+                            "line {line_number}: area_light count exceeds limit {MAX_SCENE_AREA_LIGHTS}"
+                        ));
+                    }
+                    let kv = KvMap::parse(rest, line_number)?;
                     let mut entry = AreaLightEntry::default();
-                    if let Some(v) = kv.get("pos")       { entry.position  = parse_f64_vec3(v)?; }
-                    if let Some(v) = kv.get("color")     { entry.color     = parse_f64_vec3(v)?; }
-                    if let Some(v) = kv.get("intensity") { entry.intensity = parse_f64_val(v)?; }
-                    if let Some(v) = kv.get("size")      { entry.size      = parse_f64_vec2(v)?; }
+                    if let Some(v) = kv.get("pos")       { entry.position  = parse_f64_vec3(v, line_number)?; }
+                    if let Some(v) = kv.get("color")     { entry.color     = parse_f64_vec3(v, line_number)?; }
+                    if let Some(v) = kv.get("intensity") {
+                        let value = parse_f64_val(v, line_number)?;
+                        if value < 0.0 {
+                            return Err(format!("line {line_number}: area_light intensity must be non-negative, got {value}"));
+                        }
+                        entry.intensity = value;
+                    }
+                    if let Some(v) = kv.get("size")      {
+                        let size = parse_f64_vec2(v, line_number)?;
+                        if size[0] <= 0.0 || size[1] <= 0.0 {
+                            return Err(format!("line {line_number}: area_light size must be positive, got {},{}", size[0], size[1]));
+                        }
+                        entry.size = size;
+                    }
                     desc.area_lights.push(entry);
                 }
                 other => {
-                    return Err(format!("unknown keyword '{other}'"));
+                    return Err(format!("line {line_number}: unknown keyword '{other}'"));
                 }
             }
         }
@@ -486,6 +622,7 @@ impl SceneDescriptor {
         Ok(desc)
     }
 
+    /// Serializes the descriptor to text format.
     pub fn serialize(&self) -> String {
         let mut s = String::new();
         s.push_str("version 1\n");
@@ -567,6 +704,7 @@ impl SceneDescriptor {
         s
     }
 
+    /// Converts this descriptor into a fluent `SceneBuilder`.
     pub fn into_builder(self) -> SceneBuilder {
         let mut builder = SceneBuilder::new()
             .sun_direction(self.sun_direction)
@@ -628,11 +766,21 @@ struct KvMap<'a> {
 }
 
 impl<'a> KvMap<'a> {
-    fn parse(s: &'a str) -> Self {
-        let pairs = s.split_whitespace()
-            .filter_map(|token| token.split_once('='))
-            .collect();
-        Self { pairs }
+    fn parse(s: &'a str, line_number: usize) -> Result<Self, String> {
+        let mut pairs = Vec::new();
+        for token in s.split_whitespace() {
+            let (key, value) = token.split_once('=').ok_or_else(|| {
+                format!("line {line_number}: malformed token '{token}', expected key=value")
+            })?;
+            if key.is_empty() {
+                return Err(format!("line {line_number}: empty key in token '{token}'"));
+            }
+            if value.is_empty() {
+                return Err(format!("line {line_number}: empty value for key '{key}'"));
+            }
+            pairs.push((key, value));
+        }
+        Ok(Self { pairs })
     }
 
     fn get(&self, key: &str) -> Option<&'a str> {
@@ -640,24 +788,95 @@ impl<'a> KvMap<'a> {
     }
 }
 
-fn parse_f64_val(s: &str) -> Result<f64, String> {
-    f64::from_str(s.trim()).map_err(|_| format!("invalid f64 '{s}'"))
+/// Maximum size for a `.scene` file (8 MiB).
+pub const MAX_SCENE_FILE_SIZE: u64 = 8 * 1024 * 1024;
+/// Maximum number of spheres per scene.
+pub const MAX_SCENE_SPHERES: usize = 100_000;
+/// Maximum number of triangles per scene.
+pub const MAX_SCENE_TRIANGLES: usize = 1_000_000;
+/// Maximum number of area lights per scene.
+pub const MAX_SCENE_AREA_LIGHTS: usize = 1_024;
+/// Maximum length of a material name.
+pub const MAX_MATERIAL_NAME_LEN: usize = 128;
+
+fn parse_f64_val(s: &str, line_number: usize) -> Result<f64, String> {
+    let trimmed = s.trim();
+    let value = f64::from_str(trimmed)
+        .map_err(|_| format!("line {line_number}: invalid f64 '{trimmed}'"))?;
+    if !value.is_finite() {
+        return Err(format!("line {line_number}: non-finite f64 '{trimmed}'"));
+    }
+    Ok(value)
 }
 
-fn parse_f64_vec3(s: &str) -> Result<[f64; 3], String> {
+fn parse_unit_scalar(s: &str, line_number: usize) -> Result<f64, String> {
+    let value = parse_f64_val(s, line_number)?;
+    if !(0.0..=1.0).contains(&value) {
+        return Err(format!(
+            "line {line_number}: scalar must be within [0, 1], got {value}"
+        ));
+    }
+    Ok(value)
+}
+
+fn parse_f64_vec3(s: &str, line_number: usize) -> Result<[f64; 3], String> {
     let parts: Vec<&str> = s.splitn(3, ',').collect();
     if parts.len() != 3 {
-        return Err(format!("expected 3 components in '{s}'"));
+        return Err(format!(
+            "line {line_number}: expected 3 components in '{s}'"
+        ));
     }
-    Ok([parse_f64_val(parts[0])?, parse_f64_val(parts[1])?, parse_f64_val(parts[2])?])
+    Ok([
+        parse_f64_val(parts[0], line_number)?,
+        parse_f64_val(parts[1], line_number)?,
+        parse_f64_val(parts[2], line_number)?,
+    ])
 }
 
-fn parse_f64_vec2(s: &str) -> Result<[f64; 2], String> {
+fn parse_unit_vec3(s: &str, line_number: usize) -> Result<[f64; 3], String> {
+    let raw = parse_f64_vec3(s, line_number)?;
+    for component in raw {
+        if !(0.0..=1.0).contains(&component) {
+            return Err(format!(
+                "line {line_number}: color components must be within [0, 1], got {component}"
+            ));
+        }
+    }
+    Ok(raw)
+}
+
+fn parse_f64_vec2(s: &str, line_number: usize) -> Result<[f64; 2], String> {
     let parts: Vec<&str> = s.splitn(2, ',').collect();
     if parts.len() != 2 {
-        return Err(format!("expected 2 components in '{s}'"));
+        return Err(format!(
+            "line {line_number}: expected 2 components in '{s}'"
+        ));
     }
-    Ok([parse_f64_val(parts[0])?, parse_f64_val(parts[1])?])
+    Ok([
+        parse_f64_val(parts[0], line_number)?,
+        parse_f64_val(parts[1], line_number)?,
+    ])
+}
+
+fn validate_material_name(name: &str, line_number: usize) -> Result<(), String> {
+    if name.is_empty() {
+        return Err(format!("line {line_number}: empty material name"));
+    }
+    if name.len() > MAX_MATERIAL_NAME_LEN {
+        return Err(format!(
+            "line {line_number}: material name length {} exceeds limit {MAX_MATERIAL_NAME_LEN}",
+            name.len()
+        ));
+    }
+    if !name
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
+    {
+        return Err(format!(
+            "line {line_number}: material name '{name}' contains invalid characters"
+        ));
+    }
+    Ok(())
 }
 
 fn fmt3(v: [f64; 3]) -> String {

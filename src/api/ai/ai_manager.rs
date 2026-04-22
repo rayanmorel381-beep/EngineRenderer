@@ -12,24 +12,31 @@ fn camera_distance_scale(detail: f64) -> f64 {
 }
 
 #[derive(Debug, Clone, Copy)]
+/// Runtime guidance computed from scene complexity analysis.
 pub struct AiDirective {
+    /// Scalar applied to rendering quality heuristics.
     pub quality_bias: f64,
+    /// Scalar applied to camera distance from scene focus.
     pub camera_distance_scale: f64,
+    /// Exposure adjustment suggested by scene analysis.
     pub exposure_bias: f64,
 }
 
 #[derive(Debug, Clone, Copy)]
+/// Lightweight AI heuristic manager used by runtime systems.
 pub struct AiManager {
     aggressiveness: f64,
 }
 
 impl AiManager {
+    /// Creates a manager with a bounded aggressiveness factor.
     pub fn new(aggressiveness: f64) -> Self {
         Self {
             aggressiveness: aggressiveness.clamp(0.25, 2.0),
         }
     }
 
+    /// Analyzes scene graph characteristics and returns runtime directives.
     pub fn analyze(&self, graph: &SceneGraph, detail_scale: f64) -> AiDirective {
         let detail = detail_score(
             graph.scene_radius(),

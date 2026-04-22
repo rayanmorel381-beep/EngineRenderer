@@ -2,11 +2,16 @@ use std::path::PathBuf;
 
 use crate::core::engine::rendering::renderer::types::RenderPreset;
 
+/// Global engine configuration for offline and realtime rendering.
 #[derive(Debug, Clone)]
 pub struct EngineConfig {
+    /// Output image width in pixels.
     pub width: usize,
+    /// Output image height in pixels.
     pub height: usize,
+    /// Destination path for the rendered image.
     pub output_path: PathBuf,
+    /// Rendering quality and feature preset.
     pub render_preset: RenderPreset,
 }
 
@@ -23,6 +28,7 @@ impl EngineConfig {
         PathBuf::from("output").join(file_name)
     }
 
+    /// Returns a high-quality CPU preset for ultra-HD rendering.
     pub fn ultra_hd_cpu() -> Self {
         Self {
             width: 2560,
@@ -32,6 +38,7 @@ impl EngineConfig {
         }
     }
 
+    /// Returns a production-grade reference preset.
     pub fn production_reference() -> Self {
         Self {
             width: 3840,
@@ -41,15 +48,17 @@ impl EngineConfig {
         }
     }
 
+    /// Returns a low-latency preset intended for realtime preview.
     pub fn realtime_preview() -> Self {
         Self {
-            width: 1920,
-            height: 1080,
+            width: 1280,
+            height: 720,
             output_path: Self::default_output_path("realtime_preview.ppm"),
-            render_preset: RenderPreset::UltraHdCpu,
+            render_preset: RenderPreset::AnimationFast,
         }
     }
 
+    /// Returns a tiny preset suitable for quick tests.
     pub fn test_minimal() -> Self {
         Self {
             width: 80,
@@ -59,6 +68,7 @@ impl EngineConfig {
         }
     }
 
+    /// Returns the image aspect ratio as width divided by height.
     pub fn aspect_ratio(&self) -> f64 {
         self.width as f64 / self.height as f64
     }

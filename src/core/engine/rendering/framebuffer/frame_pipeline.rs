@@ -1,6 +1,7 @@
 use std::error::Error;
 
 use crate::{
+    core::debug::runtime::RuntimeAdaptationState,
     core::event_system::EngineEvent,
     rendering::renderer::{RenderPreset, RenderReport},
     scene::{engine_scene::EngineScene, graph::SceneGraph},
@@ -141,6 +142,7 @@ impl EngineManager {
             warning_count,
             momentum_hint: self.physics_manager.total_momentum(),
             log_depth: self.logger.len(),
+            adaptation: RuntimeAdaptationState::default(),
         });
         self.logger.debug(format!(
             "{} | clients={} | warnings={} | momentum={:.3}",

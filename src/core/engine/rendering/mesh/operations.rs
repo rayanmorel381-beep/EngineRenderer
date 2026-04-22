@@ -5,6 +5,7 @@ use crate::core::engine::rendering::raytracing::Vec3;
 
 use super::asset::MeshAsset;
 
+/// Recomputes vertex normals from triangle geometry.
 pub fn recalculate_normals(asset: &mut MeshAsset) {
     // Zero out existing normals.
     for v in &mut asset.vertices {
@@ -31,6 +32,7 @@ pub fn recalculate_normals(asset: &mut MeshAsset) {
     }
 }
 
+/// Recomputes vertex tangents from UV gradients.
 pub fn compute_tangents(asset: &mut MeshAsset) {
     for v in &mut asset.vertices {
         v.tangent = Vec3::ZERO;
@@ -67,6 +69,7 @@ pub fn compute_tangents(asset: &mut MeshAsset) {
         v.tangent = if len > 1e-10 { t * (1.0 / len) } else { Vec3::ZERO };
     }
 }
+/// Subdivides all mesh triangles using midpoint subdivision.
 
 pub fn subdivide(asset: &mut MeshAsset) {
     let mut new_indices: Vec<usize> = Vec::with_capacity(asset.indices.len() * 4);

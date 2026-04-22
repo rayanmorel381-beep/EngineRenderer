@@ -10,7 +10,7 @@ use crate::core::engine::acces_hardware::{
 };
 use crate::core::engine::rendering::lod::manager::LodManager;
 use crate::core::engine::rendering::lod::selection::LodSelection;
-use crate::core::scheduler::adaptive::TileScheduler;
+use crate::core::scheduler::adaptive::{SchedulerTuning, TileScheduler};
 
 use super::acceleration::BvhNode;
 use super::math::Vec3;
@@ -371,7 +371,12 @@ impl CpuRayTracer {
         let bvh_stats = bvh.map(|n| n.stats()).unwrap_or_default();
 
         let t_dispatch = precise_timestamp_ns();
-        let scheduler = TileScheduler::new(config.width, config.height, config.thread_count);
+        let scheduler = TileScheduler::new_tuned(
+            config.width,
+            config.height,
+            config.thread_count,
+            scheduler_tuning_for_config(config),
+        );
 
         let (tile_results, sched_report) = scheduler.dispatch(|tile| {
             let mut pixels = Vec::with_capacity(tile.width * tile.height);
@@ -725,4 +730,12 @@ impl CpuRayTracer {
         }
         true
     }
+}
+
+fn scheduler_tuning_for_config(config: &RenderConfig) -> SchedulerTuning {
+    let sample_pressure = (config.base_samples_per_pixel.max(1) as f64).sqrt() / 2.0;
+    let bounce_pressure = config.max_bounces as f64 * 0.12;
+    let adaptive_pressure = if config.adaptive_sampling { 0.18 } else { 0.0 };
+    let denoise_pressure = (config.denoise_radius as f64) * 0.05;
+    SchedulerTuning::new(0.85 + sample_pressure + bounce_pressure + adaptive_pressure + denoise_pressure)
 }

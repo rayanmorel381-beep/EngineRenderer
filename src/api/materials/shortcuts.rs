@@ -3,6 +3,7 @@ use crate::core::engine::rendering::raytracing::Material;
 use super::builder::MaterialBuilder;
 use super::spectrum::Spectrum;
 
+/// Builds a diffuse non-metal material.
 pub fn diffuse(r: f64, g: f64, b: f64, roughness: f64) -> Material {
     MaterialBuilder::new()
         .albedo_rgb(r, g, b)
@@ -10,6 +11,7 @@ pub fn diffuse(r: f64, g: f64, b: f64, roughness: f64) -> Material {
         .build()
 }
 
+/// Builds a metallic material with configurable roughness and reflectivity.
 pub fn metal(r: f64, g: f64, b: f64, roughness: f64, reflectivity: f64) -> Material {
     MaterialBuilder::new()
         .albedo_rgb(r, g, b)
@@ -19,6 +21,7 @@ pub fn metal(r: f64, g: f64, b: f64, roughness: f64, reflectivity: f64) -> Mater
         .build()
 }
 
+/// Builds a dielectric material with transmission and index of refraction.
 pub fn dielectric(r: f64, g: f64, b: f64, ior: f64, transmission: f64, roughness: f64) -> Material {
     MaterialBuilder::new()
         .albedo_rgb(r, g, b)
@@ -28,6 +31,7 @@ pub fn dielectric(r: f64, g: f64, b: f64, ior: f64, transmission: f64, roughness
         .build()
 }
 
+/// Builds an emissive material from RGB color and emission strength.
 pub fn emissive(r: f64, g: f64, b: f64, strength: f64) -> Material {
     MaterialBuilder::new()
         .albedo_rgb(r, g, b)
@@ -36,6 +40,7 @@ pub fn emissive(r: f64, g: f64, b: f64, strength: f64) -> Material {
         .build()
 }
 
+/// Builds an emissive material from black-body temperature.
 pub fn emissive_temperature(kelvin: f64, peak_power: f64) -> Material {
     MaterialBuilder::new()
         .albedo_temperature(kelvin, 1.0)
@@ -44,6 +49,7 @@ pub fn emissive_temperature(kelvin: f64, peak_power: f64) -> Material {
         .build()
 }
 
+/// Builds a diffuse material with subsurface scattering.
 pub fn subsurface(r: f64, g: f64, b: f64, roughness: f64, sss: f64) -> Material {
     MaterialBuilder::new()
         .albedo_rgb(r, g, b)
@@ -52,6 +58,7 @@ pub fn subsurface(r: f64, g: f64, b: f64, roughness: f64, sss: f64) -> Material 
         .build()
 }
 
+/// Builds a coated material with adjustable clearcoat amount.
 pub fn clearcoat(r: f64, g: f64, b: f64, coat: f64, roughness: f64) -> Material {
     MaterialBuilder::new()
         .albedo_rgb(r, g, b)
@@ -60,6 +67,7 @@ pub fn clearcoat(r: f64, g: f64, b: f64, coat: f64, roughness: f64) -> Material 
         .build()
 }
 
+/// Builds a material with iridescence.
 pub fn iridescent(r: f64, g: f64, b: f64, iridescence: f64, roughness: f64) -> Material {
     MaterialBuilder::new()
         .albedo_rgb(r, g, b)
@@ -68,6 +76,7 @@ pub fn iridescent(r: f64, g: f64, b: f64, iridescence: f64, roughness: f64) -> M
         .build()
 }
 
+/// Builds a material with anisotropic highlights.
 pub fn anisotropic(r: f64, g: f64, b: f64, roughness: f64, aniso: f64) -> Material {
     MaterialBuilder::new()
         .albedo_rgb(r, g, b)
@@ -76,12 +85,14 @@ pub fn anisotropic(r: f64, g: f64, b: f64, roughness: f64, aniso: f64) -> Materi
         .build()
 }
 
+/// Builds a material albedo from a Gaussian spectral lobe.
 pub fn spectral_wavelength(wavelength_nm: f64, power: f64, spread_nm: f64) -> Material {
     MaterialBuilder::new()
         .albedo_spectrum(Spectrum::from_wavelength(wavelength_nm, power, spread_nm))
         .build()
 }
 
+/// Builds a material from black-body spectral albedo and emission.
 pub fn spectral_black_body(kelvin: f64, albedo_peak: f64, emission_peak: f64) -> Material {
     MaterialBuilder::new()
         .albedo_temperature(kelvin, albedo_peak)

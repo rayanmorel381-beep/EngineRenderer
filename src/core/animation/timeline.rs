@@ -1,33 +1,57 @@
+/// Interpolation mode used between timeline keyframes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Interpolation {
     #[default]
+    /// Linear interpolation.
     Linear,
+    /// Step interpolation.
     Step,
+    /// Smoothstep interpolation.
     SmoothStep,
+    /// Cubic Hermite-like smooth interpolation.
     CubicHermite,
+    /// Quadratic ease-in interpolation.
     EaseInQuad,
+    /// Quadratic ease-out interpolation.
     EaseOutQuad,
+    /// Quadratic ease-in/out interpolation.
     EaseInOutQuad,
+    /// Cubic ease-in interpolation.
     EaseInCubic,
+    /// Cubic ease-out interpolation.
     EaseOutCubic,
+    /// Cubic ease-in/out interpolation.
     EaseInOutCubic,
+    /// Sine ease-in interpolation.
     EaseInSine,
+    /// Sine ease-out interpolation.
     EaseOutSine,
+    /// Sine ease-in/out interpolation.
     EaseInOutSine,
+    /// Exponential ease-in interpolation.
     EaseInExpo,
+    /// Exponential ease-out interpolation.
     EaseOutExpo,
+    /// Back ease-in interpolation.
     EaseInBack,
+    /// Back ease-out interpolation.
     EaseOutBack,
+    /// Bounce ease-out interpolation.
     BounceOut,
 }
 
+/// Time/value keyframe used in timelines.
 #[derive(Debug, Clone)]
 pub struct Keyframe<T> {
+    /// Keyframe timestamp in seconds.
     pub time:  f64,
+    /// Keyframe value.
     pub value: T,
 }
 
+/// Trait for linearly interpolating values.
 pub trait Lerp: Clone {
+    /// Returns the interpolated value at normalized factor t.
     fn lerp(&self, other: &Self, t: f64) -> Self;
 }
 
@@ -56,26 +80,32 @@ impl Lerp for [f64; 2] {
     }
 }
 
+/// Generic timeline of keyframes.
 #[derive(Debug, Clone, Default)]
 pub struct Timeline<T: Lerp> {
+    /// Interpolation mode used between keyframes.
     pub interpolation: Interpolation,
     keyframes:         Vec<Keyframe<T>>,
 }
 
 impl<T: Lerp> Timeline<T> {
+    /// Creates an empty timeline with the requested interpolation mode.
     pub fn new(interpolation: Interpolation) -> Self {
         Self { interpolation, keyframes: Vec::new() }
     }
 
+    /// Inserts a keyframe while keeping chronological order.
     pub fn add(&mut self, time: f64, value: T) {
         let idx = self.keyframes.partition_point(|k| k.time <= time);
         self.keyframes.insert(idx, Keyframe { time, value });
     }
 
+    /// Returns true when no keyframes are present.
     pub fn is_empty(&self) -> bool {
         self.keyframes.is_empty()
     }
 
+    /// Samples the timeline at a given time.
     pub fn sample(&self, time: f64) -> Option<T> {
         if self.keyframes.is_empty() {
             return None;

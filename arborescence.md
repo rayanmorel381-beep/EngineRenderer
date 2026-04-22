@@ -82,6 +82,7 @@ EngineRenderer/
 │   │   │   ├── mod.rs
 │   │   │   ├── logger.rs
 │   │   │   ├── profiling.rs
+│   │   │   ├── runtime.rs
 │   │   │   ├── serialization.rs
 │   │   │   └── tools.rs
 │   │   ├── engine/
@@ -99,6 +100,18 @@ EngineRenderer/
 │   └── utils/
 │       ├── mod.rs
 │       └── terminal_mode/
+├── tests/
+│   ├── engine_api_basics.rs
+│   ├── material_catalog.rs
+│   ├── render_request_presets.rs
+│   ├── render_request_clamp.rs
+│   ├── output_format.rs
+│   ├── realtime_profiles.rs
+│   ├── generator_request.rs
+│   ├── math_utils.rs
+│   ├── diagnose_smoke.rs
+│   ├── android_benchmark_contract.rs
+│   └── workspace_render_validation.rs
 ```
 
 ## 🧭 Main Directory Roles

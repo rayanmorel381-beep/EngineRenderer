@@ -1,3 +1,5 @@
+//! Vérifications basiques de l'API moteur.
+
 use enginerenderer::api::EngineApi;
 
 #[test]

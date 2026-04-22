@@ -5,23 +5,31 @@ use crate::core::engine::rendering::{
     effects::volumetric_effects::medium::VolumetricMedium,
 };
 
+/// Gravitational constant used by the simplified n-body simulation.
 pub const GRAVITY: f64 = 0.08;
 
 #[derive(Debug, Clone, Copy)]
 pub struct CelestialBody {
+    /// Body mass.
     pub mass: f64,
+    /// Body radius.
     pub radius: f64,
+    /// World position.
     pub position: Vec3,
+    /// World velocity.
     pub velocity: Vec3,
+    /// Surface material.
     pub material: Material,
 }
 
 #[derive(Debug, Clone)]
+/// Simple n-body system used for procedural space scenes.
 pub struct NBodySystem {
     bodies: Vec<CelestialBody>,
 }
 
 impl NBodySystem {
+    /// Returns a showcase planetary system.
     pub fn showcase() -> Self {
         Self {
             bodies: vec![
@@ -64,10 +72,12 @@ impl NBodySystem {
         }
     }
 
+    /// Returns the simulated bodies.
     pub fn bodies(&self) -> &[CelestialBody] {
         &self.bodies
     }
 
+    /// Advances simulation time using fixed substeps.
     pub fn advance(&mut self, total_time: f64, substeps: u32) {
         let steps = substeps.max(1);
         let delta_time = total_time / steps as f64;
@@ -100,6 +110,7 @@ impl NBodySystem {
         }
     }
 
+    /// Computes the mass-weighted center of the system.
     pub fn scene_center(&self) -> Vec3 {
         let mut weighted_sum = Vec3::ZERO;
         let mut total_mass = 0.0;
@@ -116,6 +127,7 @@ impl NBodySystem {
         }
     }
 
+    /// Computes a bounding radius around the system center.
     pub fn scene_radius(&self) -> f64 {
         let center = self.scene_center();
         self.bodies
@@ -124,6 +136,7 @@ impl NBodySystem {
             .fold(1.0, f64::max)
     }
 
+    /// Converts the n-body state into a renderable Scene.
     pub fn to_scene(&self) -> Scene {
         let objects = self
             .bodies

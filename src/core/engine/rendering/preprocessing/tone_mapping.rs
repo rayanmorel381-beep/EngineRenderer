@@ -1,14 +1,20 @@
 use crate::core::engine::rendering::raytracing::Vec3;
 
+/// Tone mapping operator used to map HDR values to display range.
 #[derive(Debug, Clone, Copy)]
 pub enum ToneMappingOperator {
+    /// ACES fitted curve.
     Aces,
+    /// Reinhard global tone mapping.
     Reinhard,
+    /// Filmic curve.
     Filmic,
+    /// AgX-like curve.
     AgX,
 }
 
 impl ToneMappingOperator {
+    /// Applies tone mapping to an HDR color with exposure.
     pub fn apply(self, color: Vec3, exposure: f64) -> Vec3 {
         let exposed = color * exposure.max(0.1);
         match self {

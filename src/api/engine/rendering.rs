@@ -18,6 +18,7 @@ pub use crate::core::engine::rendering::lod::manager::LodManager as RenderingLod
 pub use crate::core::engine::rendering::lod::tier::{LodThresholds, LodTier};
 pub use crate::core::engine::rendering::postprocessing::blur::gaussian_weights;
 pub use crate::core::engine::rendering::preprocessing::tone_mapping::ToneMappingOperator;
+pub use crate::core::engine::rendering::raytracing::Vec3;
 pub use crate::core::engine::rendering::utils::{
     aces_tonemap, barycentric, bias, cartesian_to_spherical, color_temperature,
     fresnel_dielectric, fresnel_schlick, fresnel_schlick_vec, gain, hsv_to_rgb,
@@ -28,9 +29,13 @@ pub use crate::core::engine::rendering::utils::{
 /// Realtime run request.
 #[derive(Debug, Clone)]
 pub struct RealtimeRequest {
+    /// Target output width.
     pub width: u32,
+    /// Target output height.
     pub height: u32,
+    /// Requested frames per second.
     pub target_fps: u32,
+    /// Requested run duration in seconds.
     pub duration_seconds: u32,
 }
 
@@ -48,10 +53,15 @@ impl Default for RealtimeRequest {
 /// Realtime run result summary.
 #[derive(Debug, Clone)]
 pub struct RealtimeResult {
+    /// Effective output width.
     pub width: u32,
+    /// Effective output height.
     pub height: u32,
+    /// Effective target FPS used by the run.
     pub target_fps: u32,
+    /// Effective run duration in seconds.
     pub duration_seconds: u32,
+    /// Wall-clock elapsed time in milliseconds.
     pub elapsed_ms: f64,
 }
 
@@ -196,7 +206,7 @@ impl EngineApi {
         RealtimeRequest {
             width: 3840,
             height: 2160,
-            target_fps: 30,
+            target_fps: 120,
             duration_seconds: 5,
         }
     }
@@ -213,11 +223,17 @@ fn preset_for(request: &RenderRequest) -> RenderPreset {
 /// Video generation request.
 #[derive(Debug, Clone)]
 pub struct GeneratorRequest {
+    /// Output frame width.
     pub width: usize,
+    /// Output frame height.
     pub height: usize,
+    /// Quality profile used during rendering.
     pub quality: Quality,
+    /// Directory where frame files are generated.
     pub output_dir: PathBuf,
+    /// Final MP4 output path.
     pub output_mp4: PathBuf,
+    /// Prefix used for generated frame queue names.
     pub frame_prefix: String,
 }
 

@@ -6,6 +6,7 @@ use super::FrameBuffer;
 impl FrameBuffer {
     // ── Progressive accumulation ────────────────────────────────────────
 
+    /// Accumulates one sample into a pixel and tracks nearest depth.
     pub fn accumulate(&mut self, x: usize, y: usize, color: Vec3, depth: f64) {
         if x >= self.width || y >= self.height {
             return;
@@ -19,6 +20,7 @@ impl FrameBuffer {
         self.sample_count[idx] += 1;
     }
 
+    /// Merges another framebuffer into this one using sample-count weighting.
     pub fn merge(&mut self, other: &FrameBuffer) {
         if self.width != other.width || self.height != other.height {
             return;
@@ -39,6 +41,7 @@ impl FrameBuffer {
 
     // ── Tile access ─────────────────────────────────────────────────────
 
+    /// Returns a copy of pixel colors inside a tile region.
     pub fn tile_region(
         &self,
         tile_x: usize,
@@ -55,6 +58,7 @@ impl FrameBuffer {
         pixels
     }
 
+    /// Writes a tile of pixel colors into the framebuffer.
     pub fn write_tile(
         &mut self,
         tile_x: usize,

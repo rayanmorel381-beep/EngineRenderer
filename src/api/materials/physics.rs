@@ -1,14 +1,25 @@
+/// Extended physical material properties for advanced rendering effects.
 #[derive(Debug, Clone, Copy)]
 pub struct PhysicsConfig {
+    /// Index of refraction.
     pub ior: f64,
+    /// Abbe number used for dispersion approximation.
     pub dispersion_abbe: f64,
+    /// Rayleigh scattering intensity.
     pub rayleigh_coefficient: f64,
+    /// Mie scattering intensity.
     pub mie_coefficient: f64,
+    /// Preferred Mie scattering direction.
     pub mie_direction: f64,
+    /// Per-channel absorption coefficient.
     pub absorption: [f64; 3],
+    /// Per-channel scattering coefficient.
     pub scattering: [f64; 3],
+    /// Phase function asymmetry parameter.
     pub phase_asymmetry: f64,
+    /// Strength of gravitational lensing distortion.
     pub gravitational_lensing: f64,
+    /// Doppler shift intensity factor.
     pub doppler_factor: f64,
 }
 

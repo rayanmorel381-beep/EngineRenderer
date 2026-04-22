@@ -3,14 +3,17 @@ use crate::core::engine::rendering::raytracing::Vec3;
 
 // ── Clamping & interpolation ────────────────────────────────────────────
 
+/// Clamps a scalar to the `[0, 1]` range.
 pub fn saturate(value: f64) -> f64 {
     value.clamp(0.0, 1.0)
 }
 
+/// Linearly interpolates from `a` to `b` with factor `t`.
 pub fn lerp(a: f64, b: f64, t: f64) -> f64 {
     a + (b - a) * t
 }
 
+/// Returns normalized interpolation factor of `value` within `[a, b]`.
 pub fn inverse_lerp(a: f64, b: f64, value: f64) -> f64 {
     let range = b - a;
     if range.abs() < f64::EPSILON {
@@ -20,27 +23,32 @@ pub fn inverse_lerp(a: f64, b: f64, value: f64) -> f64 {
     }
 }
 
+/// Remaps `value` from one range to another.
 pub fn remap(value: f64, from_min: f64, from_max: f64, to_min: f64, to_max: f64) -> f64 {
     let t = inverse_lerp(from_min, from_max, value);
     lerp(to_min, to_max, t)
 }
 
+/// Cubic smoothstep interpolation between two edges.
 pub fn smoothstep(edge0: f64, edge1: f64, x: f64) -> f64 {
     let width = (edge1 - edge0).abs().max(f64::EPSILON);
     let t = saturate((x - edge0) / width);
     t * t * (3.0 - 2.0 * t)
 }
 
+/// Quintic smooth interpolation between two edges.
 pub fn quintic_smooth(edge0: f64, edge1: f64, x: f64) -> f64 {
     let width = (edge1 - edge0).abs().max(f64::EPSILON);
     let t = saturate((x - edge0) / width);
     t * t * t * (t * (t * 6.0 - 15.0) + 10.0)
 }
 
+/// Applies a bias curve to `value`.
 pub fn bias(value: f64, b: f64) -> f64 {
     value.powf((1.0 - b).max(f64::EPSILON).ln() / 0.5_f64.ln())
 }
 
+/// Applies a gain curve to `value`.
 pub fn gain(value: f64, g: f64) -> f64 {
     if value < 0.5 {
         bias(2.0 * value, g) * 0.5
@@ -51,10 +59,12 @@ pub fn gain(value: f64, g: f64) -> f64 {
 
 // ── Color & perception ──────────────────────────────────────────────────
 
+/// Computes luminance from linear RGB.
 pub fn luminance(color: Vec3) -> f64 {
     color.x * 0.2126 + color.y * 0.7152 + color.z * 0.0722
 }
 
+/// Converts sRGB color channels to linear color space.
 pub fn srgb_to_linear(srgb: Vec3) -> Vec3 {
     fn channel(c: f64) -> f64 {
         if c <= 0.04045 {
@@ -66,6 +76,7 @@ pub fn srgb_to_linear(srgb: Vec3) -> Vec3 {
     Vec3::new(channel(srgb.x), channel(srgb.y), channel(srgb.z))
 }
 
+/// Converts linear color channels to sRGB.
 pub fn linear_to_srgb(linear: Vec3) -> Vec3 {
     fn channel(c: f64) -> f64 {
         if c <= 0.0031308 {
@@ -81,6 +92,7 @@ pub fn linear_to_srgb(linear: Vec3) -> Vec3 {
     )
 }
 
+/// Converts RGB to HSV representation.
 pub fn rgb_to_hsv(rgb: Vec3) -> Vec3 {
     let max = rgb.x.max(rgb.y).max(rgb.z);
     let min = rgb.x.min(rgb.y).min(rgb.z);
@@ -101,6 +113,7 @@ pub fn rgb_to_hsv(rgb: Vec3) -> Vec3 {
     Vec3::new(if h < 0.0 { h + 360.0 } else { h }, s, max)
 }
 
+/// Converts HSV to RGB representation.
 pub fn hsv_to_rgb(hsv: Vec3) -> Vec3 {
     let h = hsv.x;
     let s = hsv.y;
@@ -126,6 +139,7 @@ pub fn hsv_to_rgb(hsv: Vec3) -> Vec3 {
     Vec3::new(r + m, g + m, b + m)
 }
 
+/// Approximates RGB color from black-body temperature in Kelvin.
 pub fn color_temperature(kelvin: f64) -> Vec3 {
     let t = (kelvin / 100.0).clamp(10.0, 400.0);
     let r = if t <= 66.0 {
@@ -150,15 +164,18 @@ pub fn color_temperature(kelvin: f64) -> Vec3 {
 
 // ── Fresnel & optics ────────────────────────────────────────────────────
 
+/// Scalar Schlick Fresnel approximation.
 pub fn fresnel_schlick(cos_theta: f64, f0: f64) -> f64 {
     f0 + (1.0 - f0) * (1.0 - cos_theta.clamp(0.0, 1.0)).powi(5)
 }
 
+/// Vector Schlick Fresnel approximation.
 pub fn fresnel_schlick_vec(cos_theta: f64, f0: Vec3) -> Vec3 {
     let t = (1.0 - cos_theta.clamp(0.0, 1.0)).powi(5);
     f0 + (Vec3::ONE - f0) * t
 }
 
+/// Dielectric Fresnel reflectance approximation.
 pub fn fresnel_dielectric(cos_i: f64, eta: f64) -> f64 {
     let sin2_t = eta * eta * (1.0 - cos_i * cos_i).max(0.0);
     if sin2_t > 1.0 {
@@ -173,6 +190,7 @@ pub fn fresnel_dielectric(cos_i: f64, eta: f64) -> f64 {
 
 // ── Hashing & noise ─────────────────────────────────────────────────────
 
+/// Hashes a 32-bit value.
 pub fn hash_u32(mut x: u32) -> u32 {
     x = x.wrapping_mul(0x9E3779B9);
     x ^= x >> 16;
@@ -183,14 +201,17 @@ pub fn hash_u32(mut x: u32) -> u32 {
     x
 }
 
+/// Converts a hash seed to a normalized float.
 pub fn hash_to_float(seed: u32) -> f64 {
     (hash_u32(seed) & 0x00FF_FFFF) as f64 / 16_777_215.0
 }
 
+/// 2D integer hash helper.
 pub fn hash_2d(x: i32, y: i32) -> f64 {
     hash_to_float((x as u32).wrapping_mul(1597334673) ^ (y as u32).wrapping_mul(3812015801))
 }
 
+/// 2D value noise function.
 pub fn value_noise_2d(x: f64, y: f64) -> f64 {
     let ix = x.floor() as i32;
     let iy = y.floor() as i32;
@@ -207,12 +228,14 @@ pub fn value_noise_2d(x: f64, y: f64) -> f64 {
     lerp(lerp(c00, c10, ux), lerp(c01, c11, ux), uy)
 }
 
+/// 3D value noise sampled from layered 2D noise.
 pub fn value_noise_3d(point: Vec3) -> f64 {
     let base = value_noise_2d(point.x, point.z);
     let layer = value_noise_2d(point.x + point.y * 0.317, point.z + point.y * 0.719);
     (base + layer) * 0.5
 }
 
+/// Fractal Brownian motion noise in 3D.
 pub fn fbm_3d(point: Vec3, octaves: u32, lacunarity: f64, persistence: f64) -> f64 {
     let mut value = 0.0;
     let mut amplitude = 1.0;
@@ -235,16 +258,19 @@ pub fn fbm_3d(point: Vec3, octaves: u32, lacunarity: f64, persistence: f64) -> f
 
 // ── Geometric utilities ─────────────────────────────────────────────────
 
+/// Converts spherical angles `(theta, phi)` to Cartesian direction.
 pub fn spherical_to_cartesian(theta: f64, phi: f64) -> Vec3 {
     Vec3::new(phi.cos() * theta.sin(), theta.cos(), phi.sin() * theta.sin())
 }
 
+/// Converts a Cartesian direction to spherical angles `(theta, phi)`.
 pub fn cartesian_to_spherical(dir: Vec3) -> (f64, f64) {
     let theta = dir.y.clamp(-1.0, 1.0).acos();
     let phi = dir.z.atan2(dir.x);
     (theta, phi)
 }
 
+/// Builds an orthonormal tangent frame from a normal vector.
 pub fn build_tangent_frame(normal: Vec3) -> (Vec3, Vec3) {
     let helper = if normal.y.abs() < 0.999 {
         Vec3::new(0.0, 1.0, 0.0)
@@ -256,14 +282,17 @@ pub fn build_tangent_frame(normal: Vec3) -> (Vec3, Vec3) {
     (tangent, bitangent)
 }
 
+/// Reflects an incident direction around a normal.
 pub fn reflect(incident: Vec3, normal: Vec3) -> Vec3 {
     incident - normal * 2.0 * incident.dot(normal)
 }
 
+/// Computes triangle area from three vertices.
 pub fn triangle_area(a: Vec3, b: Vec3, c: Vec3) -> f64 {
     (b - a).cross(c - a).length() * 0.5
 }
 
+/// Computes barycentric coordinates of `p` in triangle `(a, b, c)`.
 pub fn barycentric(p: Vec3, a: Vec3, b: Vec3, c: Vec3) -> (f64, f64, f64) {
     let v0 = b - a;
     let v1 = c - a;
@@ -285,6 +314,7 @@ pub fn barycentric(p: Vec3, a: Vec3, b: Vec3, c: Vec3) -> (f64, f64, f64) {
 
 // ── Tone mapping utilities ──────────────────────────────────────────────
 
+/// Applies ACES filmic tone mapping.
 pub fn aces_tonemap(color: Vec3) -> Vec3 {
     let a = 2.51;
     let b = 0.03;
@@ -301,6 +331,7 @@ pub fn aces_tonemap(color: Vec3) -> Vec3 {
     mapped.clamp(0.0, 1.0)
 }
 
+/// Applies extended Reinhard tone mapping with a white point.
 pub fn reinhard_extended(color: Vec3, white_point: f64) -> Vec3 {
     let wp2 = white_point * white_point;
     Vec3::new(
@@ -310,6 +341,7 @@ pub fn reinhard_extended(color: Vec3, white_point: f64) -> Vec3 {
     )
 }
 
+/// Applies Uncharted2 filmic tone mapping.
 pub fn uncharted2_tonemap(color: Vec3) -> Vec3 {
     fn partial(x: Vec3) -> Vec3 {
         let a = 0.15;
@@ -339,10 +371,12 @@ pub fn uncharted2_tonemap(color: Vec3) -> Vec3 {
 
 // ── Exposure helpers ────────────────────────────────────────────────────
 
+/// Converts EV100 exposure value to scalar exposure.
 pub fn exposure_from_ev100(ev100: f64) -> f64 {
     1.0 / (1.2 * 2.0_f64.powf(ev100))
 }
 
+/// Estimates EV100 from average scene luminance.
 pub fn ev100_from_luminance(avg_luminance: f64) -> f64 {
     (avg_luminance * 100.0 / 12.5).max(f64::EPSILON).log2()
 }

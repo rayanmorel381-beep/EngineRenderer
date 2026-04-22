@@ -1,3 +1,5 @@
+//! Smoke test de l'API de diagnostic.
+
 use enginerenderer::api;
 
 #[test]

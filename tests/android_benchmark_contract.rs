@@ -1,3 +1,5 @@
+//! Contrat de benchmark Android pour la CLI.
+
 use std::process::Command;
 
 #[test]

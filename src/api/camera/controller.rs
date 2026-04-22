@@ -2,31 +2,37 @@ use crate::api::types::CameraDesc;
 use crate::core::engine::rendering::raytracing::{Camera, Vec3};
 
 #[derive(Debug, Clone, Copy, Default)]
+/// Fluent camera builder used by API consumers.
 pub struct CameraController {
     desc: CameraDesc,
 }
 
 impl CameraController {
+    /// Creates a default camera controller.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Sets camera eye and target positions.
     pub fn look_at(mut self, eye: [f64; 3], target: [f64; 3]) -> Self {
         self.desc.eye = eye;
         self.desc.target = target;
         self
     }
 
+    /// Sets vertical field-of-view in degrees.
     pub fn fov(mut self, degrees: f64) -> Self {
         self.desc.fov_degrees = degrees.clamp(10.0, 120.0);
         self
     }
 
+    /// Sets lens aperture radius.
     pub fn aperture(mut self, radius: f64) -> Self {
         self.desc.aperture = radius.max(0.0);
         self
     }
 
+    /// Places the camera on an orbit around a center point.
     pub fn orbit(mut self, center: [f64; 3], distance: f64, elevation: f64, azimuth: f64) -> Self {
         let dist = distance.max(0.5);
         let eye_x = center[0] + dist * elevation.cos() * azimuth.cos();
@@ -37,6 +43,7 @@ impl CameraController {
         self
     }
 
+    /// Computes an automatic framing from object positions and radii.
     pub fn auto_frame(mut self, objects: &[([f64; 3], f64)]) -> Self {
         if objects.is_empty() {
             return self;
@@ -60,10 +67,12 @@ impl CameraController {
         self
     }
 
+    /// Returns the current camera descriptor.
     pub fn descriptor(&self) -> CameraDesc {
         self.desc
     }
 
+    /// Builds a ray-tracing camera for the given aspect ratio.
     pub fn build(&self, aspect_ratio: f64) -> Camera {
         let eye = Vec3::new(self.desc.eye[0], self.desc.eye[1], self.desc.eye[2]);
         let target = Vec3::new(self.desc.target[0], self.desc.target[1], self.desc.target[2]);

@@ -7,6 +7,7 @@ use crate::core::engine::{
     scene::celestial::CelestialBodies,
 };
 
+/// Computes aggregate physics metrics for celestial body catalogs.
 #[derive(Debug, Clone)]
 pub struct PhysicsManager {
     bodies: Vec<RigidBodyState>,
@@ -14,6 +15,7 @@ pub struct PhysicsManager {
 }
 
 impl PhysicsManager {
+    /// Builds a manager from a celestial body catalog.
     pub fn from_bodies(catalog: &CelestialBodies) -> Self {
         let mut manager = Self {
             bodies: Vec::new(),
@@ -23,6 +25,7 @@ impl PhysicsManager {
         manager
     }
 
+    /// Rebuilds internal rigid-body states and updates stability metrics.
     pub fn rebuild_from_bodies(&mut self, catalog: &CelestialBodies) {
         self.bodies = catalog
             .bodies()
@@ -44,14 +47,17 @@ impl PhysicsManager {
             .clamp(0.0, 1.0);
     }
 
+    /// Returns total kinetic energy across all bodies.
     pub fn total_kinetic_energy(&self) -> f64 {
         self.bodies.iter().map(RigidBodyState::kinetic_energy).sum()
     }
 
+    /// Returns total momentum magnitude across all bodies.
     pub fn total_momentum(&self) -> f64 {
         self.bodies.iter().map(RigidBodyState::momentum_magnitude).sum()
     }
 
+    /// Returns average orbital radius estimate.
     pub fn average_orbital_radius(&self) -> f64 {
         if self.bodies.is_empty() {
             0.0
@@ -64,6 +70,7 @@ impl PhysicsManager {
         }
     }
 
+    /// Returns a scalar measure of pairwise gravitational interaction.
     pub fn net_gravity_measure(&self) -> f64 {
         let mut measure = 0.0;
         for (index, body) in self.bodies.iter().enumerate() {
@@ -74,10 +81,12 @@ impl PhysicsManager {
         measure
     }
 
+    /// Returns the normalized orbital stability score.
     pub fn stability_score(&self) -> f64 {
         self.stability_score
     }
 
+    /// Returns the number of tracked bodies.
     pub fn body_count(&self) -> usize {
         self.bodies.len()
     }

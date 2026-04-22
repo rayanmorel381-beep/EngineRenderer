@@ -1,8 +1,12 @@
 //! Public API types and helpers.
 
+/// Color types and helpers used by the public API.
 pub mod color;
+/// Render and export configuration types.
 pub mod config;
+/// Core shared API types.
 pub mod core;
+/// Transform and spatial math types.
 pub mod transform;
 
 pub use self::color::*;

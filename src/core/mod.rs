@@ -1,3 +1,4 @@
+/// Logs runtime messages only in debug builds.
 #[macro_export]
 macro_rules! runtime_log {
 	($($arg:tt)*) => {
@@ -7,6 +8,7 @@ macro_rules! runtime_log {
 	};
 }
 
+/// Animation systems and timelines.
 pub mod animation;
 pub mod coremanager;
 pub mod debug;

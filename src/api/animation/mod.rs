@@ -1,3 +1,4 @@
+/// API of animation high niveau.
 pub mod animation_api;
 
 pub use crate::core::animation::clip::{AnimationClip, CameraFrame, SkyFrame, SunFrame};

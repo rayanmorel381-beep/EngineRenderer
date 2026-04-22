@@ -4,13 +4,20 @@ pub mod analysis;
 
 use crate::core::engine::rendering::raytracing::{Image, Vec3};
 
+/// Framebuffer CPU containing color, alpha, depth and accumulation.
 #[derive(Debug, Clone)]
 pub struct FrameBuffer {
+    /// Frame width in pixels.
     pub width: usize,
+    /// Frame height in pixels.
     pub height: usize,
+    /// Linear RGB color buffer.
     pub color: Vec<Vec3>,
+    /// Alpha channel buffer.
     pub alpha: Vec<f64>,
+    /// Depth buffer.
     pub depth: Vec<f64>,
+    /// Sample accumulation count per pixel.
     pub sample_count: Vec<u32>,
 }
 
@@ -31,6 +38,7 @@ impl From<Image> for FrameBuffer {
 }
 
 impl FrameBuffer {
+    /// Creates an empty framebuffer with initialized attachments.
     pub fn new(width: usize, height: usize) -> Self {
         let len = width * height;
         Self {
@@ -44,6 +52,7 @@ impl FrameBuffer {
     }
 
     #[inline]
+    /// Returns total pixel count.
     pub fn pixel_count(&self) -> usize {
         self.width * self.height
     }
@@ -51,6 +60,7 @@ impl FrameBuffer {
     // ── Pixel access ────────────────────────────────────────────────────
 
     #[inline]
+    /// Returns pixel color at `(x, y)` or zero when out of bounds.
     pub fn get_pixel(&self, x: usize, y: usize) -> Vec3 {
         if x < self.width && y < self.height {
             self.color[y * self.width + x]
@@ -60,6 +70,7 @@ impl FrameBuffer {
     }
 
     #[inline]
+    /// Sets pixel color at `(x, y)` when in bounds.
     pub fn set_pixel(&mut self, x: usize, y: usize, color: Vec3) {
         if x < self.width && y < self.height {
             self.color[y * self.width + x] = color;
@@ -67,6 +78,7 @@ impl FrameBuffer {
     }
 
     #[inline]
+    /// Returns depth at `(x, y)` or `INFINITY` when out of bounds.
     pub fn get_depth(&self, x: usize, y: usize) -> f64 {
         if x < self.width && y < self.height {
             self.depth[y * self.width + x]
@@ -76,12 +88,14 @@ impl FrameBuffer {
     }
 
     #[inline]
+    /// Sets depth at `(x, y)` when in bounds.
     pub fn set_depth(&mut self, x: usize, y: usize, d: f64) {
         if x < self.width && y < self.height {
             self.depth[y * self.width + x] = d;
         }
     }
 
+    /// Consumes the framebuffer and returns an image.
     pub fn into_image(self) -> Image {
         Image {
             width: self.width,
@@ -90,6 +104,7 @@ impl FrameBuffer {
         }
     }
 
+    /// Clears color, alpha, depth and sample counters.
     pub fn clear(&mut self) {
         for pixel in &mut self.color {
             *pixel = Vec3::ZERO;

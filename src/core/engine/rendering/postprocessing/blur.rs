@@ -1,6 +1,7 @@
 
 use crate::core::engine::rendering::raytracing::Vec3;
 
+/// Builds normalized 1D Gaussian weights for separable blur.
 pub fn gaussian_weights(radius: usize, sigma: f64) -> Vec<f64> {
     if sigma <= 0.0 {
         return Vec::new();
@@ -23,6 +24,7 @@ pub fn gaussian_weights(radius: usize, sigma: f64) -> Vec<f64> {
     weights
 }
 
+/// Applies horizontal blur pass.
 pub fn horizontal_blur(
     src: &[Vec3],
     dst: &mut [Vec3],
@@ -45,6 +47,7 @@ pub fn horizontal_blur(
     }
 }
 
+/// Applies vertical blur pass.
 pub fn vertical_blur(
     src: &[Vec3],
     dst: &mut [Vec3],
@@ -67,6 +70,7 @@ pub fn vertical_blur(
     }
 }
 
+/// Applies separable Gaussian blur in-place.
 pub fn separable_blur(buffer: &mut [Vec3], width: usize, height: usize, radius: usize, sigma: f64) {
     let weights = gaussian_weights(radius, sigma);
     let mut tmp = vec![Vec3::ZERO; buffer.len()];

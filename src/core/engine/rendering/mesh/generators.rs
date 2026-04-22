@@ -7,6 +7,7 @@ use super::vertex::{MeshDescriptor, Vertex};
 use super::asset::MeshAsset;
 
 impl MeshAsset {
+    /// Builds a procedurally displaced asteroid mesh from an icosphere base.
     pub fn procedural_asteroid(name: &str, base_radius: f64, subdivisions: u32) -> Self {
         let roughness = 0.25;
         let mut asset = icosphere(subdivisions, base_radius);
@@ -25,6 +26,7 @@ impl MeshAsset {
     }
 }
 
+/// Generates a unit cube mesh.
 pub fn unit_cube() -> MeshAsset {
     let mut vertices = Vec::with_capacity(24);
     let mut indices = Vec::with_capacity(36);
@@ -64,6 +66,7 @@ pub fn unit_cube() -> MeshAsset {
     }
 }
 
+/// Generates a subdivided ground plane mesh.
 pub fn ground_plane(subdivisions: usize, half_extent: f64) -> MeshAsset {
     let n = subdivisions + 1;
     let mut vertices = Vec::with_capacity(n * n);
@@ -108,6 +111,7 @@ pub fn ground_plane(subdivisions: usize, half_extent: f64) -> MeshAsset {
     }
 }
 
+/// Generates a torus mesh.
 pub fn torus(
     major_radius: f64,
     minor_radius: f64,
@@ -169,6 +173,7 @@ pub fn torus(
     }
 }
 
+/// Generates an icosphere mesh with configurable subdivision level.
 pub fn icosphere(subdivisions: u32, radius: f64) -> MeshAsset {
     let subdivisions = subdivisions.min(8);
     let t = (1.0 + 5.0_f64.sqrt()) / 2.0;

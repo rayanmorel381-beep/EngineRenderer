@@ -7,6 +7,7 @@ use std::{
 
 use super::sequence::SequenceResult;
 
+/// Error returned when ffmpeg is not available on PATH.
 #[derive(Debug)]
 pub struct FfmpegNotFound;
 
@@ -18,9 +19,11 @@ impl fmt::Display for FfmpegNotFound {
 
 impl Error for FfmpegNotFound {}
 
+/// Utility for encoding rendered frame sequences into video files.
 pub struct VideoExporter;
 
 impl VideoExporter {
+    /// Encodes an image sequence into an H.264 MP4 file using ffmpeg.
     pub fn encode_h264<P: AsRef<Path>, Q: AsRef<Path>>(
         frame_dir:    P,
         frame_prefix: &str,
@@ -62,6 +65,7 @@ impl VideoExporter {
         }
     }
 
+    /// Encodes a sequence result into an H.264 video file.
     pub fn encode_from_result<P: AsRef<Path>>(
         result:      &SequenceResult,
         output_path: P,

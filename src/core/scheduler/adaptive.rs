@@ -89,6 +89,34 @@ pub struct WorkerStats {
     pub affinity_mask: usize,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct SchedulerTuning {
+    granularity_bias: f64,
+}
+
+impl SchedulerTuning {
+    pub fn new(granularity_bias: f64) -> Self {
+        Self {
+            granularity_bias: granularity_bias.clamp(0.75, 2.5),
+        }
+    }
+
+    pub fn from_runtime_pressure(target_frame_ms: f64, observed_frame_ms: f64) -> Self {
+        let pressure = (observed_frame_ms / target_frame_ms.max(0.001)).clamp(0.5, 2.5);
+        Self::new(pressure.sqrt())
+    }
+
+    pub fn granularity_bias(&self) -> f64 {
+        self.granularity_bias
+    }
+}
+
+impl Default for SchedulerTuning {
+    fn default() -> Self {
+        Self::new(1.0)
+    }
+}
+
 // ─── Scheduler result ──────────────────────────────────────────────────
 
 #[derive(Debug)]
@@ -131,6 +159,7 @@ impl SchedulerReport {
 // ─── Adaptive tile scheduler ───────────────────────────────────────────
 
 #[derive(Debug)]
+/// Adaptive tile scheduler tuned from hardware capabilities.
 pub struct TileScheduler {
     total_tiles: usize,
     tile_width: usize,
@@ -144,16 +173,46 @@ pub struct TileScheduler {
 }
 
 impl TileScheduler {
+    /// Creates a scheduler using detected hardware backend.
     pub fn new(image_width: usize, image_height: usize, hint_threads: usize) -> Self {
         let backend = NativeHardwareBackend::detect();
         Self::new_with_backend(image_width, image_height, hint_threads, &backend)
     }
 
+    /// Creates a scheduler with explicit tuning parameters.
+    pub fn new_tuned(
+        image_width: usize,
+        image_height: usize,
+        hint_threads: usize,
+        tuning: SchedulerTuning,
+    ) -> Self {
+        let backend = NativeHardwareBackend::detect();
+        Self::new_with_backend_tuned(image_width, image_height, hint_threads, &backend, tuning)
+    }
+
+    /// Creates a scheduler from a provided backend.
     pub fn new_with_backend(
         image_width: usize,
         image_height: usize,
         hint_threads: usize,
         backend: &NativeHardwareBackend,
+    ) -> Self {
+        Self::new_with_backend_tuned(
+            image_width,
+            image_height,
+            hint_threads,
+            backend,
+            SchedulerTuning::default(),
+        )
+    }
+
+    /// Creates a scheduler from backend and tuning parameters.
+    pub fn new_with_backend_tuned(
+        image_width: usize,
+        image_height: usize,
+        hint_threads: usize,
+        backend: &NativeHardwareBackend,
+        tuning: SchedulerTuning,
     ) -> Self {
         let hw = HwContext::from_backend(backend);
 
@@ -171,7 +230,7 @@ impl TileScheduler {
 
         let worker_count = effective_workers(&hw, image_width, image_height, hint_threads);
         let fastest_cores = hw.fastest_cores(worker_count);
-        let (tile_width, tile_height) = adaptive_tile_size(&hw, image_width, image_height, worker_count);
+        let (tile_width, tile_height) = adaptive_tile_size(&hw, image_width, image_height, worker_count, tuning);
 
         let cols = image_width.div_ceil(tile_width.max(1));
         let rows = image_height.div_ceil(tile_height.max(1));
@@ -188,12 +247,13 @@ impl TileScheduler {
         }
 
         crate::runtime_log!(
-            "scheduler: {}×{} tiles={}×{}={} workers={}/{} simd={} l2_tile={}px fastest_cores={:?}",
+            "scheduler: {}×{} tiles={}×{}={} workers={}/{} simd={} l2_tile={}px granularity={:.2} fastest_cores={:?}",
             image_width, image_height,
             cols, rows, cols * rows,
             worker_count, hw.caps.logical_cores,
             hw.simd_tag(),
             hw.l2_tile_pixels(),
+            tuning.granularity_bias(),
             &fastest_cores,
         );
 
@@ -210,26 +270,32 @@ impl TileScheduler {
         }
     }
 
+    /// Returns the total number of generated tiles.
     pub fn total_tiles(&self) -> usize {
         self.total_tiles
     }
 
+    /// Returns worker thread count.
     pub fn worker_count(&self) -> usize {
         self.worker_count
     }
 
+    /// Returns hardware context information.
     pub fn hw(&self) -> &HwContext {
         &self.hw
     }
 
+    /// Returns true when DMA framebuffer is available.
     pub fn has_dma(&self) -> bool {
         self.dma_fb.is_some()
     }
 
+    /// Returns raw DMA framebuffer pointer when available.
     pub fn dma_ptr(&self) -> Option<*mut u8> {
         self.dma_fb.as_ref().map(|fb| fb.as_ptr())
     }
 
+    /// Returns tile geometry for a tile index.
     pub fn tile_at(&self, index: usize) -> Tile {
         let cols = self.image_width.div_ceil(self.tile_width.max(1));
         let tile_row = index / cols;
@@ -245,6 +311,7 @@ impl TileScheduler {
         }
     }
 
+    /// Dispatches tile work to worker threads and collects report data.
     pub fn dispatch<F, T>(&self, work_fn: F) -> (Vec<(usize, Vec<T>)>, SchedulerReport)
     where
         F: Fn(Tile) -> Vec<T> + Sync,
@@ -393,14 +460,16 @@ fn effective_workers(hw: &HwContext, w: usize, h: usize, hint: usize) -> usize {
     hint.min(cpus).min(max_by_pixels).min(max_by_rows).max(1)
 }
 
-fn adaptive_tile_size(hw: &HwContext, w: usize, h: usize, workers: usize) -> (usize, usize) {
+fn adaptive_tile_size(hw: &HwContext, w: usize, h: usize, workers: usize, tuning: SchedulerTuning) -> (usize, usize) {
     let simd_w = hw.simd_tile_width();
     let l2_pixels = hw.l2_tile_pixels();
+    let granularity_bias = tuning.granularity_bias();
 
     // Tile width: aligned to SIMD, at most half image width for ≥2 columns
     let tile_w = if w > simd_w * 4 {
         // Multiple columns, each SIMD-aligned
-        let cols = (workers * 2).max(2);
+        let cols = ((workers * 2) as f64 * granularity_bias).round() as usize;
+        let cols = cols.max(2);
         let raw = w.div_ceil(cols);
         // Round up to SIMD boundary
         raw.div_ceil(simd_w).clamp(simd_w, w)
@@ -410,7 +479,8 @@ fn adaptive_tile_size(hw: &HwContext, w: usize, h: usize, workers: usize) -> (us
     };
 
     // Tile height: fit in L2, with enough tiles for 8× oversubscription
-    let target_tiles = (workers * 8).max(4);
+    let target_tiles = ((workers * 8) as f64 * granularity_bias).round() as usize;
+    let target_tiles = target_tiles.max(4);
     let max_h_by_l2 = l2_pixels.div_ceil(tile_w.max(1));
     let max_h_by_balance = h.div_ceil(target_tiles);
     let tile_h = max_h_by_l2.min(max_h_by_balance).clamp(4, 128);

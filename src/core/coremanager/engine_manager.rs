@@ -10,7 +10,8 @@ use crate::core::coremanager::network_manager::{NetworkManager, RenderSyncServer
 use crate::core::engine::engineloop::engine_loop::EngineLoop;
 use crate::core::coremanager::time_manager::TimeManager;
 use crate::core::debug::logger::EngineLogger;
-use crate::core::debug::profiling::{format_summary, is_over_budget, simulation_ratio};
+use crate::core::debug::profiling::{format_adaptation, format_summary, is_over_budget, simulation_ratio};
+use crate::core::debug::runtime::RuntimeAdaptationState;
 use crate::core::debug::serialization::SerializationManager;
 use crate::core::debug::tools::DebugTools;
 use crate::core::engine::acces_hardware::NativeHardwareBackend;
@@ -26,7 +27,7 @@ use crate::core::input::camera::CameraRig;
 use crate::core::scheduler::loop_controller::LoopController;
 use crate::core::scheduler::profiling::FrameProfiler;
 use crate::core::scheduler::resource::ResourceManager;
-use crate::core::scheduler::adaptive::TileScheduler;
+use crate::core::scheduler::adaptive::{SchedulerTuning, TileScheduler};
 use crate::core::simulation::nbody::NBodySystem;
 
 #[derive(Debug)]
@@ -192,10 +193,28 @@ impl EngineManager {
         let summary = self
             .profiler
             .finish_frame(frame_profile, &report, engine_scene.node_count());
+        let over_budget = is_over_budget(&summary, frame_target.target_frame_ms);
+        let adaptation_state = RuntimeAdaptationState {
+            target_frame_ms: frame_target.target_frame_ms,
+            frame_p50_ms: summary.total_frame_ms as f64,
+            frame_p95_ms: summary.total_frame_ms as f64,
+            frame_p99_ms: summary.total_frame_ms as f64,
+            jitter_ms: 0.0,
+            quality_bias,
+            sample_pressure_scale: 1.0,
+            scheduler_granularity: 1.0,
+            substeps,
+            internal_width: self.config.width,
+            internal_height: self.config.height,
+            output_width: self.config.width,
+            output_height: self.config.height,
+            resize_cooldown_frames: 0,
+            over_budget_streak: usize::from(over_budget),
+            under_budget_streak: 0,
+        };
 
         // ── Debug profiling functions ────────────────────────────────────
         let summary_str = format_summary(&summary);
-        let over_budget = is_over_budget(&summary, frame_target.target_frame_ms);
         let sim_ratio = simulation_ratio(&summary);
         self.logger.debug(format!(
             "profiling: ratio={:.2} budget={} | {}",
@@ -228,6 +247,9 @@ impl EngineManager {
             pixels: report.rendered_pixels,
             output_path: report.output_path.display().to_string(),
         });
+        self.event_bus.push(EngineEvent::AdaptationUpdated {
+            state: adaptation_state,
+        });
 
         let event_summary = self.event_bus.summarize_history();
         let warning_count = self.logger.warning_count();
@@ -240,11 +262,13 @@ impl EngineManager {
             warning_count,
             momentum_hint: self.physics_manager.total_momentum(),
             log_depth: self.logger.len(),
+            adaptation: adaptation_state,
         });
         let overlay_payload = self.serializer.serialize_overlay(&overlay);
         self.logger.debug(format!(
-            "{} | payload={}B | clients={} (sync={})",
+            "{} | adaptation={} | payload={}B | clients={} (sync={})",
             overlay.headline,
+            format_adaptation(&adaptation_state),
             overlay_payload.len(),
             delivered_clients,
             self.sync_server.client_count(),
@@ -258,6 +282,7 @@ impl EngineManager {
         Ok(report)
     }
 
+    /// Runs realtime rendering for a duration at a target FPS.
     pub fn run_realtime(&mut self, seconds: u32, fps: u32) -> Result<(), Box<dyn Error>> {
         let target_fps = fps.clamp(1, 240);
         let target_seconds = seconds.max(1);
@@ -316,16 +341,22 @@ impl EngineManager {
             internal_height,
             &self.hardware_backend,
         );
-        let mut scheduler = TileScheduler::new_with_backend(
+        let mut scheduler_tuning = SchedulerTuning::default();
+        let mut scheduler = TileScheduler::new_with_backend_tuned(
             internal_width,
             internal_height,
             realtime_threads,
             &self.hardware_backend,
+            scheduler_tuning,
         );
 
         let mut rendered_frames = 0usize;
         let mut total_render_ms = 0u128;
         let mut over_budget_frames = 0usize;
+        let mut sample_pressure_scale = 1.0_f64;
+        let mut resize_cooldown_frames = 0usize;
+        let mut over_budget_streak = 0usize;
+        let mut under_budget_streak = 0usize;
         let render_interval = if ultra_constrained {
             8usize
         } else if ultra_target {
@@ -375,12 +406,13 @@ impl EngineManager {
                     frame_step.absolute_time + frame_input.orbit_bias * 0.15,
                 );
 
-                let (pixels, report) = realtime_renderer.render_animation_frame_to_buffer(
+                let (pixels, report) = realtime_renderer.render_animation_frame_to_buffer_with_pressure(
                     &realtime_scene.scene,
                     &realtime_camera,
                     cached_bvh.as_deref(),
                     &scheduler,
                     self.config.render_preset,
+                    sample_pressure_scale,
                 )?;
 
                 let target_present_width = if ultra_constrained {
@@ -409,7 +441,32 @@ impl EngineManager {
                 }
 
                 let render_ms = report.duration_ms as f64;
-                if render_ms > frame_budget_ms * 1.02 && internal_width > min_internal_width && internal_height > min_internal_height {
+                let target_pressure_scale = (frame_budget_ms / render_ms.max(1.0)).clamp(0.55, 1.10);
+                sample_pressure_scale = smooth_runtime_pressure(sample_pressure_scale, target_pressure_scale);
+                scheduler_tuning = SchedulerTuning::new(smooth_runtime_granularity(
+                    scheduler_tuning.granularity_bias(),
+                    SchedulerTuning::from_runtime_pressure(frame_budget_ms, render_ms).granularity_bias(),
+                ));
+                if resize_cooldown_frames > 0 {
+                    resize_cooldown_frames = resize_cooldown_frames.saturating_sub(1);
+                }
+
+                if render_ms > frame_budget_ms * 1.02 {
+                    over_budget_streak = over_budget_streak.saturating_add(1);
+                    under_budget_streak = 0;
+                } else if render_ms < frame_budget_ms * 0.50 {
+                    under_budget_streak = under_budget_streak.saturating_add(1);
+                    over_budget_streak = 0;
+                } else {
+                    over_budget_streak = 0;
+                    under_budget_streak = 0;
+                }
+
+                if resize_cooldown_frames == 0
+                    && over_budget_streak >= 3
+                    && internal_width > min_internal_width
+                    && internal_height > min_internal_height
+                {
                     let shrink = if ultra_constrained {
                         0.60
                     } else if ultra_target {
@@ -426,13 +483,18 @@ impl EngineManager {
                         internal_height,
                         &self.hardware_backend,
                     );
-                    scheduler = TileScheduler::new_with_backend(
+                    scheduler = TileScheduler::new_with_backend_tuned(
                         internal_width,
                         internal_height,
                         realtime_threads,
                         &self.hardware_backend,
+                        scheduler_tuning,
                     );
-                } else if render_ms < frame_budget_ms * 0.50
+                    resize_cooldown_frames = 18;
+                    over_budget_streak = 0;
+                    under_budget_streak = 0;
+                } else if resize_cooldown_frames == 0
+                    && under_budget_streak >= 8
                     && internal_width < output_width
                     && internal_height < output_height
                 {
@@ -446,12 +508,41 @@ impl EngineManager {
                         internal_height,
                         &self.hardware_backend,
                     );
-                    scheduler = TileScheduler::new_with_backend(
+                    scheduler = TileScheduler::new_with_backend_tuned(
                         internal_width,
                         internal_height,
                         realtime_threads,
                         &self.hardware_backend,
+                        scheduler_tuning,
                     );
+                    resize_cooldown_frames = 24;
+                    over_budget_streak = 0;
+                    under_budget_streak = 0;
+                }
+
+                let adaptation_state = RuntimeAdaptationState {
+                    target_frame_ms: frame_budget_ms,
+                    frame_p50_ms: render_ms,
+                    frame_p95_ms: render_ms,
+                    frame_p99_ms: render_ms,
+                    jitter_ms: 0.0,
+                    quality_bias: 1.0,
+                    sample_pressure_scale,
+                    scheduler_granularity: scheduler_tuning.granularity_bias(),
+                    substeps: 1,
+                    internal_width,
+                    internal_height,
+                    output_width,
+                    output_height,
+                    resize_cooldown_frames,
+                    over_budget_streak,
+                    under_budget_streak,
+                };
+
+                if frame_idx % 30 == 0 {
+                    let adaptation_line = format_adaptation(&adaptation_state);
+                    self.logger.info(format!("realtime adaptation {}", adaptation_line));
+                    crate::runtime_log!("realtime adaptation {}", adaptation_line);
                 }
             }
 
@@ -541,6 +632,23 @@ impl EngineManager {
     }
 }
 
+fn smooth_runtime_pressure(current: f64, target: f64) -> f64 {
+    smooth_runtime_metric(current, target, 0.12, 0.30, 0.02)
+}
+
+fn smooth_runtime_granularity(current: f64, target: f64) -> f64 {
+    smooth_runtime_metric(current, target, 0.14, 0.34, 0.03)
+}
+
+fn smooth_runtime_metric(current: f64, target: f64, rise_alpha: f64, fall_alpha: f64, dead_band: f64) -> f64 {
+    let delta = target - current;
+    if delta.abs() <= dead_band {
+        return current;
+    }
+    let alpha = if delta > 0.0 { rise_alpha } else { fall_alpha };
+    current + delta * alpha.clamp(0.0, 1.0)
+}
+
 fn realtime_scene_complexity(target_fps: u32, hardware_backend: &NativeHardwareBackend) -> SceneComplexity {
     if target_fps >= 120 {
         return SceneComplexity::full();
@@ -572,6 +680,7 @@ fn realtime_scene_complexity(target_fps: u32, hardware_backend: &NativeHardwareB
     SceneComplexity::full()
 }
 
+/// High-level engine facade.
 #[derive(Debug)]
 pub struct Engine {
     manager: EngineManager,
@@ -586,12 +695,14 @@ impl Default for Engine {
 }
 
 impl Engine {
+    /// Creates an engine configured for realtime preview.
     pub fn realtime() -> Self {
         Self {
             manager: EngineManager::new(EngineConfig::realtime_preview()),
         }
     }
 
+    /// Creates an engine for realtime preview with explicit resolution.
     pub fn realtime_with_resolution(width: usize, height: usize) -> Self {
         let mut config = EngineConfig::realtime_preview();
         config.width = width.max(1);
@@ -601,22 +712,26 @@ impl Engine {
         }
     }
 
+    /// Creates an engine configured for production reference rendering.
     pub fn production_reference() -> Self {
         Self {
             manager: EngineManager::new(EngineConfig::production_reference()),
         }
     }
 
+    /// Creates a minimal engine configuration for fast tests.
     pub fn test_minimal() -> Self {
         Self {
             manager: EngineManager::new(EngineConfig::test_minimal()),
         }
     }
 
+    /// Renders a single frame and returns its report.
     pub fn run(mut self) -> Result<RenderReport, Box<dyn Error>> {
         self.manager.render_frame()
     }
 
+    /// Renders the full gallery sequence.
     pub fn render_gallery(self) -> Result<Vec<RenderReport>, Box<dyn Error>> {
         let config = self.manager.config.clone();
         let mut loop_runner = EngineLoop::new(config);
@@ -624,6 +739,7 @@ impl Engine {
         loop_runner.run_gallery()
     }
 
+    /// Runs the realtime loop for a duration at target FPS.
     pub fn run_realtime(mut self, seconds: u32, fps: u32) -> Result<(), Box<dyn Error>> {
         self.manager.run_realtime(seconds, fps)
     }

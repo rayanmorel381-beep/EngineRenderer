@@ -1,10 +1,12 @@
 use crate::core::engine::rendering::materials::material::MaterialLibrary;
 use crate::core::engine::rendering::raytracing::{Material, Vec3};
 
+/// Name-based material catalog used by the public API.
 #[derive(Debug)]
 pub struct MaterialCatalog;
 
 impl MaterialCatalog {
+    /// Returns a predefined material by catalog name.
     pub fn by_name(&self, name: &str) -> Material {
         match name {
             "stellar_surface" => MaterialLibrary::stellar_surface(),
@@ -28,14 +30,17 @@ impl MaterialCatalog {
         }
     }
 
+    /// Returns a rocky world material tinted with the provided RGB color.
     pub fn rocky_world_colored(&self, r: f64, g: f64, b: f64) -> Material {
         MaterialLibrary::rocky_world(Vec3::new(r, g, b))
     }
 
+    /// Returns an automotive paint material tinted with the provided RGB color.
     pub fn automotive_paint_colored(&self, r: f64, g: f64, b: f64) -> Material {
         MaterialLibrary::automotive_paint(Vec3::new(r, g, b))
     }
 
+    /// Builds a fully custom material from physically-based parameters.
     pub fn custom(
         &self,
         albedo: [f64; 3],
@@ -53,6 +58,7 @@ impl MaterialCatalog {
         )
     }
 
+    /// Returns the list of supported catalog material names.
     pub fn all_names(&self) -> &'static [&'static str] {
         &[
             "stellar_surface",

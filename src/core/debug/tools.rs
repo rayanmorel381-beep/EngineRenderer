@@ -1,5 +1,6 @@
 use crate::core::coremanager::audio_manager::AudioMix;
 use crate::core::coremanager::network_manager::NetworkStatus;
+use crate::core::debug::runtime::RuntimeAdaptationState;
 use crate::core::engine::event::event_system::EventSummary;
 use crate::core::engine::rendering::renderer::types::RenderReport;
 use crate::core::scheduler::profiling::FrameSummary;
@@ -18,6 +19,7 @@ pub struct DebugOverlay {
     pub event_history: usize,
     pub momentum_hint: f64,
     pub log_depth: usize,
+    pub adaptation: RuntimeAdaptationState,
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -33,19 +35,25 @@ pub struct DebugCaptureInput<'a> {
     pub warning_count: usize,
     pub momentum_hint: f64,
     pub log_depth: usize,
+    pub adaptation: RuntimeAdaptationState,
 }
 
 impl DebugTools {
     pub fn capture(&self, input: DebugCaptureInput<'_>) -> DebugOverlay {
         DebugOverlay {
             headline: format!(
-                "frame={} px={} net={:.1}ms audio={:.2}/{:.2} rvb={:.2} warn={} evt={} mom={:.2}",
+                "frame={} px={} p95={:.1}/{:.1}ms q={:.2} spp={:.2} sub={} res={}x{} tile={:.2} net={:.1}ms warn={} evt={} mom={:.2}",
                 input.summary.frame_index,
                 input.report.rendered_pixels,
+                input.adaptation.frame_p95_ms,
+                input.adaptation.target_frame_ms,
+                input.adaptation.quality_bias,
+                input.adaptation.sample_pressure_scale,
+                input.adaptation.substeps,
+                input.adaptation.internal_width,
+                input.adaptation.internal_height,
+                input.adaptation.scheduler_granularity,
                 input.network.latency_ms,
-                input.audio.master_gain,
-                input.audio.spatial_width,
-                input.audio.reverb_send,
                 input.warning_count,
                 input.event_summary.clients,
                 input.momentum_hint
@@ -61,6 +69,7 @@ impl DebugTools {
             event_history: input.event_summary.clients.max(input.event_summary.node_count),
             momentum_hint: input.momentum_hint,
             log_depth: input.log_depth,
+            adaptation: input.adaptation,
         }
     }
 }

@@ -1,15 +1,24 @@
+/// Runtime quality settings selected for a single object.
 #[derive(Debug, Clone, Copy)]
 pub struct LodSelection {
+    /// Primary ray sample count.
     pub primary_samples: u32,
+    /// Shadow sample count.
     pub shadow_samples: u32,
+    /// Ambient occlusion sample count.
     pub ao_samples: u32,
+    /// Maximum bounce depth.
     pub max_bounces: u32,
+    /// Texture detail frequency multiplier.
     pub texture_frequency: f64,
+    /// Normal detail intensity multiplier.
     pub normal_intensity: f64,
+    /// Reflection contribution boost.
     pub reflection_boost: f64,
 }
 
 impl LodSelection {
+    /// Returns a conservative background quality profile.
     pub const fn background() -> Self {
         Self {
             primary_samples: 3,
@@ -23,6 +32,7 @@ impl LodSelection {
     }
 }
 
+/// Distance-based LOD selector for object shading budgets.
 #[derive(Debug, Clone, Copy)]
 pub struct LodManager {
     near_distance: f64,
@@ -41,6 +51,7 @@ impl Default for LodManager {
 }
 
 impl LodManager {
+    /// Selects quality settings based on distance and projected size.
     pub fn select(&self, camera_distance: f64, object_radius: f64) -> LodSelection {
         let safe_distance = camera_distance.max(0.001);
         let coverage = (object_radius / safe_distance).clamp(0.0, 1.0);
@@ -92,6 +103,7 @@ impl LodManager {
         }
     }
 
+    /// Returns horizon detail factor as distance increases.
     pub fn horizon_detail(&self, distance: f64) -> f64 {
         if distance <= self.near_distance {
             1.0

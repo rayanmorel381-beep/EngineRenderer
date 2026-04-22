@@ -27,6 +27,12 @@ use super::super::scene_builder::build_realistic_scene;
 use super::super::types::{RenderPreset, RenderReport};
 use super::super::Renderer;
 
+#[derive(Debug, Clone, Copy)]
+pub struct AnimationFramePressure {
+    pub preset: RenderPreset,
+    pub sample_pressure_scale: f64,
+}
+
 impl Renderer {
     pub fn render_to_file<P: AsRef<Path>>(
         &self,
@@ -44,6 +50,17 @@ impl Renderer {
         camera: &Camera,
         output_path: P,
         preset: RenderPreset,
+    ) -> Result<RenderReport, Box<dyn Error>> {
+        self.render_scene_to_file_with_pressure(scene, camera, output_path, preset, 1.0)
+    }
+
+    pub fn render_scene_to_file_with_pressure<P: AsRef<Path>>(
+        &self,
+        scene: &Scene,
+        camera: &Camera,
+        output_path: P,
+        preset: RenderPreset,
+        sample_pressure_scale: f64,
     ) -> Result<RenderReport, Box<dyn Error>> {
         let mut config = self.config_for(preset);
         let is_preview = matches!(preset, RenderPreset::PreviewCpu);
@@ -69,6 +86,7 @@ impl Renderer {
         config.base_samples_per_pixel = ((config.base_samples_per_pixel as f64 * quality.sample_multiplier)
             .round() as u32)
             .max(minimum_spp);
+        apply_runtime_sampling_pressure(&mut config, preset, sample_pressure_scale);
         config.max_bounces = config.max_bounces.min(quality.bounce_limit.max(2));
         let cam_near = preprocessed.camera_info.near_plane;
         let cam_far = preprocessed.camera_info.far_plane;
@@ -304,6 +322,30 @@ impl Renderer {
         output_path: P,
         preset: RenderPreset,
     ) -> Result<RenderReport, Box<dyn Error>> {
+        self.render_animation_frame_with_pressure(
+            scene,
+            camera,
+            bvh,
+            scheduler,
+            output_path,
+            AnimationFramePressure {
+                preset,
+                sample_pressure_scale: 1.0,
+            },
+        )
+    }
+
+    pub fn render_animation_frame_with_pressure<P: AsRef<Path>>(
+        &self,
+        scene: &Scene,
+        camera: &Camera,
+        bvh: Option<&BvhNode>,
+        scheduler: &TileScheduler,
+        output_path: P,
+        pressure: AnimationFramePressure,
+    ) -> Result<RenderReport, Box<dyn Error>> {
+        let preset = pressure.preset;
+        let sample_pressure_scale = pressure.sample_pressure_scale;
         let mut config = self.config_for(preset);
         let is_preview = matches!(preset, RenderPreset::PreviewCpu | RenderPreset::AnimationFast);
 
@@ -326,6 +368,7 @@ impl Renderer {
         config.base_samples_per_pixel = ((config.base_samples_per_pixel as f64 * quality.sample_multiplier)
             .round() as u32)
             .max(minimum_spp);
+        apply_runtime_sampling_pressure(&mut config, preset, sample_pressure_scale);
         config.max_bounces = config.max_bounces.min(quality.bounce_limit.max(2));
         let cam_near = preprocessed.camera_info.near_plane;
         let cam_far  = preprocessed.camera_info.far_plane;
@@ -496,9 +539,46 @@ impl Renderer {
         scheduler: &TileScheduler,
         preset: RenderPreset,
     ) -> Result<(Vec<crate::core::engine::rendering::raytracing::Vec3>, RenderReport), Box<dyn Error>> {
+        self.render_animation_frame_to_buffer_impl(scene, camera, bvh, scheduler, preset, 1.0)
+    }
+
+    pub fn render_animation_frame_to_buffer_with_pressure(
+        &self,
+        scene: &Scene,
+        camera: &Camera,
+        bvh: Option<&BvhNode>,
+        scheduler: &TileScheduler,
+        preset: RenderPreset,
+        sample_pressure_scale: f64,
+    ) -> Result<(Vec<crate::core::engine::rendering::raytracing::Vec3>, RenderReport), Box<dyn Error>> {
+        if (sample_pressure_scale - 1.0).abs() <= 0.000_001 {
+            return self.render_animation_frame_to_buffer(scene, camera, bvh, scheduler, preset);
+        }
+
+        self.render_animation_frame_to_buffer_impl(
+            scene,
+            camera,
+            bvh,
+            scheduler,
+            preset,
+            sample_pressure_scale,
+        )
+    }
+
+    fn render_animation_frame_to_buffer_impl(
+        &self,
+        scene: &Scene,
+        camera: &Camera,
+        bvh: Option<&BvhNode>,
+        scheduler: &TileScheduler,
+        preset: RenderPreset,
+        sample_pressure_scale: f64,
+    ) -> Result<(Vec<crate::core::engine::rendering::raytracing::Vec3>, RenderReport), Box<dyn Error>> {
         let mut config = self.config_for(preset);
         let is_preview = matches!(preset, RenderPreset::PreviewCpu | RenderPreset::AnimationFast);
         let start = HwInstant::now();
+
+        apply_runtime_sampling_pressure(&mut config, preset, sample_pressure_scale);
 
         if matches!(preset, RenderPreset::AnimationFast) {
             let compute_submitted = self.submit_compute_workload(scene, config.width, config.height);
@@ -561,6 +641,7 @@ impl Renderer {
         config.base_samples_per_pixel = ((config.base_samples_per_pixel as f64 * quality.sample_multiplier)
             .round() as u32)
             .max(minimum_spp);
+        apply_runtime_sampling_pressure(&mut config, preset, sample_pressure_scale);
         config.max_bounces = config.max_bounces.min(quality.bounce_limit.max(2));
         let cam_near = preprocessed.camera_info.near_plane;
         let cam_far  = preprocessed.camera_info.far_plane;
@@ -716,6 +797,10 @@ impl Renderer {
     }
 
     pub fn render(&self, scene: &Scene, camera: &Camera, preset: RenderPreset) -> RenderReport {
+        self.render_with_pressure(scene, camera, preset, 1.0)
+    }
+
+    pub fn render_with_pressure(&self, scene: &Scene, camera: &Camera, preset: RenderPreset, sample_pressure_scale: f64) -> RenderReport {
         let mut config = self.config_for(preset);
         let is_preview = matches!(preset, RenderPreset::PreviewCpu);
         let input_scene_objects = scene.objects.len() + scene.triangles.len();
@@ -736,6 +821,7 @@ impl Renderer {
         config.base_samples_per_pixel = ((config.base_samples_per_pixel as f64 * quality.sample_multiplier)
             .round() as u32)
             .max(minimum_spp);
+        apply_runtime_sampling_pressure(&mut config, preset, sample_pressure_scale);
         config.max_bounces = config.max_bounces.min(quality.bounce_limit.max(2));
         let cam_near = preprocessed.camera_info.near_plane;
         let cam_far = preprocessed.camera_info.far_plane;
@@ -840,4 +926,20 @@ impl Renderer {
         }
     }
 
+}
+
+fn apply_runtime_sampling_pressure(
+    config: &mut crate::core::engine::rendering::raytracing::RenderConfig,
+    preset: RenderPreset,
+    sample_pressure_scale: f64,
+) {
+    let minimum_spp = match preset {
+        RenderPreset::AnimationFast => 1,
+        RenderPreset::PreviewCpu => 2,
+        RenderPreset::UltraHdCpu => 8,
+        RenderPreset::ProductionReference => 16,
+    };
+
+    let scaled = ((config.base_samples_per_pixel as f64) * sample_pressure_scale.clamp(0.50, 1.25)).round() as u32;
+    config.base_samples_per_pixel = scaled.max(minimum_spp);
 }

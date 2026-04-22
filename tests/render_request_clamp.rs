@@ -1,3 +1,5 @@
+//! Vérifie le clamp des résolutions de rendu.
+
 use enginerenderer::api::types::core::{Quality, RenderRequest};
 
 #[test]

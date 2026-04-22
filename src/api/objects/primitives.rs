@@ -12,38 +12,47 @@ pub use crate::core::engine::rendering::preprocessing::bvh_builder::Aabb;
 pub use crate::core::engine::rendering::raytracing::{Material, Ray, Scene, Sphere, Triangle};
 
 impl SceneObject {
+    /// Creates a star sphere with the stellar surface material.
     pub fn star(center: [f64; 3], radius: f64) -> Self {
         Self::sphere(center, radius, "stellar_surface")
     }
 
+    /// Creates a rocky planet sphere.
     pub fn planet(center: [f64; 3], radius: f64) -> Self {
         Self::sphere(center, radius, "rocky_world")
     }
 
+    /// Creates an ocean planet sphere.
     pub fn ocean_planet(center: [f64; 3], radius: f64) -> Self {
         Self::sphere(center, radius, "ocean_world")
     }
 
+    /// Creates an ice planet sphere.
     pub fn ice_planet(center: [f64; 3], radius: f64) -> Self {
         Self::sphere(center, radius, "icy_world")
     }
 
+    /// Creates a moon sphere with a metallic material.
     pub fn moon(center: [f64; 3], radius: f64) -> Self {
         Self::sphere(center, radius, "metallic_moon")
     }
 
+    /// Creates a lush planet sphere.
     pub fn lush_planet(center: [f64; 3], radius: f64) -> Self {
         Self::sphere(center, radius, "lush_planet")
     }
 
+    /// Creates a black-hole proxy sphere.
     pub fn black_hole(center: [f64; 3], radius: f64) -> Self {
         Self::sphere(center, radius, "event_horizon")
     }
 
+    /// Creates a large sphere used as a ground plane approximation.
     pub fn ground_plane(y: f64, material_name: &str) -> Self {
         Self::sphere([0.0, y - 200.0, 0.0], 200.0, material_name)
     }
 
+    /// Creates a sphere with an explicit RGB material.
     pub fn colored_sphere(center: [f64; 3], radius: f64, rgb: [f64; 3], roughness: f64) -> Self {
         let mat = MaterialCatalog.custom(rgb, roughness, 0.0, 0.04, [0.0, 0.0, 0.0]);
         Self::Sphere {

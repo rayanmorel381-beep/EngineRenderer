@@ -24,29 +24,44 @@ use crate::core::coremanager::camera_manager::CameraManager;
 use crate::core::scheduler::resource::ResourceManager;
 
 #[derive(Debug, Clone)]
+/// Runtime scene bundle containing scene, camera and graph context.
 pub struct EngineScene {
+    /// Renderable scene data.
     pub scene: Scene,
+    /// Camera for the scene.
     pub camera: Camera,
+    /// Scene graph metadata.
     pub graph: SceneGraph,
 }
 
 #[derive(Debug, Clone)]
+/// Dedicated showcase shot descriptor.
 pub struct ShowcaseShot {
+    /// Stable shot name.
     pub name: &'static str,
+    /// Shot scene.
     pub scene: Scene,
+    /// Shot camera.
     pub camera: Camera,
 }
 
 #[derive(Debug, Clone, Copy)]
+/// Controls runtime scene complexity for realtime rendering.
 pub struct SceneComplexity {
+    /// Maximum number of showcase meshes.
     pub showcase_mesh_budget: usize,
+    /// Maximum number of area lights.
     pub area_light_budget: usize,
+    /// Enables or disables panorama additions.
     pub panorama_enabled: bool,
+    /// Enables refined showcase mesh processing.
     pub refined_showcase_meshes: bool,
+    /// Enables proxy showcase mesh generation.
     pub proxy_showcase_meshes: bool,
 }
 
 impl SceneComplexity {
+    /// Returns an unconstrained complexity profile.
     pub fn full() -> Self {
         Self {
             showcase_mesh_budget: usize::MAX,
@@ -59,6 +74,7 @@ impl SceneComplexity {
 }
 
 impl EngineScene {
+    /// Builds an engine scene from celestial bodies with default complexity.
     pub fn from_bodies(
         catalog: &CelestialBodies,
         camera_manager: &CameraManager,
@@ -78,6 +94,7 @@ impl EngineScene {
         )
     }
 
+    /// Builds an engine scene from celestial bodies with explicit complexity.
     pub fn from_bodies_with_complexity(
         catalog: &CelestialBodies,
         camera_manager: &CameraManager,
@@ -172,6 +189,7 @@ impl EngineScene {
         Self { scene, camera, graph }
     }
 
+    /// Builds the realtime camera corresponding to the current graph and time.
     pub fn realtime_camera(
         camera_manager: &CameraManager,
         graph: &SceneGraph,
@@ -182,10 +200,12 @@ impl EngineScene {
         build_showcase_camera(camera_manager, graph, showcase_anchor, aspect_ratio, time)
     }
 
+    /// Returns the number of scene graph nodes.
     pub fn node_count(&self) -> usize {
         self.graph.node_count()
     }
 
+    /// Returns the dedicated gallery shot list.
     pub fn dedicated_gallery_shots() -> Vec<ShowcaseShot> {
         vec![
             build_car_showcase(),

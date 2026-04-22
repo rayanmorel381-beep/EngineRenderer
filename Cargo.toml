@@ -2,6 +2,7 @@
 name = "enginerenderer"
 version = "0.0.1"
 edition = "2024"
+rust-version = "1.85"
 authors = ["Rayan Morel"]
 license = "MIT"
 description = "A zero-dependency offline rendering engine in pure Rust — CPU path tracing, BVH acceleration, 16-band spectral rendering, PBR materials, animation & video export."
@@ -10,8 +11,16 @@ homepage = "https://github.com/rayanmorel381-beep/EngineRenderer"
 documentation = "https://docs.rs/enginerenderer"
 readme = "ReadMe.md"
 keywords = ["rendering", "path-tracing", "3d", "animation", "ray-tracing"]
-categories = ["graphics", "rendering", "multimedia", "simulation", "science"]
-exclude = ["target/", "output/", "*.mp4", "*.png", "*.jpg"]
+categories = ["graphics", "multimedia", "simulation", "science"]
+include = [
+    "src/**/*.rs",
+    "Cargo.toml",
+    "ReadMe.md",
+    "License",
+    "ChangeLog.md",
+    "CONTRIBUTING.md",
+    "arborescence.md",
+]
 
 [lib]
 name = "enginerenderer"

@@ -1,3 +1,5 @@
+//! Contrat de sérialisation des formats de sortie.
+
 use enginerenderer::api::types::core::{OutputFormat, RenderRequest};
 
 #[test]

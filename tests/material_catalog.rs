@@ -1,3 +1,5 @@
+//! Vérifie l'accès au catalogue de matériaux.
+
 use enginerenderer::api::EngineApi;
 
 #[test]

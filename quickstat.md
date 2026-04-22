@@ -63,3 +63,17 @@ cargo build --release --target x86_64-pc-windows-gnu
 cargo build --release --target aarch64-linux-android
 cargo build --release --target x86_64-unknown-linux-musl
 ```
+
+## 8. Workspace validation
+
+```bash
+cargo check --all-targets
+cargo clippy --all-targets
+cargo test --test workspace_render_validation
+```
+
+Long campaigns (ignored by default):
+
+```bash
+cargo test --test workspace_render_validation -- --ignored
+```

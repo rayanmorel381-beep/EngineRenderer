@@ -1,3 +1,5 @@
+//! Contrat des requêtes générateur.
+
 use enginerenderer::api::engine::rendering::GeneratorRequest;
 use enginerenderer::api::types::core::Quality;
 

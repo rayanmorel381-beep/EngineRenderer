@@ -6,12 +6,16 @@ use crate::core::engine::acces_hardware::arch::compute_dispatch;
 use crate::core::engine::acces_hardware::NativeHardwareBackend;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Supported compute CPU architecture families.
 pub enum ComputeArch {
+    /// x86 and x86_64 architectures.
     X86,
+    /// ARM and AArch64 architectures.
     Arm,
 }
 
 impl ComputeArch {
+    /// Returns a stable lowercase identifier.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::X86 => "x86",
@@ -19,6 +23,7 @@ impl ComputeArch {
         }
     }
 
+    /// Parses an architecture identifier.
     pub fn parse(input: &str) -> Option<Self> {
         match input.trim().to_ascii_lowercase().as_str() {
             "x86" | "x86_64" | "amd64" => Some(Self::X86),
@@ -29,13 +34,18 @@ impl ComputeArch {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Supported operating systems for diagnostics override.
 pub enum ComputeOs {
+    /// Linux-based systems.
     Linux,
+    /// Windows systems.
     Windows,
+    /// macOS systems.
     Macos,
 }
 
 impl ComputeOs {
+    /// Returns a stable lowercase identifier.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Linux => "linux",
@@ -44,6 +54,7 @@ impl ComputeOs {
         }
     }
 
+    /// Parses an operating-system identifier.
     pub fn parse(input: &str) -> Option<Self> {
         match input.trim().to_ascii_lowercase().as_str() {
             "linux" => Some(Self::Linux),
@@ -55,14 +66,20 @@ impl ComputeOs {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Supported hardware vendor categories used by diagnostics.
 pub enum ComputeVendor {
+    /// AMD vendor bucket.
     Amd,
+    /// Intel vendor bucket.
     Intel,
+    /// Apple vendor bucket.
     Apple,
+    /// Unknown or unsupported vendor bucket.
     Unknown,
 }
 
 impl ComputeVendor {
+    /// Returns a stable lowercase identifier.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Amd => "amd",
@@ -72,6 +89,7 @@ impl ComputeVendor {
         }
     }
 
+    /// Parses a vendor identifier.
     pub fn parse(input: &str) -> Option<Self> {
         match input.trim().to_ascii_lowercase().as_str() {
             "amd" => Some(Self::Amd),
@@ -84,14 +102,20 @@ impl ComputeVendor {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Selectable diagnostics output component.
 pub enum DiagnosticComponent {
+    /// CPU section.
     Cpu,
+    /// GPU section.
     Gpu,
+    /// RAM section.
     Ram,
+    /// Display section.
     Display,
 }
 
 impl DiagnosticComponent {
+    /// Returns a stable lowercase identifier.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Cpu => "cpu",
@@ -101,6 +125,7 @@ impl DiagnosticComponent {
         }
     }
 
+    /// Parses a diagnostics component identifier.
     pub fn parse(input: &str) -> Option<Self> {
         match input.trim().to_ascii_lowercase().as_str() {
             "cpu" => Some(Self::Cpu),
@@ -113,104 +138,173 @@ impl DiagnosticComponent {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
+/// Optional platform overrides used for synthetic diagnostics runs.
 pub struct DiagnosticOverrides {
+    /// Optional architecture override.
     pub arch: Option<ComputeArch>,
+    /// Optional operating-system override.
     pub os: Option<ComputeOs>,
+    /// Optional vendor override.
     pub vendor: Option<ComputeVendor>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
+/// Diagnostics execution options.
 pub struct DiagnosticsOptions {
+    /// Enables JSON output mode.
     pub json: bool,
+    /// Enables verbose output mode.
     pub verbose: bool,
+    /// Enables synthetic benchmark computation.
     pub bench: bool,
+    /// Restricts output to a single component.
     pub component: Option<DiagnosticComponent>,
+    /// Platform override values.
     pub overrides: DiagnosticOverrides,
 }
 
 #[derive(Clone, Debug)]
+/// Generic schedule shape report.
 pub struct ScheduleReport {
+    /// Number of work chunks.
     pub chunks: usize,
+    /// Chunk size in work items.
     pub chunk_size: usize,
+    /// Target budget in microseconds.
     pub frame_budget_us: u64,
 }
 
 #[derive(Clone, Debug)]
+/// CPU diagnostics report section.
 pub struct CpuReport {
+    /// Selected vendor category.
     pub vendor: ComputeVendor,
+    /// Worker count hint from dispatch configuration.
     pub worker_hint: usize,
+    /// Effective render worker count.
     pub render_workers: usize,
+    /// CPU frame budget in microseconds.
     pub frame_budget_us: u64,
+    /// Whether low-power mode is enabled.
     pub low_power: bool,
+    /// CPU scheduling report.
     pub schedule: ScheduleReport,
 }
 
 #[derive(Clone, Debug)]
+/// GPU diagnostics report section.
 pub struct GpuReport {
+    /// Selected vendor category.
     pub vendor: ComputeVendor,
+    /// Compute workgroup size.
     pub workgroup_size: usize,
+    /// Number of compute queues.
     pub compute_queues: usize,
+    /// Render thread count.
     pub render_threads: usize,
+    /// Whether double buffering is enabled.
     pub double_buffered: bool,
+    /// GPU frame budget in microseconds.
     pub frame_budget_us: u64,
+    /// Whether low-power mode is enabled.
     pub low_power: bool,
+    /// GPU scheduling report.
     pub schedule: ScheduleReport,
 }
 
 #[derive(Clone, Debug)]
+/// Display diagnostics report section.
 pub struct DisplayReport {
+    /// Selected vendor category.
     pub vendor: ComputeVendor,
+    /// Display page size in bytes.
     pub page_size: usize,
+    /// Target render FPS for display pacing.
     pub target_render_fps: u32,
+    /// Display latency budget in microseconds.
     pub latency_budget_us: u64,
+    /// Scan-out latency in microseconds.
     pub scan_out_latency_us: u64,
+    /// Number of vsync slots.
     pub vsync_slots: usize,
+    /// Whether double buffering is enabled.
     pub double_buffered: bool,
+    /// Whether low-power mode is enabled.
     pub low_power: bool,
+    /// Display scheduling report.
     pub schedule: ScheduleReport,
 }
 
 #[derive(Clone, Debug)]
+/// RAM diagnostics report section.
 pub struct RamReport {
+    /// Memory page size in bytes.
     pub page_size: usize,
+    /// Total RAM in bytes.
     pub total_bytes: u64,
+    /// Available RAM in bytes when available.
     pub available_bytes: Option<u64>,
+    /// RAM frame budget in microseconds.
     pub frame_budget_us: u64,
+    /// Whether low-power mode is enabled.
     pub low_power: bool,
+    /// RAM scheduling report.
     pub schedule: ScheduleReport,
 }
 
 #[derive(Clone, Debug)]
+/// Detected hardware capability report.
 pub struct HardwareReport {
+    /// Number of logical CPU cores.
     pub logical_cores: u32,
+    /// Reported VRAM capacity in bytes.
     pub vram_bytes: u64,
+    /// Reported RAM capacity in bytes.
     pub total_ram_bytes: u64,
+    /// Recommended render thread count.
     pub optimal_render_threads: usize,
+    /// Maximum framebuffer allocation size in bytes.
     pub max_framebuffer_bytes: u64,
+    /// Maximum single GPU allocation size in bytes.
     pub max_gpu_allocation_bytes: u64,
 }
 
 #[derive(Clone, Debug)]
+/// Synthetic benchmark summary.
 pub struct BenchmarkReport {
+    /// Number of benchmark iterations.
     pub iterations: usize,
+    /// Total benchmark duration in milliseconds.
     pub total_ms: u128,
+    /// Average iteration duration in microseconds.
     pub avg_us: u128,
 }
 
 #[derive(Clone, Debug)]
+/// Full compute-environment diagnostics report.
 pub struct ComputeEnvironmentReport {
+    /// Selected architecture.
     pub arch: ComputeArch,
+    /// Selected operating system.
     pub os: ComputeOs,
+    /// CPU section.
     pub cpu: CpuReport,
+    /// GPU section.
     pub gpu: GpuReport,
+    /// Display section.
     pub display: DisplayReport,
+    /// RAM section.
     pub ram: RamReport,
+    /// Hardware capabilities section.
     pub hardware: HardwareReport,
+    /// Optional benchmark section.
     pub benchmark: Option<BenchmarkReport>,
+    /// Effective override configuration.
     pub overrides: DiagnosticOverrides,
 }
 
 impl EngineApi {
+    /// Builds a structured compute-environment report.
     pub fn compute_environment_report(&self, options: &DiagnosticsOptions) -> ComputeEnvironmentReport {
         let config = compute_dispatch::default_config();
         let backend = NativeHardwareBackend::detect();
@@ -277,6 +371,7 @@ impl EngineApi {
         report
     }
 
+    /// Prints diagnostics using the provided options.
     pub fn diagnose_compute_environment(&self, options: &DiagnosticsOptions) {
         let report = self.compute_environment_report(options);
         if options.json {
@@ -291,6 +386,7 @@ impl EngineApi {
 }
 
 impl ComputeEnvironmentReport {
+    /// Prints a human-readable diagnostics summary.
     pub fn print_text(&self, component: Option<DiagnosticComponent>, verbose: bool) {
         eprintln!("compute-detect: arch={} os={}", self.arch.as_str(), self.os.as_str());
         if let Some(arch) = self.overrides.arch {
@@ -386,6 +482,7 @@ impl ComputeEnvironmentReport {
         }
     }
 
+    /// Serializes diagnostics to a JSON string.
     pub fn to_json(&self, component: Option<DiagnosticComponent>, verbose: bool) -> String {
         let mut fields: Vec<String> = Vec::new();
         fields.push(format!("\"arch\":\"{}\"", self.arch.as_str()));

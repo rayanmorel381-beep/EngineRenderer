@@ -1,3 +1,11 @@
+//! Strict GLB (binary glTF 2.0) container loader.
+//!
+//! Validates the 12-byte header and walks chunks without panicking on
+//! truncated or hostile input. Hard limits guard against pathological
+//! sizes. Synthesises a [`MeshAsset`] from JSON node transforms and BIN
+//! payload, falling back to deterministic procedural geometry when the
+//! container does not expose decodable accessors.
+
 use std::{fs, io, path::{Path, PathBuf}};
 
 use crate::core::engine::rendering::{
@@ -5,6 +13,249 @@ use crate::core::engine::rendering::{
     raytracing::{Material, Vec3},
     texture::image_summary::TextureImageSummary,
 };
+
+/// Maximum on-disk size for a `.glb` file (256 MiB).
+pub const MAX_GLB_FILE_SIZE: u64 = 256 * 1024 * 1024;
+/// Maximum chunk payload size accepted while iterating the binary container.
+pub const MAX_GLB_CHUNK_SIZE: usize = 200 * 1024 * 1024;
+/// Minimum size of the 12-byte GLB header.
+pub const GLB_HEADER_SIZE: usize = 12;
+/// Expected magic bytes at offset 0.
+pub const GLB_MAGIC: &[u8; 4] = b"glTF";
+/// Supported GLB container version.
+pub const GLB_SUPPORTED_VERSION: u32 = 2;
+/// JSON chunk identifier (`'JSON'` little-endian).
+pub const GLB_CHUNK_TYPE_JSON: u32 = 0x4E4F_534A;
+/// BIN chunk identifier (`'BIN\0'` little-endian).
+pub const GLB_CHUNK_TYPE_BIN: u32 = 0x004E_4942;
+
+/// Errors produced while validating the binary GLB container.
+#[derive(Debug)]
+pub enum GlbLoadError {
+    /// Underlying IO failure.
+    Io(io::Error),
+    /// File on disk exceeds [`MAX_GLB_FILE_SIZE`].
+    FileTooLarge {
+        /// Reported size on disk.
+        size: u64,
+        /// Configured limit.
+        limit: u64,
+    },
+    /// File too small to contain the 12-byte header.
+    HeaderTruncated {
+        /// Actual byte count.
+        size: usize,
+    },
+    /// First 4 bytes do not match `b"glTF"`.
+    InvalidMagic {
+        /// Bytes that were found.
+        found: [u8; 4],
+    },
+    /// Container version is not [`GLB_SUPPORTED_VERSION`].
+    UnsupportedVersion {
+        /// Version number reported in the header.
+        version: u32,
+    },
+    /// Declared total length disagrees with the actual file size.
+    DeclaredLengthMismatch {
+        /// Length advertised in the header.
+        declared: u64,
+        /// Length seen on disk.
+        actual: usize,
+    },
+    /// A chunk header is truncated.
+    ChunkHeaderTruncated {
+        /// Byte offset of the chunk header.
+        offset: usize,
+    },
+    /// A chunk payload is truncated according to the declared length.
+    ChunkPayloadTruncated {
+        /// Offset of the payload start.
+        offset: usize,
+        /// Length advertised by the chunk header.
+        length: u64,
+        /// Bytes that remain in the file.
+        remaining: usize,
+    },
+    /// `offset + chunk_length` would overflow `usize`.
+    ChunkLengthOverflow {
+        /// Offset of the chunk header.
+        offset: usize,
+        /// Length advertised by the chunk header.
+        length: u32,
+    },
+    /// A chunk advertises a payload larger than [`MAX_GLB_CHUNK_SIZE`].
+    ChunkTooLarge {
+        /// Length advertised by the chunk header.
+        length: u64,
+        /// Configured limit.
+        limit: usize,
+    },
+}
+
+impl std::fmt::Display for GlbLoadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Io(err) => write!(f, "io error: {err}"),
+            Self::FileTooLarge { size, limit } => {
+                write!(f, "glb file size {size} exceeds limit {limit}")
+            }
+            Self::HeaderTruncated { size } => {
+                write!(f, "glb header truncated: {size} bytes (need {GLB_HEADER_SIZE})")
+            }
+            Self::InvalidMagic { found } => {
+                write!(
+                    f,
+                    "invalid glb magic: 0x{:02x}{:02x}{:02x}{:02x}",
+                    found[0], found[1], found[2], found[3]
+                )
+            }
+            Self::UnsupportedVersion { version } => {
+                write!(f, "unsupported glb version: {version} (need {GLB_SUPPORTED_VERSION})")
+            }
+            Self::DeclaredLengthMismatch { declared, actual } => {
+                write!(f, "glb declared length {declared} != actual {actual}")
+            }
+            Self::ChunkHeaderTruncated { offset } => {
+                write!(f, "glb chunk header truncated at offset {offset}")
+            }
+            Self::ChunkPayloadTruncated { offset, length, remaining } => {
+                write!(
+                    f,
+                    "glb chunk payload truncated at offset {offset}: claims {length}, remaining {remaining}"
+                )
+            }
+            Self::ChunkLengthOverflow { offset, length } => {
+                write!(
+                    f,
+                    "glb chunk length overflow at offset {offset}: length {length}"
+                )
+            }
+            Self::ChunkTooLarge { length, limit } => {
+                write!(f, "glb chunk size {length} exceeds limit {limit}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for GlbLoadError {}
+
+impl From<io::Error> for GlbLoadError {
+    fn from(value: io::Error) -> Self {
+        Self::Io(value)
+    }
+}
+
+impl From<GlbLoadError> for io::Error {
+    fn from(value: GlbLoadError) -> Self {
+        match value {
+            GlbLoadError::Io(err) => err,
+            other => io::Error::new(io::ErrorKind::InvalidData, other.to_string()),
+        }
+    }
+}
+
+/// Validated GLB header.
+#[derive(Debug, Clone, Copy)]
+pub struct GlbHeader {
+    /// Container version (always [`GLB_SUPPORTED_VERSION`] when validated).
+    pub version: u32,
+    /// Declared total length of the container, in bytes.
+    pub declared_length: u32,
+}
+
+/// Validates the 12-byte GLB header and returns its parsed form.
+///
+/// Strict version: rejects truncated input, wrong magic, unsupported version,
+/// and any mismatch between the declared total length and the actual buffer
+/// size. Used by [`GlbLoader::load_from_path`] before any chunk iteration.
+pub fn validate_glb_header(bytes: &[u8]) -> Result<GlbHeader, GlbLoadError> {
+    if bytes.len() < GLB_HEADER_SIZE {
+        return Err(GlbLoadError::HeaderTruncated { size: bytes.len() });
+    }
+    let mut magic = [0u8; 4];
+    magic.copy_from_slice(&bytes[0..4]);
+    if &magic != GLB_MAGIC {
+        return Err(GlbLoadError::InvalidMagic { found: magic });
+    }
+    let version = u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
+    if version != GLB_SUPPORTED_VERSION {
+        return Err(GlbLoadError::UnsupportedVersion { version });
+    }
+    let declared_length = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
+    if (declared_length as u64) != (bytes.len() as u64) {
+        return Err(GlbLoadError::DeclaredLengthMismatch {
+            declared: declared_length as u64,
+            actual: bytes.len(),
+        });
+    }
+    Ok(GlbHeader {
+        version,
+        declared_length,
+    })
+}
+
+/// Iterates the chunks of a validated GLB container without panicking.
+///
+/// Each item is `(chunk_type, payload_slice)`. Returns an error variant on
+/// truncated chunks, overflow on `offset + chunk_length`, or chunk sizes
+/// above [`MAX_GLB_CHUNK_SIZE`].
+pub fn iter_glb_chunks(bytes: &[u8]) -> Result<Vec<(u32, &[u8])>, GlbLoadError> {
+    validate_glb_header(bytes)?;
+    let mut chunks = Vec::new();
+    let mut offset = GLB_HEADER_SIZE;
+    while offset < bytes.len() {
+        if offset + 8 > bytes.len() {
+            return Err(GlbLoadError::ChunkHeaderTruncated { offset });
+        }
+        let chunk_length = u32::from_le_bytes([
+            bytes[offset],
+            bytes[offset + 1],
+            bytes[offset + 2],
+            bytes[offset + 3],
+        ]);
+        let chunk_type = u32::from_le_bytes([
+            bytes[offset + 4],
+            bytes[offset + 5],
+            bytes[offset + 6],
+            bytes[offset + 7],
+        ]);
+        let chunk_length_usize = usize::try_from(chunk_length).map_err(|_| {
+            GlbLoadError::ChunkLengthOverflow {
+                offset,
+                length: chunk_length,
+            }
+        })?;
+        if chunk_length_usize > MAX_GLB_CHUNK_SIZE {
+            return Err(GlbLoadError::ChunkTooLarge {
+                length: chunk_length as u64,
+                limit: MAX_GLB_CHUNK_SIZE,
+            });
+        }
+        let payload_start = offset
+            .checked_add(8)
+            .ok_or(GlbLoadError::ChunkLengthOverflow {
+                offset,
+                length: chunk_length,
+            })?;
+        let payload_end = payload_start.checked_add(chunk_length_usize).ok_or(
+            GlbLoadError::ChunkLengthOverflow {
+                offset,
+                length: chunk_length,
+            },
+        )?;
+        if payload_end > bytes.len() {
+            return Err(GlbLoadError::ChunkPayloadTruncated {
+                offset: payload_start,
+                length: chunk_length as u64,
+                remaining: bytes.len().saturating_sub(payload_start),
+            });
+        }
+        chunks.push((chunk_type, &bytes[payload_start..payload_end]));
+        offset = payload_end;
+    }
+    Ok(chunks)
+}
 
 #[derive(Debug, Clone)]
 struct GltfNodeTransform {
@@ -14,10 +265,13 @@ struct GltfNodeTransform {
     rotation: [f64; 4],
 }
 
+/// Stateless GLB (binary glTF 2.0) loader entry point.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct GlbLoader;
 
 impl GlbLoader {
+    /// Loads GLB assets shipped with the engine, falling back to procedural
+    /// asteroids if the `assets/` directory contains no `.glb` files.
     pub fn load_embedded_showcase(&self) -> Vec<MeshAsset> {
         let mut meshes = self.load_directory("assets").unwrap_or_default();
         if meshes.is_empty() {
@@ -29,6 +283,9 @@ impl GlbLoader {
         meshes
     }
 
+    /// Recursively loads every `.glb` file under `directory`. Files that
+    /// individually fail to validate are skipped silently; IO errors while
+    /// walking the directory are propagated.
     pub fn load_directory<P: AsRef<Path>>(&self, directory: P) -> io::Result<Vec<MeshAsset>> {
         let mut files = Vec::new();
         self.collect_glb_files(directory.as_ref(), &mut files)?;
@@ -43,12 +300,23 @@ impl GlbLoader {
         Ok(meshes)
     }
 
+    /// Loads a GLB container from disk. Validates size against
+    /// [`MAX_GLB_FILE_SIZE`], header against [`validate_glb_header`], and
+    /// chunks against [`iter_glb_chunks`] before extracting nodes/textures.
     pub fn load_from_path<P: AsRef<Path>>(&self, path: P) -> io::Result<Vec<MeshAsset>> {
         let path = path.as_ref();
         let name = path.file_stem().and_then(|value| value.to_str()).unwrap_or("glb_asset");
         let extension = path.extension().and_then(|value| value.to_str()).unwrap_or_default();
 
         if extension.eq_ignore_ascii_case("gltf") {
+            let metadata = fs::metadata(path)?;
+            if metadata.len() > MAX_GLB_FILE_SIZE {
+                return Err(GlbLoadError::FileTooLarge {
+                    size: metadata.len(),
+                    limit: MAX_GLB_FILE_SIZE,
+                }
+                .into());
+            }
             let json = fs::read_to_string(path)?;
             let material = self.material_from_json_and_images(path, &json);
             let node_instances = Self::extract_node_transforms(&json);
@@ -60,23 +328,44 @@ impl GlbLoader {
             return Ok(self.instantiate_from_nodes(name, template, material, node_instances));
         }
 
+        let metadata = fs::metadata(path)?;
+        if metadata.len() > MAX_GLB_FILE_SIZE {
+            return Err(GlbLoadError::FileTooLarge {
+                size: metadata.len(),
+                limit: MAX_GLB_FILE_SIZE,
+            }
+            .into());
+        }
         let bytes = fs::read(path)?;
-        let json_chunk = self.extract_json_chunk(&bytes);
+
+        let header = validate_glb_header(&bytes).map_err(io::Error::from)?;
+        let chunks = iter_glb_chunks(&bytes).map_err(io::Error::from)?;
+
+        let json_chunk = chunks
+            .iter()
+            .find(|(chunk_type, _)| *chunk_type == GLB_CHUNK_TYPE_JSON)
+            .map(|(_, payload)| {
+                String::from_utf8_lossy(payload)
+                    .trim_matches(char::from(0))
+                    .to_string()
+            });
+        let bin_chunk = chunks
+            .iter()
+            .find(|(chunk_type, _)| *chunk_type == GLB_CHUNK_TYPE_BIN)
+            .map(|(_, payload)| *payload);
+
         let pbr_material = json_chunk
             .as_deref()
             .and_then(|json| self.material_from_json_and_images(path, json));
 
-        if bytes.len() < 20 || &bytes[0..4] != b"glTF" {
-            return Ok(vec![MeshAsset::procedural_asteroid(name, 1.4, 20)]);
-        }
-
-        let version = u32::from_le_bytes(bytes[4..8].try_into().unwrap_or([2, 0, 0, 0]));
-        let declared_length = u32::from_le_bytes(bytes[8..12].try_into().unwrap_or([0, 0, 0, 0])) as usize;
-        let capped_length = declared_length.min(bytes.len()).max(12);
-        let payload = &bytes[12..capped_length];
+        let payload_for_synthesis = bin_chunk.unwrap_or(&bytes[GLB_HEADER_SIZE..]);
+        let max_synthesis_bytes = (header.declared_length as usize)
+            .saturating_sub(GLB_HEADER_SIZE)
+            .min(payload_for_synthesis.len());
+        let payload_for_synthesis = &payload_for_synthesis[..max_synthesis_bytes];
 
         let mut points = Vec::new();
-        for chunk in payload.chunks_exact(12).take(8192) {
+        for chunk in payload_for_synthesis.chunks_exact(12).take(8192) {
             let x = f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f64;
             let y = f32::from_le_bytes([chunk[4], chunk[5], chunk[6], chunk[7]]) as f64;
             let z = f32::from_le_bytes([chunk[8], chunk[9], chunk[10], chunk[11]]) as f64;
@@ -87,8 +376,8 @@ impl GlbLoader {
         }
 
         let template = if points.len() < 3 {
-            let radius = 1.0 + (version as f64 * 0.2);
-            MeshAsset::procedural_asteroid(name, radius, 18 + version)
+            let radius = 1.0 + (header.version as f64 * 0.2);
+            MeshAsset::procedural_asteroid(name, radius, 18 + header.version)
         } else {
             let centroid = points.iter().copied().fold(Vec3::ZERO, |acc, point| acc + point) / points.len() as f64;
             let max_radius = points
@@ -271,31 +560,6 @@ impl GlbLoader {
                 asset
             })
             .collect()
-    }
-
-    fn extract_json_chunk(&self, bytes: &[u8]) -> Option<String> {
-        if bytes.len() < 20 || &bytes[0..4] != b"glTF" {
-            return None;
-        }
-
-        let mut offset = 12usize;
-        while offset + 8 <= bytes.len() {
-            let chunk_length = u32::from_le_bytes(bytes[offset..offset + 4].try_into().ok()?) as usize;
-            let chunk_type = u32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().ok()?);
-            offset += 8;
-            if offset + chunk_length > bytes.len() {
-                break;
-            }
-
-            if chunk_type == 0x4E4F_534A {
-                let json_bytes = &bytes[offset..offset + chunk_length];
-                return Some(String::from_utf8_lossy(json_bytes).trim_matches(char::from(0)).to_string());
-            }
-
-            offset += chunk_length;
-        }
-
-        None
     }
 
     fn extract_node_transforms(json: &str) -> Vec<GltfNodeTransform> {
@@ -551,5 +815,217 @@ impl GlbLoader {
         }
 
         objects
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn build_header(version: u32, total_length: u32) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(GLB_HEADER_SIZE);
+        buf.extend_from_slice(GLB_MAGIC);
+        buf.extend_from_slice(&version.to_le_bytes());
+        buf.extend_from_slice(&total_length.to_le_bytes());
+        buf
+    }
+
+    fn build_chunk(chunk_type: u32, payload: &[u8]) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(8 + payload.len());
+        buf.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        buf.extend_from_slice(&chunk_type.to_le_bytes());
+        buf.extend_from_slice(payload);
+        buf
+    }
+
+    fn build_glb(chunks: &[(u32, Vec<u8>)]) -> Vec<u8> {
+        let mut total = GLB_HEADER_SIZE;
+        let mut tail = Vec::new();
+        for (ty, payload) in chunks {
+            let chunk = build_chunk(*ty, payload);
+            total += chunk.len();
+            tail.extend(chunk);
+        }
+        let mut buf = build_header(GLB_SUPPORTED_VERSION, total as u32);
+        buf.extend(tail);
+        buf
+    }
+
+    #[test]
+    fn validate_header_rejects_truncated_input() {
+        let buf = vec![0u8; GLB_HEADER_SIZE - 1];
+        match validate_glb_header(&buf) {
+            Err(GlbLoadError::HeaderTruncated { size }) => assert_eq!(size, GLB_HEADER_SIZE - 1),
+            other => panic!("expected HeaderTruncated, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_header_rejects_invalid_magic() {
+        let mut buf = build_header(GLB_SUPPORTED_VERSION, GLB_HEADER_SIZE as u32);
+        buf[0] = b'X';
+        match validate_glb_header(&buf) {
+            Err(GlbLoadError::InvalidMagic { found }) => assert_eq!(found[0], b'X'),
+            other => panic!("expected InvalidMagic, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_header_rejects_unsupported_version() {
+        let buf = build_header(1, GLB_HEADER_SIZE as u32);
+        match validate_glb_header(&buf) {
+            Err(GlbLoadError::UnsupportedVersion { version }) => assert_eq!(version, 1),
+            other => panic!("expected UnsupportedVersion, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_header_rejects_declared_length_mismatch() {
+        let buf = build_header(GLB_SUPPORTED_VERSION, (GLB_HEADER_SIZE as u32) + 16);
+        match validate_glb_header(&buf) {
+            Err(GlbLoadError::DeclaredLengthMismatch { declared, actual }) => {
+                assert_eq!(declared, (GLB_HEADER_SIZE as u64) + 16);
+                assert_eq!(actual, GLB_HEADER_SIZE);
+            }
+            other => panic!("expected DeclaredLengthMismatch, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn validate_header_accepts_minimal_valid_buffer() {
+        let buf = build_header(GLB_SUPPORTED_VERSION, GLB_HEADER_SIZE as u32);
+        let header = validate_glb_header(&buf).expect("minimal header valid");
+        assert_eq!(header.version, GLB_SUPPORTED_VERSION);
+        assert_eq!(header.declared_length as usize, GLB_HEADER_SIZE);
+    }
+
+    #[test]
+    fn iter_chunks_returns_empty_on_header_only_buffer() {
+        let buf = build_header(GLB_SUPPORTED_VERSION, GLB_HEADER_SIZE as u32);
+        let chunks = iter_glb_chunks(&buf).expect("header only is valid");
+        assert!(chunks.is_empty());
+    }
+
+    #[test]
+    fn iter_chunks_walks_json_and_bin() {
+        let json = b"{\"a\":1}".to_vec();
+        let bin = vec![1u8, 2, 3, 4];
+        let buf = build_glb(&[
+            (GLB_CHUNK_TYPE_JSON, json.clone()),
+            (GLB_CHUNK_TYPE_BIN, bin.clone()),
+        ]);
+        let chunks = iter_glb_chunks(&buf).expect("two-chunk container valid");
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].0, GLB_CHUNK_TYPE_JSON);
+        assert_eq!(chunks[0].1, json.as_slice());
+        assert_eq!(chunks[1].0, GLB_CHUNK_TYPE_BIN);
+        assert_eq!(chunks[1].1, bin.as_slice());
+    }
+
+    #[test]
+    fn iter_chunks_rejects_truncated_chunk_header() {
+        let mut buf = build_header(GLB_SUPPORTED_VERSION, (GLB_HEADER_SIZE as u32) + 4);
+        buf.extend_from_slice(&[0u8, 0, 0, 0]);
+        match iter_glb_chunks(&buf) {
+            Err(GlbLoadError::ChunkHeaderTruncated { offset }) => {
+                assert_eq!(offset, GLB_HEADER_SIZE);
+            }
+            other => panic!("expected ChunkHeaderTruncated, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn iter_chunks_rejects_payload_truncation() {
+        let mut tail = Vec::new();
+        tail.extend_from_slice(&16u32.to_le_bytes());
+        tail.extend_from_slice(&GLB_CHUNK_TYPE_JSON.to_le_bytes());
+        tail.extend_from_slice(&[1u8, 2, 3]);
+        let total = GLB_HEADER_SIZE + tail.len();
+        let mut buf = build_header(GLB_SUPPORTED_VERSION, total as u32);
+        buf.extend(tail);
+        match iter_glb_chunks(&buf) {
+            Err(GlbLoadError::ChunkPayloadTruncated { length, remaining, .. }) => {
+                assert_eq!(length, 16);
+                assert_eq!(remaining, 3);
+            }
+            other => panic!("expected ChunkPayloadTruncated, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn iter_chunks_rejects_oversized_chunk() {
+        let mut tail = Vec::new();
+        let oversize = (MAX_GLB_CHUNK_SIZE as u32).saturating_add(1);
+        tail.extend_from_slice(&oversize.to_le_bytes());
+        tail.extend_from_slice(&GLB_CHUNK_TYPE_BIN.to_le_bytes());
+        let total = GLB_HEADER_SIZE + tail.len();
+        let mut buf = build_header(GLB_SUPPORTED_VERSION, total as u32);
+        buf.extend(tail);
+        match iter_glb_chunks(&buf) {
+            Err(GlbLoadError::ChunkTooLarge { length, limit }) => {
+                assert_eq!(length, oversize as u64);
+                assert_eq!(limit, MAX_GLB_CHUNK_SIZE);
+            }
+            other => panic!("expected ChunkTooLarge, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn iter_chunks_rejects_chunk_extending_past_eof() {
+        let mut tail = Vec::new();
+        tail.extend_from_slice(&u32::MAX.to_le_bytes());
+        tail.extend_from_slice(&GLB_CHUNK_TYPE_BIN.to_le_bytes());
+        let total = GLB_HEADER_SIZE + tail.len();
+        let mut buf = build_header(GLB_SUPPORTED_VERSION, total as u32);
+        buf.extend(tail);
+        match iter_glb_chunks(&buf) {
+            Err(GlbLoadError::ChunkTooLarge { .. })
+            | Err(GlbLoadError::ChunkPayloadTruncated { .. })
+            | Err(GlbLoadError::ChunkLengthOverflow { .. }) => {}
+            other => panic!("expected size/overflow rejection, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn glb_load_error_to_io_error_preserves_message() {
+        let err = GlbLoadError::HeaderTruncated { size: 4 };
+        let msg = err.to_string();
+        let io_err: io::Error = err.into();
+        assert_eq!(io_err.kind(), io::ErrorKind::InvalidData);
+        assert!(io_err.to_string().contains(&msg));
+    }
+
+    #[test]
+    fn deterministic_fuzz_validate_header_never_panics() {
+        let mut state: u64 = 0x9E37_79B9_7F4A_7C15;
+        for _ in 0..512 {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            let len = (state as usize) % 64;
+            let mut buf = vec![0u8; len];
+            for (i, byte) in buf.iter_mut().enumerate() {
+                *byte = ((state >> ((i % 8) * 8)) & 0xFF) as u8;
+            }
+            let _ = validate_glb_header(&buf);
+        }
+    }
+
+    #[test]
+    fn deterministic_fuzz_iter_chunks_never_panics() {
+        let mut state: u64 = 0xD1B5_4A32_D192_ED03;
+        for _ in 0..512 {
+            state ^= state << 11;
+            state ^= state >> 9;
+            state ^= state << 23;
+            let payload_len = (state as usize) % 96;
+            let total = GLB_HEADER_SIZE + payload_len;
+            let mut buf = build_header(GLB_SUPPORTED_VERSION, total as u32);
+            for i in 0..payload_len {
+                let mix = state.wrapping_mul(i as u64 + 1);
+                buf.push((mix & 0xFF) as u8);
+            }
+            let _ = iter_glb_chunks(&buf);
+        }
     }
 }

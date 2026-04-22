@@ -2,6 +2,7 @@ use crate::api::materials::catalog::MaterialCatalog;
 use crate::api::scenes::builder::SceneBuilder;
 use crate::core::engine::rendering::raytracing::Vec3;
 
+/// Builds a scene from a free-form natural-language prompt.
 pub fn scene_from_prompt(prompt: &str) -> SceneBuilder {
     let lower = prompt.to_lowercase();
     let tokens = tokenize(&lower);

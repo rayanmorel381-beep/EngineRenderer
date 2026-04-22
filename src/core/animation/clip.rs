@@ -2,11 +2,16 @@ use crate::api::scenes::SceneDescriptor;
 use crate::api::types::CameraDesc;
 use super::timeline::{Timeline, Lerp};
 
+/// Camera state sampled for a single animation time.
 #[derive(Debug, Clone)]
 pub struct CameraFrame {
+    /// Camera eye position.
     pub eye:         [f64; 3],
+    /// Camera look-at target.
     pub target:      [f64; 3],
+    /// Vertical field of view in degrees.
     pub fov_degrees: f64,
+    /// Lens aperture value.
     pub aperture:    f64,
 }
 
@@ -28,10 +33,14 @@ impl Lerp for CameraFrame {
     }
 }
 
+/// Directional sun state sampled for a single animation time.
 #[derive(Debug, Clone)]
 pub struct SunFrame {
+    /// Sun direction vector.
     pub direction: [f64; 3],
+    /// Sun light color.
     pub color:     [f64; 3],
+    /// Sun intensity multiplier.
     pub intensity: f64,
 }
 
@@ -45,9 +54,12 @@ impl Lerp for SunFrame {
     }
 }
 
+/// Sky gradient state sampled for a single animation time.
 #[derive(Debug, Clone)]
 pub struct SkyFrame {
+    /// Sky color at zenith.
     pub top:    [f64; 3],
+    /// Sky color at horizon.
     pub bottom: [f64; 3],
 }
 
@@ -60,17 +72,25 @@ impl Lerp for SkyFrame {
     }
 }
 
+/// Animation clip with optional timelines for scene channels.
 #[derive(Debug, Clone)]
 pub struct AnimationClip {
+    /// Clip duration in seconds.
     pub duration_secs: f64,
+    /// Frames per second.
     pub fps:           f64,
+    /// Optional animated camera timeline.
     pub camera:        Option<Timeline<CameraFrame>>,
+    /// Optional animated sun timeline.
     pub sun:           Option<Timeline<SunFrame>>,
+    /// Optional animated sky timeline.
     pub sky:           Option<Timeline<SkyFrame>>,
+    /// Optional animated exposure timeline.
     pub exposure:      Option<Timeline<f64>>,
 }
 
 impl AnimationClip {
+    /// Creates a new animation clip.
     pub fn new(duration_secs: f64, fps: f64) -> Self {
         Self {
             duration_secs,
@@ -82,14 +102,17 @@ impl AnimationClip {
         }
     }
 
+    /// Returns the number of frames in the clip.
     pub fn frame_count(&self) -> usize {
         (self.duration_secs * self.fps).ceil() as usize
     }
 
+    /// Returns the timestamp of a frame index in seconds.
     pub fn time_for_frame(&self, frame: usize) -> f64 {
         frame as f64 / self.fps
     }
 
+    /// Evaluates animated channels over a base scene at a given time.
     pub fn evaluate(&self, base: &SceneDescriptor, time: f64) -> SceneDescriptor {
         let mut scene = base.clone();
 
