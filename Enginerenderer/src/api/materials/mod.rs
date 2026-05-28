@@ -12,4 +12,4 @@ pub mod spectrum;
 pub use self::builder::MaterialBuilder;
 pub use self::physics::PhysicsConfig;
 pub use self::shortcuts::*;
-pub use self::spectrum::{Spectrum, SPECTRAL_BANDS};
+pub use self::spectrum::{SPECTRAL_BANDS, Spectrum};

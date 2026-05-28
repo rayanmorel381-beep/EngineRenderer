@@ -1,9 +1,8 @@
-
 use std::time::Instant;
 
 use crate::api::engine::engine_api::EngineApi;
-use crate::core::engine::acces_hardware::arch::compute_dispatch;
 use crate::core::engine::acces_hardware::NativeHardwareBackend;
+use crate::core::engine::acces_hardware::arch::compute_dispatch;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// Supported compute CPU architecture families.
@@ -305,7 +304,10 @@ pub struct ComputeEnvironmentReport {
 
 impl EngineApi {
     /// Builds a structured compute-environment report.
-    pub fn compute_environment_report(&self, options: &DiagnosticsOptions) -> ComputeEnvironmentReport {
+    pub fn compute_environment_report(
+        &self,
+        options: &DiagnosticsOptions,
+    ) -> ComputeEnvironmentReport {
         let config = compute_dispatch::default_config();
         let backend = NativeHardwareBackend::detect();
         let hardware = backend.hw_caps().clone();
@@ -319,7 +321,9 @@ impl EngineApi {
                 render_workers: config.cpu.render_workers,
                 frame_budget_us: config.cpu.frame_budget_us,
                 low_power: config.cpu.low_power,
-                schedule: to_schedule(compute_dispatch::build_cpu_schedule(config.cpu.render_workers.max(1))),
+                schedule: to_schedule(compute_dispatch::build_cpu_schedule(
+                    config.cpu.render_workers.max(1),
+                )),
             },
             gpu: GpuReport {
                 vendor: map_vendor(config.gpu.vendor),
@@ -329,7 +333,9 @@ impl EngineApi {
                 double_buffered: config.gpu.double_buffered,
                 frame_budget_us: config.gpu.frame_budget_us,
                 low_power: config.gpu.low_power,
-                schedule: to_schedule(compute_dispatch::build_gpu_schedule(config.gpu.render_threads.max(1))),
+                schedule: to_schedule(compute_dispatch::build_gpu_schedule(
+                    config.gpu.render_threads.max(1),
+                )),
             },
             display: DisplayReport {
                 vendor: map_vendor(config.display.vendor),
@@ -340,7 +346,9 @@ impl EngineApi {
                 vsync_slots: config.display.vsync_slots,
                 double_buffered: config.display.double_buffered,
                 low_power: config.display.low_power,
-                schedule: to_schedule(compute_dispatch::build_display_schedule(config.display.vsync_slots.max(1))),
+                schedule: to_schedule(compute_dispatch::build_display_schedule(
+                    config.display.vsync_slots.max(1),
+                )),
             },
             ram: RamReport {
                 page_size: config.ram.page_size,
@@ -348,7 +356,9 @@ impl EngineApi {
                 available_bytes: config.ram.available_bytes,
                 frame_budget_us: config.ram.frame_budget_us,
                 low_power: config.ram.low_power,
-                schedule: to_schedule(compute_dispatch::build_ram_schedule(config.cpu.render_workers.max(1))),
+                schedule: to_schedule(compute_dispatch::build_ram_schedule(
+                    config.cpu.render_workers.max(1),
+                )),
             },
             hardware: HardwareReport {
                 logical_cores: hardware.logical_cores,
@@ -388,7 +398,11 @@ impl EngineApi {
 impl ComputeEnvironmentReport {
     /// Prints a human-readable diagnostics summary.
     pub fn print_text(&self, component: Option<DiagnosticComponent>, verbose: bool) {
-        eprintln!("compute-detect: arch={} os={}", self.arch.as_str(), self.os.as_str());
+        eprintln!(
+            "compute-detect: arch={} os={}",
+            self.arch.as_str(),
+            self.os.as_str()
+        );
         if let Some(arch) = self.overrides.arch {
             eprintln!("override: arch={}", arch.as_str());
         }
@@ -451,7 +465,10 @@ impl ComputeEnvironmentReport {
                 "ram: page_size={} total_bytes={} available_bytes={} frame_budget_us={} low_power={} schedule={}/{}/{}",
                 self.ram.page_size,
                 self.ram.total_bytes,
-                self.ram.available_bytes.map(|v| v.to_string()).unwrap_or_else(|| "null".to_string()),
+                self.ram
+                    .available_bytes
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| "null".to_string()),
                 self.ram.frame_budget_us,
                 self.ram.low_power,
                 self.ram.schedule.chunks,
@@ -475,9 +492,7 @@ impl ComputeEnvironmentReport {
         if let Some(bench) = &self.benchmark {
             eprintln!(
                 "bench: iterations={} total_ms={} avg_us={}",
-                bench.iterations,
-                bench.total_ms,
-                bench.avg_us
+                bench.iterations, bench.total_ms, bench.avg_us
             );
         }
     }
@@ -566,21 +581,31 @@ impl ComputeEnvironmentReport {
             ));
         }
 
-        if self.overrides.arch.is_some() || self.overrides.os.is_some() || self.overrides.vendor.is_some() {
+        if self.overrides.arch.is_some()
+            || self.overrides.os.is_some()
+            || self.overrides.vendor.is_some()
+        {
             fields.push(format!(
                 "\"overrides\":{{\"arch\":{},\"os\":{},\"vendor\":{}}}",
-                self.overrides.arch.map(|v| format!("\"{}\"", v.as_str())).unwrap_or_else(|| "null".to_string()),
-                self.overrides.os.map(|v| format!("\"{}\"", v.as_str())).unwrap_or_else(|| "null".to_string()),
-                self.overrides.vendor.map(|v| format!("\"{}\"", v.as_str())).unwrap_or_else(|| "null".to_string())
+                self.overrides
+                    .arch
+                    .map(|v| format!("\"{}\"", v.as_str()))
+                    .unwrap_or_else(|| "null".to_string()),
+                self.overrides
+                    .os
+                    .map(|v| format!("\"{}\"", v.as_str()))
+                    .unwrap_or_else(|| "null".to_string()),
+                self.overrides
+                    .vendor
+                    .map(|v| format!("\"{}\"", v.as_str()))
+                    .unwrap_or_else(|| "null".to_string())
             ));
         }
 
         if let Some(bench) = &self.benchmark {
             fields.push(format!(
                 "\"bench\":{{\"iterations\":{},\"total_ms\":{},\"avg_us\":{}}}",
-                bench.iterations,
-                bench.total_ms,
-                bench.avg_us
+                bench.iterations, bench.total_ms, bench.avg_us
             ));
         }
 
@@ -670,10 +695,10 @@ fn run_benchmark(logical_cores: u32) -> BenchmarkReport {
     let synthetic_overhead = schedule_weight
         .saturating_add(worker_weight)
         .saturating_div(iterations as u128);
-    let total_ms = elapsed.as_millis().saturating_add(synthetic_overhead / 1_000);
-    let avg_us = elapsed.as_micros()
-        .saturating_add(synthetic_overhead)
-        / (iterations as u128);
+    let total_ms = elapsed
+        .as_millis()
+        .saturating_add(synthetic_overhead / 1_000);
+    let avg_us = elapsed.as_micros().saturating_add(synthetic_overhead) / (iterations as u128);
 
     BenchmarkReport {
         iterations,

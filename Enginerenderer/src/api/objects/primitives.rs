@@ -3,7 +3,9 @@ use crate::api::objects::SceneObject;
 use crate::core::engine::rendering::raytracing::Vec3;
 
 pub use crate::core::engine::rendering::mesh::asset::MeshAsset;
-pub use crate::core::engine::rendering::mesh::generators::{ground_plane, icosphere, torus, unit_cube};
+pub use crate::core::engine::rendering::mesh::generators::{
+    ground_plane, icosphere, torus, unit_cube,
+};
 pub use crate::core::engine::rendering::mesh::operations::{
     compute_tangents, recalculate_normals, subdivide,
 };

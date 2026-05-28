@@ -5,7 +5,7 @@
 //! Linux target with libX11.so + libGL.so available at runtime.
 
 pub(crate) mod glx;
-pub(crate) mod x11;
 mod screen;
+pub(crate) mod x11;
 
 pub use screen::LinuxWindow;

@@ -204,8 +204,7 @@ type FnXOpenDisplay = unsafe extern "C" fn(*const c_char) -> *mut Display;
 type FnXCloseDisplay = unsafe extern "C" fn(*mut Display) -> c_int;
 type FnXDefaultScreen = unsafe extern "C" fn(*mut Display) -> c_int;
 type FnXRootWindow = unsafe extern "C" fn(*mut Display, c_int) -> Window;
-type FnXCreateColormap =
-    unsafe extern "C" fn(*mut Display, Window, *mut Visual, c_int) -> Colormap;
+type FnXCreateColormap = unsafe extern "C" fn(*mut Display, Window, *mut Visual, c_int) -> Colormap;
 type FnXCreateWindow = unsafe extern "C" fn(
     *mut Display,
     Window,
@@ -257,16 +256,9 @@ type FnXGetWindowProperty = unsafe extern "C" fn(
     *mut c_ulong,
     *mut *mut c_uchar,
 ) -> c_int;
-type FnXSendEvent =
-    unsafe extern "C" fn(*mut Display, Window, c_int, c_long, *mut XEvent) -> c_int;
-type FnXConvertSelection = unsafe extern "C" fn(
-    *mut Display,
-    Atom,
-    Atom,
-    Atom,
-    Window,
-    c_ulong,
-) -> c_int;
+type FnXSendEvent = unsafe extern "C" fn(*mut Display, Window, c_int, c_long, *mut XEvent) -> c_int;
+type FnXConvertSelection =
+    unsafe extern "C" fn(*mut Display, Atom, Atom, Atom, Window, c_ulong) -> c_int;
 type FnXDeleteProperty = unsafe extern "C" fn(*mut Display, Window, Atom) -> c_int;
 
 #[allow(non_snake_case, dead_code)]
@@ -309,7 +301,10 @@ unsafe fn load_sym<T: Copy>(handle: *mut c_void, name: &[u8]) -> Option<T> {
     if sym.is_null() {
         return None;
     }
-    debug_assert_eq!(core::mem::size_of::<T>(), core::mem::size_of::<*mut c_void>());
+    debug_assert_eq!(
+        core::mem::size_of::<T>(),
+        core::mem::size_of::<*mut c_void>()
+    );
     Some(unsafe { core::mem::transmute_copy::<*mut c_void, T>(&sym) })
 }
 
@@ -474,16 +469,9 @@ impl X11Window {
         title_bytes.push(0);
         unsafe { (lib.XStoreName)(display, window, title_bytes.as_ptr() as *const c_char) };
 
-        let _wm_protocols = unsafe {
-            (lib.XInternAtom)(display, c"WM_PROTOCOLS".as_ptr(), 0)
-        };
-        let wm_delete_window = unsafe {
-            (lib.XInternAtom)(
-                display,
-                c"WM_DELETE_WINDOW".as_ptr(),
-                0,
-            )
-        };
+        let _wm_protocols = unsafe { (lib.XInternAtom)(display, c"WM_PROTOCOLS".as_ptr(), 0) };
+        let wm_delete_window =
+            unsafe { (lib.XInternAtom)(display, c"WM_DELETE_WINDOW".as_ptr(), 0) };
         if wm_delete_window != 0 {
             let mut atoms = [wm_delete_window];
             unsafe {
@@ -628,11 +616,7 @@ impl X11Window {
         self.xdnd_source = cm.data[0] as Window;
         self.xdnd_version = (cm.data[1] >> 24) & 0xFF;
         self.xdnd_format = 0;
-        let candidates: [Atom; 3] = [
-            cm.data[2] as Atom,
-            cm.data[3] as Atom,
-            cm.data[4] as Atom,
-        ];
+        let candidates: [Atom; 3] = [cm.data[2] as Atom, cm.data[3] as Atom, cm.data[4] as Atom];
         for atom in candidates {
             if atom == self.xdnd.uri_list {
                 self.xdnd_format = atom;
@@ -702,13 +686,7 @@ impl X11Window {
             0
         };
         unsafe {
-            (lib.XSendEvent)(
-                self.display,
-                self.xdnd_source,
-                0,
-                NO_EVENT_MASK,
-                &mut reply,
-            );
+            (lib.XSendEvent)(self.display, self.xdnd_source, 0, NO_EVENT_MASK, &mut reply);
             (lib.XFlush)(self.display);
         }
     }
@@ -800,13 +778,7 @@ impl X11Window {
             0
         };
         unsafe {
-            (lib.XSendEvent)(
-                self.display,
-                self.xdnd_source,
-                0,
-                NO_EVENT_MASK,
-                &mut reply,
-            );
+            (lib.XSendEvent)(self.display, self.xdnd_source, 0, NO_EVENT_MASK, &mut reply);
             (lib.XFlush)(self.display);
         }
         self.xdnd_source = 0;
@@ -892,7 +864,9 @@ fn decode_file_uri(input: &str) -> Option<String> {
             i += 1;
         }
     }
-    String::from_utf8(decoded).ok().map(|s| s.trim().to_string())
+    String::from_utf8(decoded)
+        .ok()
+        .map(|s| s.trim().to_string())
 }
 
 fn hex_value(c: u8) -> Option<u8> {

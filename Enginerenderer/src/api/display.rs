@@ -58,4 +58,3 @@ mod linux_offscreen {
             .map(|inner| DesktopOffscreenContext { inner })
     }
 }
-

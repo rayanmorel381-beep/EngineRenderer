@@ -91,9 +91,7 @@ pub(crate) fn probe_radeon_telemetry(card: &str) -> (u32, u32, u32, i32) {
         .ok()
         .and_then(|mut dir| dir.next())
         .and_then(|entry| entry.ok())
-        .and_then(|entry| {
-            read_sysfs_i32(entry.path().join("temp1_input").to_str()?)
-        })
+        .and_then(|entry| read_sysfs_i32(entry.path().join("temp1_input").to_str()?))
         .map(|milli| milli / 1000)
         .unwrap_or(0);
 
@@ -113,11 +111,24 @@ pub(crate) fn drm_radeon_alloc_gem(fd: RawFd, size_bytes: u64) -> Option<GemBuff
         flags: 0,
     };
     let ret = unsafe {
-        raw_ioctl(fd, DRM_IOCTL_RADEON_GEM_CREATE, core::ptr::addr_of_mut!(args).cast())
+        raw_ioctl(
+            fd,
+            DRM_IOCTL_RADEON_GEM_CREATE,
+            core::ptr::addr_of_mut!(args).cast(),
+        )
     };
     if ret == 0 && args.handle != 0 {
-        crate::runtime_log!("gpu: radeon GEM created — handle={} size={}KB", args.handle, aligned / 1024);
-        Some(GemBuffer { fd, handle: args.handle, size: aligned, mmap_offset: 0 })
+        crate::runtime_log!(
+            "gpu: radeon GEM created — handle={} size={}KB",
+            args.handle,
+            aligned / 1024
+        );
+        Some(GemBuffer {
+            fd,
+            handle: args.handle,
+            size: aligned,
+            mmap_offset: 0,
+        })
     } else {
         crate::runtime_log!("gpu: radeon GEM create failed (ret={})", ret);
         None
@@ -133,7 +144,11 @@ pub(crate) fn drm_radeon_gem_mmap(fd: RawFd, handle: u32, size: u64) -> Option<u
         addr_ptr: 0,
     };
     let ret = unsafe {
-        raw_ioctl(fd, DRM_IOCTL_RADEON_GEM_MMAP, core::ptr::addr_of_mut!(args).cast())
+        raw_ioctl(
+            fd,
+            DRM_IOCTL_RADEON_GEM_MMAP,
+            core::ptr::addr_of_mut!(args).cast(),
+        )
     };
     if ret == 0 && args.addr_ptr != 0 {
         Some(args.addr_ptr)
@@ -146,12 +161,21 @@ pub(crate) fn drm_radeon_gem_mmap(fd: RawFd, handle: u32, size: u64) -> Option<u
 pub(crate) fn drm_radeon_gem_wait(fd: RawFd, handle: u32) -> bool {
     let mut args = DrmRadeonGemWait { handle, pad: 0 };
     let ret = unsafe {
-        raw_ioctl(fd, DRM_IOCTL_RADEON_GEM_WAIT_IDLE, core::ptr::addr_of_mut!(args).cast())
+        raw_ioctl(
+            fd,
+            DRM_IOCTL_RADEON_GEM_WAIT_IDLE,
+            core::ptr::addr_of_mut!(args).cast(),
+        )
     };
     ret == 0
 }
 
-pub(crate) fn drm_radeon_set_domain(fd: RawFd, handle: u32, read_domains: u32, write_domain: u32) -> bool {
+pub(crate) fn drm_radeon_set_domain(
+    fd: RawFd,
+    handle: u32,
+    read_domains: u32,
+    write_domain: u32,
+) -> bool {
     let mut args = DrmRadeonGemSetDomain {
         handle,
         read_domains,
@@ -159,12 +183,20 @@ pub(crate) fn drm_radeon_set_domain(fd: RawFd, handle: u32, read_domains: u32, w
         pad: 0,
     };
     let ret = unsafe {
-        raw_ioctl(fd, DRM_IOCTL_RADEON_GEM_SET_DOMAIN, core::ptr::addr_of_mut!(args).cast())
+        raw_ioctl(
+            fd,
+            DRM_IOCTL_RADEON_GEM_SET_DOMAIN,
+            core::ptr::addr_of_mut!(args).cast(),
+        )
     };
     ret == 0
 }
 
-pub(crate) fn submit_radeon_cs(fd: RawFd, gem_handle: u32, packets: &[u32]) -> Result<i64, &'static str> {
+pub(crate) fn submit_radeon_cs(
+    fd: RawFd,
+    gem_handle: u32,
+    packets: &[u32],
+) -> Result<i64, &'static str> {
     drm_radeon_set_domain(fd, gem_handle, 0x2, 0x2);
     let relocs_chunk = DrmRadeonCsChunk {
         chunk_id: 0x01,
@@ -187,13 +219,13 @@ pub(crate) fn submit_radeon_cs(fd: RawFd, gem_handle: u32, packets: &[u32]) -> R
         gart_limit: 0,
         vram_limit: 0,
     };
-    let ret = unsafe {
-        raw_ioctl(fd, DRM_IOCTL_RADEON_CS, core::ptr::addr_of_mut!(cs).cast())
-    };
+    let ret = unsafe { raw_ioctl(fd, DRM_IOCTL_RADEON_CS, core::ptr::addr_of_mut!(cs).cast()) };
     if ret == 0 {
         crate::runtime_log!(
             "gpu: radeon CS submitted — {} dwords, cs_id={}, gem_handle={}",
-            packets.len(), cs.cs_id, gem_handle,
+            packets.len(),
+            cs.cs_id,
+            gem_handle,
         );
         Ok(cs.cs_id as i64)
     } else {

@@ -8,9 +8,15 @@ fn render_request_presets_have_expected_dimensions() {
     let h = RenderRequest::hd();
     let pr = RenderRequest::production();
 
-    assert_eq!((p.width, p.height, p.quality), (1280, 720, Quality::Preview));
+    assert_eq!(
+        (p.width, p.height, p.quality),
+        (1280, 720, Quality::Preview)
+    );
     assert_eq!((h.width, h.height, h.quality), (1920, 1080, Quality::Hd));
-    assert_eq!((pr.width, pr.height, pr.quality), (3840, 2160, Quality::Production));
+    assert_eq!(
+        (pr.width, pr.height, pr.quality),
+        (3840, 2160, Quality::Production)
+    );
 }
 
 #[test]

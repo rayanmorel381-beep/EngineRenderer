@@ -5,7 +5,10 @@ pub struct HrtfProcessor {
 
 impl HrtfProcessor {
     pub fn new(head_radius: f64, sample_rate: u32) -> Self {
-        Self { head_radius, sample_rate }
+        Self {
+            head_radius,
+            sample_rate,
+        }
     }
 
     pub fn process(&self, mono: &[f32], azimuth: f64, elevation: f64) -> Vec<[f32; 2]> {
@@ -23,8 +26,16 @@ impl HrtfProcessor {
         let n = mono.len();
         let mut out = vec![[0.0_f32; 2]; n];
         for (i, sample) in out.iter_mut().enumerate().take(n) {
-            let left_idx = if i >= delay_samples { i - delay_samples } else { i };
-            let right_idx = if i + delay_samples < n { i + delay_samples } else { n - 1 };
+            let left_idx = if i >= delay_samples {
+                i - delay_samples
+            } else {
+                i
+            };
+            let right_idx = if i + delay_samples < n {
+                i + delay_samples
+            } else {
+                n - 1
+            };
             sample[0] = mono[left_idx] * gain_l;
             sample[1] = mono[right_idx] * gain_r;
         }

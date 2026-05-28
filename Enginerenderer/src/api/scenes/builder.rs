@@ -4,10 +4,10 @@ use std::{fs, io, path::Path, str::FromStr};
 use crate::api::materials::catalog::MaterialCatalog;
 use crate::api::objects::SceneObject;
 use crate::api::types::CameraDesc;
+use crate::core::engine::rendering::effects::volumetric_effects::medium::VolumetricMedium;
 use crate::core::engine::rendering::raytracing::{
     AreaLight, Camera, DirectionalLight, Material, Scene, Sphere, Triangle, Vec3,
 };
-use crate::core::engine::rendering::effects::volumetric_effects::medium::VolumetricMedium;
 
 /// Fluent scene construction helper for API consumers.
 #[derive(Debug, Clone)]
@@ -93,7 +93,8 @@ impl SceneBuilder {
         scale: f64,
         material: Material,
     ) -> Self {
-        self.triangles.extend(mesh.to_triangles(translation, scale, material));
+        self.triangles
+            .extend(mesh.to_triangles(translation, scale, material));
         self
     }
 
@@ -113,10 +114,10 @@ impl SceneBuilder {
         self
     }
 
-        /// Light position.
-        /// Light color.
-        /// Light intensity.
-        /// Rectangular size.
+    /// Light position.
+    /// Light color.
+    /// Light intensity.
+    /// Rectangular size.
     /// Sets the directional light intensity.
     pub fn sun_intensity(mut self, intensity: f64) -> Self {
         self.sun_intensity = intensity.max(0.0);
@@ -214,10 +215,7 @@ impl SceneBuilder {
         if self.spheres.is_empty() && self.triangles.is_empty() {
             return self;
         }
-        let sphere_center_sum = self
-            .spheres
-            .iter()
-            .fold(Vec3::ZERO, |a, s| a + s.center);
+        let sphere_center_sum = self.spheres.iter().fold(Vec3::ZERO, |a, s| a + s.center);
         let triangle_center_sum = self
             .triangles
             .iter()
@@ -242,7 +240,11 @@ impl SceneBuilder {
             .fold(0.0_f64, f64::max);
         let extent = sphere_extent.max(triangle_extent).max(1.0);
         let dist = extent * 2.8;
-        self.camera.eye = [center.x + dist * 0.7, center.y + dist * 0.45, center.z + dist * 0.7];
+        self.camera.eye = [
+            center.x + dist * 0.7,
+            center.y + dist * 0.45,
+            center.z + dist * 0.7,
+        ];
         self.camera.target = [center.x, center.y, center.z];
         self
     }
@@ -298,17 +300,17 @@ pub struct SphereEntry {
     /// Sphere center position.
     pub position: [f64; 3],
     /// Sphere radius.
-    pub radius:   f64,
+    pub radius: f64,
     /// Optional material preset name.
     pub material_name: Option<String>,
     /// Fallback albedo color.
-    pub albedo:    [f64; 3],
+    pub albedo: [f64; 3],
     /// Surface roughness.
     pub roughness: f64,
     /// Metallic factor.
-    pub metallic:  f64,
+    pub metallic: f64,
     /// Emission intensity.
-    pub emission:  f64,
+    pub emission: f64,
 }
 
 impl Default for SphereEntry {
@@ -317,10 +319,10 @@ impl Default for SphereEntry {
             position: [0.0; 3],
             radius: 1.0,
             material_name: None,
-            albedo:    [0.8, 0.8, 0.8],
+            albedo: [0.8, 0.8, 0.8],
             roughness: 0.5,
-            metallic:  0.0,
-            emission:  0.0,
+            metallic: 0.0,
+            emission: 0.0,
         }
     }
 }
@@ -365,22 +367,22 @@ impl Default for TriangleEntry {
 /// Serializable area-light entry used by descriptor parsing.
 pub struct AreaLightEntry {
     /// Light position.
-    pub position:  [f64; 3],
+    pub position: [f64; 3],
     /// Light color.
-    pub color:     [f64; 3],
+    pub color: [f64; 3],
     /// Light intensity.
     pub intensity: f64,
     /// Rectangular light size.
-    pub size:      [f64; 2],
+    pub size: [f64; 2],
 }
 
 impl Default for AreaLightEntry {
     fn default() -> Self {
         Self {
-            position:  [0.0, 5.0, 0.0],
-            color:     [1.0, 1.0, 1.0],
+            position: [0.0, 5.0, 0.0],
+            color: [1.0, 1.0, 1.0],
             intensity: 1.0,
-            size:      [2.0, 2.0],
+            size: [2.0, 2.0],
         }
     }
 }
@@ -389,40 +391,40 @@ impl Default for AreaLightEntry {
 /// Serializable scene descriptor format.
 pub struct SceneDescriptor {
     /// Camera descriptor.
-    pub camera:        CameraDesc,
+    pub camera: CameraDesc,
     /// Sun direction.
     pub sun_direction: [f64; 3],
     /// Sun color.
-    pub sun_color:     [f64; 3],
+    pub sun_color: [f64; 3],
     /// Sun intensity.
     pub sun_intensity: f64,
     /// Sky top color.
-    pub sky_top:       [f64; 3],
+    pub sky_top: [f64; 3],
     /// Sky bottom color.
-    pub sky_bottom:    [f64; 3],
+    pub sky_bottom: [f64; 3],
     /// Global exposure value.
-    pub exposure:      f64,
+    pub exposure: f64,
     /// Sphere entries.
-    pub spheres:       Vec<SphereEntry>,
+    pub spheres: Vec<SphereEntry>,
     /// Triangle entries.
-    pub triangles:     Vec<TriangleEntry>,
+    pub triangles: Vec<TriangleEntry>,
     /// Area-light entries.
-    pub area_lights:   Vec<AreaLightEntry>,
+    pub area_lights: Vec<AreaLightEntry>,
 }
 
 impl Default for SceneDescriptor {
     fn default() -> Self {
         Self {
-            camera:        CameraDesc::default(),
+            camera: CameraDesc::default(),
             sun_direction: [-0.65, -0.35, -1.0],
-            sun_color:     [1.0, 0.96, 0.90],
+            sun_color: [1.0, 0.96, 0.90],
             sun_intensity: 1.45,
-            sky_top:       [0.015, 0.020, 0.050],
-            sky_bottom:    [0.001, 0.001, 0.006],
-            exposure:      1.45,
-            spheres:       Vec::new(),
-            triangles:     Vec::new(),
-            area_lights:   Vec::new(),
+            sky_top: [0.015, 0.020, 0.050],
+            sky_bottom: [0.001, 0.001, 0.006],
+            exposure: 1.45,
+            spheres: Vec::new(),
+            triangles: Vec::new(),
+            area_lights: Vec::new(),
         }
     }
 }
@@ -483,44 +485,64 @@ impl SceneDescriptor {
                 "version" => {}
                 "camera" => {
                     let kv = KvMap::parse(rest, line_number)?;
-                    if let Some(v) = kv.get("eye")      { desc.camera.eye         = parse_f64_vec3(v, line_number)?; }
-                    if let Some(v) = kv.get("target")   { desc.camera.target      = parse_f64_vec3(v, line_number)?; }
-                    if let Some(v) = kv.get("fov")      {
+                    if let Some(v) = kv.get("eye") {
+                        desc.camera.eye = parse_f64_vec3(v, line_number)?;
+                    }
+                    if let Some(v) = kv.get("target") {
+                        desc.camera.target = parse_f64_vec3(v, line_number)?;
+                    }
+                    if let Some(v) = kv.get("fov") {
                         let value = parse_f64_val(v, line_number)?;
                         if value <= 0.0 || value >= 180.0 {
-                            return Err(format!("line {line_number}: fov must be in (0, 180), got {value}"));
+                            return Err(format!(
+                                "line {line_number}: fov must be in (0, 180), got {value}"
+                            ));
                         }
                         desc.camera.fov_degrees = value;
                     }
                     if let Some(v) = kv.get("aperture") {
                         let value = parse_f64_val(v, line_number)?;
                         if value < 0.0 {
-                            return Err(format!("line {line_number}: aperture must be non-negative, got {value}"));
+                            return Err(format!(
+                                "line {line_number}: aperture must be non-negative, got {value}"
+                            ));
                         }
                         desc.camera.aperture = value;
                     }
                 }
                 "sun" => {
                     let kv = KvMap::parse(rest, line_number)?;
-                    if let Some(v) = kv.get("dir")       { desc.sun_direction = parse_f64_vec3(v, line_number)?; }
+                    if let Some(v) = kv.get("dir") {
+                        desc.sun_direction = parse_f64_vec3(v, line_number)?;
+                    }
                     if let Some(v) = kv.get("intensity") {
                         let value = parse_f64_val(v, line_number)?;
                         if value < 0.0 {
-                            return Err(format!("line {line_number}: sun intensity must be non-negative, got {value}"));
+                            return Err(format!(
+                                "line {line_number}: sun intensity must be non-negative, got {value}"
+                            ));
                         }
                         desc.sun_intensity = value;
                     }
-                    if let Some(v) = kv.get("color")     { desc.sun_color     = parse_f64_vec3(v, line_number)?; }
+                    if let Some(v) = kv.get("color") {
+                        desc.sun_color = parse_f64_vec3(v, line_number)?;
+                    }
                 }
                 "sky" => {
                     let kv = KvMap::parse(rest, line_number)?;
-                    if let Some(v) = kv.get("top")    { desc.sky_top    = parse_f64_vec3(v, line_number)?; }
-                    if let Some(v) = kv.get("bottom") { desc.sky_bottom = parse_f64_vec3(v, line_number)?; }
+                    if let Some(v) = kv.get("top") {
+                        desc.sky_top = parse_f64_vec3(v, line_number)?;
+                    }
+                    if let Some(v) = kv.get("bottom") {
+                        desc.sky_bottom = parse_f64_vec3(v, line_number)?;
+                    }
                 }
                 "exposure" => {
                     let value = parse_f64_val(rest, line_number)?;
                     if value <= 0.0 {
-                        return Err(format!("line {line_number}: exposure must be positive, got {value}"));
+                        return Err(format!(
+                            "line {line_number}: exposure must be positive, got {value}"
+                        ));
                     }
                     desc.exposure = value;
                 }
@@ -532,25 +554,37 @@ impl SceneDescriptor {
                     }
                     let kv = KvMap::parse(rest, line_number)?;
                     let mut entry = SphereEntry::default();
-                    if let Some(v) = kv.get("pos")       { entry.position      = parse_f64_vec3(v, line_number)?; }
-                    if let Some(v) = kv.get("radius")    {
+                    if let Some(v) = kv.get("pos") {
+                        entry.position = parse_f64_vec3(v, line_number)?;
+                    }
+                    if let Some(v) = kv.get("radius") {
                         let value = parse_f64_val(v, line_number)?;
                         if value <= 0.0 {
-                            return Err(format!("line {line_number}: sphere radius must be positive, got {value}"));
+                            return Err(format!(
+                                "line {line_number}: sphere radius must be positive, got {value}"
+                            ));
                         }
                         entry.radius = value;
                     }
-                    if let Some(v) = kv.get("material")  {
+                    if let Some(v) = kv.get("material") {
                         validate_material_name(v, line_number)?;
                         entry.material_name = Some(v.to_string());
                     }
-                    if let Some(v) = kv.get("albedo")    { entry.albedo        = parse_unit_vec3(v, line_number)?; }
-                    if let Some(v) = kv.get("roughness") { entry.roughness     = parse_unit_scalar(v, line_number)?; }
-                    if let Some(v) = kv.get("metallic")  { entry.metallic      = parse_unit_scalar(v, line_number)?; }
-                    if let Some(v) = kv.get("emission")  {
+                    if let Some(v) = kv.get("albedo") {
+                        entry.albedo = parse_unit_vec3(v, line_number)?;
+                    }
+                    if let Some(v) = kv.get("roughness") {
+                        entry.roughness = parse_unit_scalar(v, line_number)?;
+                    }
+                    if let Some(v) = kv.get("metallic") {
+                        entry.metallic = parse_unit_scalar(v, line_number)?;
+                    }
+                    if let Some(v) = kv.get("emission") {
                         let value = parse_f64_val(v, line_number)?;
                         if value < 0.0 {
-                            return Err(format!("line {line_number}: emission must be non-negative, got {value}"));
+                            return Err(format!(
+                                "line {line_number}: emission must be non-negative, got {value}"
+                            ));
                         }
                         entry.emission = value;
                     }
@@ -564,20 +598,34 @@ impl SceneDescriptor {
                     }
                     let kv = KvMap::parse(rest, line_number)?;
                     let mut entry = TriangleEntry::default();
-                    if let Some(v) = kv.get("a")         { entry.a             = parse_f64_vec3(v, line_number)?; }
-                    if let Some(v) = kv.get("b")         { entry.b             = parse_f64_vec3(v, line_number)?; }
-                    if let Some(v) = kv.get("c")         { entry.c             = parse_f64_vec3(v, line_number)?; }
-                    if let Some(v) = kv.get("material")  {
+                    if let Some(v) = kv.get("a") {
+                        entry.a = parse_f64_vec3(v, line_number)?;
+                    }
+                    if let Some(v) = kv.get("b") {
+                        entry.b = parse_f64_vec3(v, line_number)?;
+                    }
+                    if let Some(v) = kv.get("c") {
+                        entry.c = parse_f64_vec3(v, line_number)?;
+                    }
+                    if let Some(v) = kv.get("material") {
                         validate_material_name(v, line_number)?;
                         entry.material_name = Some(v.to_string());
                     }
-                    if let Some(v) = kv.get("albedo")    { entry.albedo        = parse_unit_vec3(v, line_number)?; }
-                    if let Some(v) = kv.get("roughness") { entry.roughness     = parse_unit_scalar(v, line_number)?; }
-                    if let Some(v) = kv.get("metallic")  { entry.metallic      = parse_unit_scalar(v, line_number)?; }
-                    if let Some(v) = kv.get("emission")  {
+                    if let Some(v) = kv.get("albedo") {
+                        entry.albedo = parse_unit_vec3(v, line_number)?;
+                    }
+                    if let Some(v) = kv.get("roughness") {
+                        entry.roughness = parse_unit_scalar(v, line_number)?;
+                    }
+                    if let Some(v) = kv.get("metallic") {
+                        entry.metallic = parse_unit_scalar(v, line_number)?;
+                    }
+                    if let Some(v) = kv.get("emission") {
                         let value = parse_f64_val(v, line_number)?;
                         if value < 0.0 {
-                            return Err(format!("line {line_number}: emission must be non-negative, got {value}"));
+                            return Err(format!(
+                                "line {line_number}: emission must be non-negative, got {value}"
+                            ));
                         }
                         entry.emission = value;
                     }
@@ -591,19 +639,28 @@ impl SceneDescriptor {
                     }
                     let kv = KvMap::parse(rest, line_number)?;
                     let mut entry = AreaLightEntry::default();
-                    if let Some(v) = kv.get("pos")       { entry.position  = parse_f64_vec3(v, line_number)?; }
-                    if let Some(v) = kv.get("color")     { entry.color     = parse_f64_vec3(v, line_number)?; }
+                    if let Some(v) = kv.get("pos") {
+                        entry.position = parse_f64_vec3(v, line_number)?;
+                    }
+                    if let Some(v) = kv.get("color") {
+                        entry.color = parse_f64_vec3(v, line_number)?;
+                    }
                     if let Some(v) = kv.get("intensity") {
                         let value = parse_f64_val(v, line_number)?;
                         if value < 0.0 {
-                            return Err(format!("line {line_number}: area_light intensity must be non-negative, got {value}"));
+                            return Err(format!(
+                                "line {line_number}: area_light intensity must be non-negative, got {value}"
+                            ));
                         }
                         entry.intensity = value;
                     }
-                    if let Some(v) = kv.get("size")      {
+                    if let Some(v) = kv.get("size") {
                         let size = parse_f64_vec2(v, line_number)?;
                         if size[0] <= 0.0 || size[1] <= 0.0 {
-                            return Err(format!("line {line_number}: area_light size must be positive, got {},{}", size[0], size[1]));
+                            return Err(format!(
+                                "line {line_number}: area_light size must be positive, got {},{}",
+                                size[0], size[1]
+                            ));
                         }
                         entry.size = size;
                     }
@@ -755,7 +812,8 @@ impl SceneDescriptor {
         }
 
         for light in self.area_lights {
-            builder = builder.add_area_light(light.position, light.color, light.intensity, light.size);
+            builder =
+                builder.add_area_light(light.position, light.color, light.intensity, light.size);
         }
 
         builder

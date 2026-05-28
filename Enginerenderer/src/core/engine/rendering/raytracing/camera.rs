@@ -46,7 +46,12 @@ impl Camera {
         }
     }
 
-    pub fn with_physical_lens(mut self, aperture_radius: f64, shutter_span: f64, motion_vector: Vec3) -> Self {
+    pub fn with_physical_lens(
+        mut self,
+        aperture_radius: f64,
+        shutter_span: f64,
+        motion_vector: Vec3,
+    ) -> Self {
         self.lens_radius = aperture_radius.max(0.0);
         self.shutter_span = shutter_span.max(0.0);
         self.motion_vector = motion_vector;
@@ -91,7 +96,12 @@ impl Camera {
     /// Order: `(origin, lower_left_corner, horizontal, vertical)`. Required
     /// by the GPU path tracer to mirror the CPU `ray()` formulation in GLSL.
     pub fn viewport_basis(&self) -> (Vec3, Vec3, Vec3, Vec3) {
-        (self.origin, self.lower_left_corner, self.horizontal, self.vertical)
+        (
+            self.origin,
+            self.lower_left_corner,
+            self.horizontal,
+            self.vertical,
+        )
     }
 }
 

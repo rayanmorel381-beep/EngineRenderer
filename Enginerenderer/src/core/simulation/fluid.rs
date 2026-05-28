@@ -11,7 +11,13 @@ pub struct FluidParticle {
 
 impl FluidParticle {
     pub fn new(position: Vec3) -> Self {
-        Self { position, velocity: Vec3::ZERO, density: 0.0, pressure: 0.0, force: Vec3::ZERO }
+        Self {
+            position,
+            velocity: Vec3::ZERO,
+            density: 0.0,
+            pressure: 0.0,
+            force: Vec3::ZERO,
+        }
     }
 }
 
@@ -85,7 +91,9 @@ impl FluidSim {
         for i in 0..n {
             let mut force = self.gravity * self.mass;
             for j in 0..n {
-                if i == j { continue; }
+                if i == j {
+                    continue;
+                }
                 let r = positions[i] - positions[j];
                 let r_len = r.length();
                 if r_len < self.h && r_len > 1e-8 {
@@ -118,20 +126,26 @@ impl FluidSim {
 
 fn w_poly6(r_sq: f64, h: f64) -> f64 {
     let h2 = h * h;
-    if r_sq > h2 { return 0.0; }
+    if r_sq > h2 {
+        return 0.0;
+    }
     let factor = 315.0 / (64.0 * std::f64::consts::PI * h.powi(9));
     let diff = h2 - r_sq;
     factor * diff * diff * diff
 }
 
 fn w_spiky_grad(r: f64, h: f64) -> f64 {
-    if r > h { return 0.0; }
+    if r > h {
+        return 0.0;
+    }
     let factor = -45.0 / (std::f64::consts::PI * h.powi(6));
     let diff = h - r;
     factor * diff * diff
 }
 
 fn w_viscosity_laplacian(r: f64, h: f64) -> f64 {
-    if r > h { return 0.0; }
+    if r > h {
+        return 0.0;
+    }
     45.0 / (std::f64::consts::PI * h.powi(6)) * (h - r)
 }

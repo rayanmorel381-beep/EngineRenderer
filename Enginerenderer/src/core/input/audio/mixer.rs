@@ -1,4 +1,3 @@
-
 use crate::core::coremanager::audio_manager::{AudioManager, AudioMix};
 use crate::core::engine::scene::graph::SceneGraph;
 
@@ -35,13 +34,9 @@ impl Mixer {
     }
 
     /// Computes an audio mix from scene and camera context.
-    pub fn mix(
-        &self,
-        graph: &SceneGraph,
-        camera_distance: f64,
-        exposure_bias: f64,
-    ) -> AudioMix {
-        self.manager.mix_for_scene(graph, camera_distance, exposure_bias)
+    pub fn mix(&self, graph: &SceneGraph, camera_distance: f64, exposure_bias: f64) -> AudioMix {
+        self.manager
+            .mix_for_scene(graph, camera_distance, exposure_bias)
     }
 
     /// Returns the mixer profile label.
@@ -49,4 +44,3 @@ impl Mixer {
         self.label
     }
 }
-

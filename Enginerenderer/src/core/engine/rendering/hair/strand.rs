@@ -11,7 +11,12 @@ pub struct HairStrand {
 
 impl HairStrand {
     pub fn new(control_points: Vec<Vec3>, width_root: f64, width_tip: f64) -> Self {
-        Self { control_points, width_root, width_tip, material: HairMaterial::default() }
+        Self {
+            control_points,
+            width_root,
+            width_tip,
+            material: HairMaterial::default(),
+        }
     }
 
     pub fn segment_count(&self) -> usize {
@@ -27,19 +32,33 @@ impl HairStrand {
         let b = self.control_points[segment + 1];
         let d = b - a;
         let len = d.length();
-        if len > f64::EPSILON { d * (1.0 / len) } else { Vec3::new(0.0, 1.0, 0.0) }
+        if len > f64::EPSILON {
+            d * (1.0 / len)
+        } else {
+            Vec3::new(0.0, 1.0, 0.0)
+        }
     }
 
     pub fn catmull_rom(&self, t: f64) -> Vec3 {
         let n = self.control_points.len();
-        if n < 2 { return self.control_points[0]; }
+        if n < 2 {
+            return self.control_points[0];
+        }
         let seg_f = t * (n - 1) as f64;
         let i = (seg_f as usize).min(n - 2);
         let lt = seg_f - i as f64;
-        let p0 = if i > 0 { self.control_points[i - 1] } else { self.control_points[0] };
+        let p0 = if i > 0 {
+            self.control_points[i - 1]
+        } else {
+            self.control_points[0]
+        };
         let p1 = self.control_points[i];
         let p2 = self.control_points[i + 1];
-        let p3 = if i + 2 < n { self.control_points[i + 2] } else { self.control_points[n - 1] };
+        let p3 = if i + 2 < n {
+            self.control_points[i + 2]
+        } else {
+            self.control_points[n - 1]
+        };
         let t2 = lt * lt;
         let t3 = t2 * lt;
         (p0 * (-0.5 * t3 + t2 - 0.5 * lt))
@@ -57,7 +76,10 @@ pub struct HairGroom {
 
 impl HairGroom {
     pub fn new(strands: Vec<HairStrand>, root_offset: Vec3) -> Self {
-        Self { strands, root_offset }
+        Self {
+            strands,
+            root_offset,
+        }
     }
 
     pub fn strand_count(&self) -> usize {
@@ -78,15 +100,26 @@ impl HairGroom {
         }
     }
 
-    pub fn rasterize_to_buffer(&self, fb: &mut [[f32; 4]], width: usize, height: usize, view_proj: &[[f32; 4]; 4]) {
+    pub fn rasterize_to_buffer(
+        &self,
+        fb: &mut [[f32; 4]],
+        width: usize,
+        height: usize,
+        view_proj: &[[f32; 4]; 4],
+    ) {
         for strand in &self.strands {
             let steps = strand.segment_count() * 4;
-            if steps == 0 { continue; }
+            if steps == 0 {
+                continue;
+            }
             for step in 0..steps {
                 let t = step as f64 / steps as f64;
                 let pos = strand.catmull_rom(t);
-                let clip = transform_vec(view_proj, [pos.x as f32, pos.y as f32, pos.z as f32, 1.0]);
-                if clip[3] <= 0.0 { continue; }
+                let clip =
+                    transform_vec(view_proj, [pos.x as f32, pos.y as f32, pos.z as f32, 1.0]);
+                if clip[3] <= 0.0 {
+                    continue;
+                }
                 let nx = clip[0] / clip[3];
                 let ny = clip[1] / clip[3];
                 let sx = ((nx + 1.0) * 0.5 * width as f32) as usize;
@@ -115,9 +148,9 @@ impl HairGroom {
 
 fn transform_vec(m: &[[f32; 4]; 4], v: [f32; 4]) -> [f32; 4] {
     [
-        m[0][0]*v[0] + m[0][1]*v[1] + m[0][2]*v[2] + m[0][3]*v[3],
-        m[1][0]*v[0] + m[1][1]*v[1] + m[1][2]*v[2] + m[1][3]*v[3],
-        m[2][0]*v[0] + m[2][1]*v[1] + m[2][2]*v[2] + m[2][3]*v[3],
-        m[3][0]*v[0] + m[3][1]*v[1] + m[3][2]*v[2] + m[3][3]*v[3],
+        m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2] + m[0][3] * v[3],
+        m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2] + m[1][3] * v[3],
+        m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2] + m[2][3] * v[3],
+        m[3][0] * v[0] + m[3][1] * v[1] + m[3][2] * v[2] + m[3][3] * v[3],
     ]
 }

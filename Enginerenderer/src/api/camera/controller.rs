@@ -75,7 +75,11 @@ impl CameraController {
     /// Builds a ray-tracing camera for the given aspect ratio.
     pub fn build(&self, aspect_ratio: f64) -> Camera {
         let eye = Vec3::new(self.desc.eye[0], self.desc.eye[1], self.desc.eye[2]);
-        let target = Vec3::new(self.desc.target[0], self.desc.target[1], self.desc.target[2]);
+        let target = Vec3::new(
+            self.desc.target[0],
+            self.desc.target[1],
+            self.desc.target[2],
+        );
         let mut cam = Camera::look_at(
             eye,
             target,

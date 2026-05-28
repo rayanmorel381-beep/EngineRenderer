@@ -1,4 +1,3 @@
-
 use crate::core::engine::rendering::raytracing::Vec3;
 
 use super::selection::LodSelection;
@@ -81,11 +80,11 @@ impl LodManager {
         } else {
             // Only accept transition when outside hysteresis band AND
             // the candidate has been stable long enough.
-            let within_margin =
-                (distance - self.thresholds.ultra_max).abs() < self.hysteresis_margin
-                    || (distance - self.thresholds.high_max).abs() < self.hysteresis_margin
-                    || (distance - self.thresholds.medium_max).abs() < self.hysteresis_margin
-                    || (distance - self.thresholds.low_max).abs() < self.hysteresis_margin;
+            let within_margin = (distance - self.thresholds.ultra_max).abs()
+                < self.hysteresis_margin
+                || (distance - self.thresholds.high_max).abs() < self.hysteresis_margin
+                || (distance - self.thresholds.medium_max).abs() < self.hysteresis_margin
+                || (distance - self.thresholds.low_max).abs() < self.hysteresis_margin;
 
             if within_margin || state.stable_frames < self.min_stable_frames {
                 state.stable_frames = state.stable_frames.saturating_add(1);
@@ -130,7 +129,7 @@ impl LodManager {
             > self.screen_error_threshold
     }
 
-            /// Estimates horizon detail from global thresholds.
+    /// Estimates horizon detail from global thresholds.
     pub fn horizon_detail(&self, horizon_distance: f64) -> f64 {
         if self.states.is_empty() {
             return 1.0;

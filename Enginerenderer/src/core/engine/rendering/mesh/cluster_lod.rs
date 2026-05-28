@@ -106,7 +106,12 @@ impl ClusteredMesh {
         }
     }
 
-    pub fn select_lod(&self, screen_error_threshold: f64, camera_dist: f64, object_radius: f64) -> Vec<usize> {
+    pub fn select_lod(
+        &self,
+        screen_error_threshold: f64,
+        camera_dist: f64,
+        object_radius: f64,
+    ) -> Vec<usize> {
         let projected_error = object_radius / camera_dist.max(f64::EPSILON);
         let mut visible = Vec::new();
         for (i, cluster) in self.clusters.iter().enumerate() {

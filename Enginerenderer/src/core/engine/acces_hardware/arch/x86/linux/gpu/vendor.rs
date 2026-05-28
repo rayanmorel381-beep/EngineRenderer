@@ -46,8 +46,8 @@ fn probe_gpu_runtime(vendor: Vendor) {
         Vendor::Amd => {
             let (cu_a, se_a, sclk_a, temp_a) = amd::probe_amdgpu_telemetry("card0");
             let (cu_r, se_r, sclk_r, temp_r) = amd::probe_radeon_telemetry("card0");
-            let target_size = ((cu_a.max(cu_r) as u64).max(1))
-                .saturating_mul((sclk_a.max(sclk_r) as u64).max(1));
+            let target_size =
+                ((cu_a.max(cu_r) as u64).max(1)).saturating_mul((sclk_a.max(sclk_r) as u64).max(1));
             if let Some(gem) = amd::drm_amdgpu_alloc_gem(-1, target_size.max(4096)) {
                 let mapped = amd::drm_amdgpu_gem_mmap(gem.fd, gem.handle).unwrap_or(0);
                 let effective_map = mapped.max(gem.mmap_offset);
@@ -72,7 +72,11 @@ fn probe_gpu_runtime(vendor: Vendor) {
                 if !wait_ok {
                     crate::runtime_log!("gpu: radeon wait failed");
                 }
-                if let Err(err) = amd::submit_radeon_cs(gem.fd, gem.handle, &[0, cu_r, se_r, sclk_r, temp_r as u32]) {
+                if let Err(err) = amd::submit_radeon_cs(
+                    gem.fd,
+                    gem.handle,
+                    &[0, cu_r, se_r, sclk_r, temp_r as u32],
+                ) {
                     crate::runtime_log!("gpu: radeon submit failed: {}", err);
                 }
             }
@@ -82,7 +86,7 @@ fn probe_gpu_runtime(vendor: Vendor) {
             let target_size = ((eu.max(1) as u64)
                 .saturating_mul(slices.max(1) as u64)
                 .saturating_mul(freq.max(1) as u64))
-                .max(4096);
+            .max(4096);
             if let Some(gem) = intel::drm_i915_alloc_gem(-1, target_size) {
                 let mapped = intel::drm_i915_gem_mmap_gtt(gem.fd, gem.handle).unwrap_or(0);
                 let effective_size = gem.size.max(gem.mmap_offset).max(mapped);
@@ -106,26 +110,62 @@ fn probe_gpu_runtime(vendor: Vendor) {
 pub(crate) fn default_config() -> GpuConfig {
     let vendor = detect_vendor();
     probe_gpu_runtime(vendor);
-    let (workgroup_size, compute_queues, render_threads, double_buffered, frame_budget_us, low_power) = match vendor {
+    let (
+        workgroup_size,
+        compute_queues,
+        render_threads,
+        double_buffered,
+        frame_budget_us,
+        low_power,
+    ) = match vendor {
         Vendor::Amd => {
             let c = amd::backend::default_backend_config();
-            (c.workgroup_size, c.compute_queues, c.render_threads, c.double_buffered, c.frame_budget_us, c.low_power)
+            (
+                c.workgroup_size,
+                c.compute_queues,
+                c.render_threads,
+                c.double_buffered,
+                c.frame_budget_us,
+                c.low_power,
+            )
         }
         Vendor::Intel => {
             let c = intel::backend::default_backend_config();
-            (c.workgroup_size, c.compute_queues, c.render_threads, c.double_buffered, c.frame_budget_us, c.low_power)
+            (
+                c.workgroup_size,
+                c.compute_queues,
+                c.render_threads,
+                c.double_buffered,
+                c.frame_budget_us,
+                c.low_power,
+            )
         }
         Vendor::Apple => {
             let c = apple::backend::default_backend_config();
-            (c.workgroup_size, c.compute_queues, c.render_threads, c.double_buffered, c.frame_budget_us, c.low_power)
+            (
+                c.workgroup_size,
+                c.compute_queues,
+                c.render_threads,
+                c.double_buffered,
+                c.frame_budget_us,
+                c.low_power,
+            )
         }
     };
-    GpuConfig { vendor, workgroup_size, compute_queues, render_threads, double_buffered, frame_budget_us, low_power }
+    GpuConfig {
+        vendor,
+        workgroup_size,
+        compute_queues,
+        render_threads,
+        double_buffered,
+        frame_budget_us,
+        low_power,
+    }
 }
 
 pub(crate) fn clamp_workers(requested: usize) -> usize {
     match detect_vendor() {
-        Vendor::Amd   => amd::backend::clamp_workers(requested),
+        Vendor::Amd => amd::backend::clamp_workers(requested),
         Vendor::Intel => intel::backend::clamp_workers(requested),
         Vendor::Apple => apple::backend::clamp_workers(requested),
     }
@@ -147,5 +187,9 @@ pub(crate) fn build_schedule(work_items: usize) -> GpuSchedule {
             (s.chunks, s.chunk_size, s.frame_budget_us)
         }
     };
-    GpuSchedule { chunks, chunk_size, frame_budget_us }
+    GpuSchedule {
+        chunks,
+        chunk_size,
+        frame_budget_us,
+    }
 }

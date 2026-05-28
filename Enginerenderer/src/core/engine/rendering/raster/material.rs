@@ -53,7 +53,11 @@ impl Material for PbrMaterial {
 
 impl PbrMaterial {
     pub fn albedo_vec3(&self) -> RaytracingVec3 {
-        RaytracingVec3::new(self.base_color.x as f64, self.base_color.y as f64, self.base_color.z as f64)
+        RaytracingVec3::new(
+            self.base_color.x as f64,
+            self.base_color.y as f64,
+            self.base_color.z as f64,
+        )
     }
 
     pub fn shader_sources() -> (&'static str, &'static str) {

@@ -16,6 +16,14 @@ pub(crate) fn recommended_chunk_size(work_items: usize) -> usize {
 
 pub(crate) fn build_schedule(work_items: usize) -> VendorSchedule {
     let chunk_size = recommended_chunk_size(work_items);
-    let chunks = if work_items == 0 { 1 } else { work_items.div_ceil(chunk_size) };
-    VendorSchedule { chunks, chunk_size, frame_budget_us: 8_333 }
+    let chunks = if work_items == 0 {
+        1
+    } else {
+        work_items.div_ceil(chunk_size)
+    };
+    VendorSchedule {
+        chunks,
+        chunk_size,
+        frame_budget_us: 8_333,
+    }
 }

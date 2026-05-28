@@ -8,7 +8,7 @@ use core::ffi::{c_char, c_int, c_void};
 use core::ptr;
 use std::sync::Mutex;
 
-use super::x11::{xlib, Display, XVisualInfo, RTLD_GLOBAL, RTLD_NOW};
+use super::x11::{Display, RTLD_GLOBAL, RTLD_NOW, XVisualInfo, xlib};
 
 pub(crate) type GLXFBConfig = *mut c_void;
 pub(crate) type GLXContext = *mut c_void;
@@ -93,11 +93,7 @@ unsafe fn load_sym<T: Copy>(handle: *mut c_void, name: &[u8]) -> Option<T> {
 
 fn try_open(name: &[u8]) -> Option<*mut c_void> {
     let handle = unsafe { dlopen(name.as_ptr() as *const c_char, RTLD_NOW | RTLD_GLOBAL) };
-    if handle.is_null() {
-        None
-    } else {
-        Some(handle)
-    }
+    if handle.is_null() { None } else { Some(handle) }
 }
 
 pub(crate) fn glx() -> Option<&'static GlxLib> {
@@ -130,10 +126,7 @@ pub(crate) fn glx() -> Option<&'static GlxLib> {
             glXSwapBuffers: load_sym(handle, b"glXSwapBuffers\0")?,
             glXGetProcAddress: glx_get_proc_address,
             glXQueryVersion: load_sym(handle, b"glXQueryVersion\0")?,
-            glXCreateContextAttribsARB: arb(
-                glx_get_proc_address,
-                b"glXCreateContextAttribsARB\0",
-            ),
+            glXCreateContextAttribsARB: arb(glx_get_proc_address, b"glXCreateContextAttribsARB\0"),
             glXCreatePbuffer: load_sym(handle, b"glXCreatePbuffer\0"),
             glXDestroyPbuffer: load_sym(handle, b"glXDestroyPbuffer\0"),
             glXSwapIntervalEXT: arb(glx_get_proc_address, b"glXSwapIntervalEXT\0"),
@@ -376,7 +369,8 @@ pub(crate) fn create_offscreen_context(
         GLX_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB,
         0,
     ];
-    let context = unsafe { create_attribs(display, fb_config, ptr::null_mut(), 1, ctx_attrs.as_ptr()) };
+    let context =
+        unsafe { create_attribs(display, fb_config, ptr::null_mut(), 1, ctx_attrs.as_ptr()) };
     if context.is_null() {
         if let Some(destroy) = lib.glXDestroyPbuffer {
             unsafe { destroy(display, pbuffer) };

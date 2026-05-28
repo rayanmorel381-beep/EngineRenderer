@@ -1,6 +1,5 @@
-
-use crate::core::engine::rendering::raytracing::Vec3;
 use crate::core::engine::rendering::framebuffer::FrameBuffer;
+use crate::core::engine::rendering::raytracing::Vec3;
 
 #[derive(Debug, Clone, Copy)]
 pub struct DepthOfField {

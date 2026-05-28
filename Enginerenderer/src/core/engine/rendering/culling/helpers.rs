@@ -1,4 +1,3 @@
-
 use crate::core::engine::rendering::raytracing::{Sphere, Vec3};
 
 // ── Contribution culling ────────────────────────────────────────────────

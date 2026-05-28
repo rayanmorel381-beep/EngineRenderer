@@ -1,5 +1,5 @@
-use crate::core::engine::rendering::raytracing::Vec3;
 use crate::core::engine::rendering::framebuffer::FrameBuffer;
+use crate::core::engine::rendering::raytracing::Vec3;
 
 pub const IBL_FACE_SIZE: usize = 64;
 pub const IBL_FACE_COUNT: usize = 6;
@@ -40,10 +40,16 @@ impl IblProbe {
     pub fn sample(&self, dir: Vec3) -> Vec3 {
         let (face, u, v) = dir_to_face_uv(dir);
         let fi = face as usize;
-        let px = (u * (self.resolution - 1) as f64).clamp(0.0, (self.resolution - 1) as f64) as usize;
-        let py = (v * (self.resolution - 1) as f64).clamp(0.0, (self.resolution - 1) as f64) as usize;
+        let px =
+            (u * (self.resolution - 1) as f64).clamp(0.0, (self.resolution - 1) as f64) as usize;
+        let py =
+            (v * (self.resolution - 1) as f64).clamp(0.0, (self.resolution - 1) as f64) as usize;
         let idx = fi * self.resolution * self.resolution + py * self.resolution + px;
-        if idx < self.radiance.len() { self.radiance[idx] } else { Vec3::ZERO }
+        if idx < self.radiance.len() {
+            self.radiance[idx]
+        } else {
+            Vec3::ZERO
+        }
     }
 
     pub fn sample_irradiance_diffuse(&self, normal: Vec3) -> Vec3 {
@@ -52,7 +58,11 @@ impl IblProbe {
         let px = (u * 7.0).clamp(0.0, 7.0) as usize;
         let py = (v * 7.0).clamp(0.0, 7.0) as usize;
         let idx = fi * 64 + py * 8 + px;
-        if idx < self.irradiance.len() { self.irradiance[idx] } else { Vec3::ZERO }
+        if idx < self.irradiance.len() {
+            self.irradiance[idx]
+        } else {
+            Vec3::ZERO
+        }
     }
 
     pub fn sample_specular(&self, reflect_dir: Vec3, roughness: f64) -> Vec3 {
@@ -65,7 +75,11 @@ impl IblProbe {
         let py = (v * (res - 1) as f64).clamp(0.0, (res - 1) as f64) as usize;
         let base = fi * self.resolution * self.resolution;
         let idx = base + py * res + px;
-        if idx < self.radiance.len() { self.radiance[idx] } else { Vec3::ZERO }
+        if idx < self.radiance.len() {
+            self.radiance[idx]
+        } else {
+            Vec3::ZERO
+        }
     }
 }
 
@@ -75,20 +89,44 @@ fn dir_to_face_uv(dir: Vec3) -> (CubeFace, f64, f64) {
     let az = dir.z.abs();
     if ax >= ay && ax >= az {
         if dir.x > 0.0 {
-            (CubeFace::PosX, (-dir.z / dir.x) * 0.5 + 0.5, (-dir.y / dir.x) * 0.5 + 0.5)
+            (
+                CubeFace::PosX,
+                (-dir.z / dir.x) * 0.5 + 0.5,
+                (-dir.y / dir.x) * 0.5 + 0.5,
+            )
         } else {
-            (CubeFace::NegX, (dir.z / -dir.x) * 0.5 + 0.5, (-dir.y / -dir.x) * 0.5 + 0.5)
+            (
+                CubeFace::NegX,
+                (dir.z / -dir.x) * 0.5 + 0.5,
+                (-dir.y / -dir.x) * 0.5 + 0.5,
+            )
         }
     } else if ay >= ax && ay >= az {
         if dir.y > 0.0 {
-            (CubeFace::PosY, (dir.x / dir.y) * 0.5 + 0.5, (dir.z / dir.y) * 0.5 + 0.5)
+            (
+                CubeFace::PosY,
+                (dir.x / dir.y) * 0.5 + 0.5,
+                (dir.z / dir.y) * 0.5 + 0.5,
+            )
         } else {
-            (CubeFace::NegY, (dir.x / -dir.y) * 0.5 + 0.5, (-dir.z / -dir.y) * 0.5 + 0.5)
+            (
+                CubeFace::NegY,
+                (dir.x / -dir.y) * 0.5 + 0.5,
+                (-dir.z / -dir.y) * 0.5 + 0.5,
+            )
         }
     } else if dir.z > 0.0 {
-        (CubeFace::PosZ, (dir.x / dir.z) * 0.5 + 0.5, (-dir.y / dir.z) * 0.5 + 0.5)
+        (
+            CubeFace::PosZ,
+            (dir.x / dir.z) * 0.5 + 0.5,
+            (-dir.y / dir.z) * 0.5 + 0.5,
+        )
     } else {
-        (CubeFace::NegZ, (-dir.x / -dir.z) * 0.5 + 0.5, (-dir.y / -dir.z) * 0.5 + 0.5)
+        (
+            CubeFace::NegZ,
+            (-dir.x / -dir.z) * 0.5 + 0.5,
+            (-dir.y / -dir.z) * 0.5 + 0.5,
+        )
     }
 }
 
@@ -118,20 +156,26 @@ impl Default for SsrConfig {
 }
 
 fn screen_to_uv(fb: &FrameBuffer, pos: Vec3, proj: &[[f64; 4]; 4]) -> Option<(f64, f64, f64)> {
-    let cx = proj[0][0]*pos.x + proj[1][0]*pos.y + proj[2][0]*pos.z + proj[3][0];
-    let cy = proj[0][1]*pos.x + proj[1][1]*pos.y + proj[2][1]*pos.z + proj[3][1];
-    let cz = proj[0][2]*pos.x + proj[1][2]*pos.y + proj[2][2]*pos.z + proj[3][2];
-    let cw = proj[0][3]*pos.x + proj[1][3]*pos.y + proj[2][3]*pos.z + proj[3][3];
-    if cw < 1e-4 { return None; }
+    let cx = proj[0][0] * pos.x + proj[1][0] * pos.y + proj[2][0] * pos.z + proj[3][0];
+    let cy = proj[0][1] * pos.x + proj[1][1] * pos.y + proj[2][1] * pos.z + proj[3][1];
+    let cz = proj[0][2] * pos.x + proj[1][2] * pos.y + proj[2][2] * pos.z + proj[3][2];
+    let cw = proj[0][3] * pos.x + proj[1][3] * pos.y + proj[2][3] * pos.z + proj[3][3];
+    if cw < 1e-4 {
+        return None;
+    }
     let ndx = cx / cw;
     let ndy = cy / cw;
     let ndz = cz / cw;
-    if !(-1.0..=1.0).contains(&ndx) || !(-1.0..=1.0).contains(&ndy) { return None; }
+    if !(-1.0..=1.0).contains(&ndx) || !(-1.0..=1.0).contains(&ndy) {
+        return None;
+    }
     let ux = ndx * 0.5 + 0.5;
     let uy = 1.0 - (ndy * 0.5 + 0.5);
     let px = (ux * fb.width as f64) as usize;
     let py = (uy * fb.height as f64) as usize;
-    if px >= fb.width || py >= fb.height { return None; }
+    if px >= fb.width || py >= fb.height {
+        return None;
+    }
     Some((ux, uy, ndz * 0.5 + 0.5))
 }
 
@@ -145,10 +189,10 @@ fn sample_fb_bilinear(fb: &FrameBuffer, u: f64, v: f64) -> Vec3 {
     let tx = fx - x0 as f64;
     let ty = fy - y0 as f64;
     let w = fb.width;
-    fb.color[y0*w+x0] * ((1.0-tx)*(1.0-ty))
-        + fb.color[y0*w+x1] * (tx*(1.0-ty))
-        + fb.color[y1*w+x0] * ((1.0-tx)*ty)
-        + fb.color[y1*w+x1] * (tx*ty)
+    fb.color[y0 * w + x0] * ((1.0 - tx) * (1.0 - ty))
+        + fb.color[y0 * w + x1] * (tx * (1.0 - ty))
+        + fb.color[y1 * w + x0] * ((1.0 - tx) * ty)
+        + fb.color[y1 * w + x1] * (tx * ty)
 }
 
 fn trace_screen_reflection(
@@ -169,12 +213,16 @@ fn trace_screen_reflection(
         if let Some((u, v, ray_depth)) = screen_to_uv(fb, ray_pos, proj) {
             let px = (u * w as f64) as usize;
             let py = (v * h as f64) as usize;
-            if px >= w || py >= h { continue; }
+            if px >= w || py >= h {
+                continue;
+            }
             let scene_depth = depth_fb[py * w + px];
             let delta = ray_depth - scene_depth;
             if delta > 0.0 && delta < config.thickness {
                 let screen_dist = (u - 0.5).abs().max((v - 0.5).abs());
-                let fade = 1.0 - ((screen_dist - config.fade_start) / (config.fade_end - config.fade_start)).clamp(0.0, 1.0);
+                let fade = 1.0
+                    - ((screen_dist - config.fade_start) / (config.fade_end - config.fade_start))
+                        .clamp(0.0, 1.0);
                 let color = sample_fb_bilinear(fb, u, v);
                 return Some((color, fade));
             }
@@ -214,29 +262,45 @@ impl SsrPass {
             for x in 0..w {
                 let idx = y * w + x;
                 let roughness = buffers.roughness[idx];
-                if roughness > self.config.roughness_cutoff { continue; }
+                if roughness > self.config.roughness_cutoff {
+                    continue;
+                }
 
                 let view_pos = buffers.view_positions[idx];
                 let normal = buffers.normals[idx].normalize();
                 let view_dir = (-view_pos).normalize();
                 let reflect_dir = reflect_ray(view_dir, normal);
 
-                let reflection = trace_screen_reflection(view_pos, reflect_dir, fb, buffers.depth, buffers.proj, &self.config);
+                let reflection = trace_screen_reflection(
+                    view_pos,
+                    reflect_dir,
+                    fb,
+                    buffers.depth,
+                    buffers.proj,
+                    &self.config,
+                );
 
-                let ibl_fallback = probe.map_or(Vec3::ZERO, |p| p.sample_specular(reflect_dir, roughness));
+                let ibl_fallback =
+                    probe.map_or(Vec3::ZERO, |p| p.sample_specular(reflect_dir, roughness));
                 let ibl_diffuse = probe.map_or(Vec3::ZERO, |p| p.sample_irradiance_diffuse(normal));
                 let ibl_ambient = probe.map_or(Vec3::ZERO, |p| p.sample(normal));
 
                 let blended = match reflection {
                     Some((ssr_color, fade)) => {
                         if self.config.fallback_ibl {
-                            ssr_color * fade + ibl_fallback * (1.0 - fade) + ibl_diffuse * roughness * 0.1
+                            ssr_color * fade
+                                + ibl_fallback * (1.0 - fade)
+                                + ibl_diffuse * roughness * 0.1
                         } else {
                             ssr_color * fade + ibl_ambient * roughness * 0.05
                         }
                     }
                     None => {
-                        if self.config.fallback_ibl { ibl_fallback + ibl_diffuse * roughness * 0.1 } else { ibl_ambient * roughness * 0.05 }
+                        if self.config.fallback_ibl {
+                            ibl_fallback + ibl_diffuse * roughness * 0.1
+                        } else {
+                            ibl_ambient * roughness * 0.05
+                        }
                     }
                 };
 

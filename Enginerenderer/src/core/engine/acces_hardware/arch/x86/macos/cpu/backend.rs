@@ -12,7 +12,13 @@ fn sysctl_u64(name: &[u8]) -> Option<u64> {
     let mut out: u64 = 0;
     let mut len = core::mem::size_of::<u64>();
     let ret = unsafe {
-        sysctlbyname(name.as_ptr(), &mut out as *mut u64 as *mut u8, &mut len, core::ptr::null(), 0)
+        sysctlbyname(
+            name.as_ptr(),
+            &mut out as *mut u64 as *mut u8,
+            &mut len,
+            core::ptr::null(),
+            0,
+        )
     };
     if ret == 0 { Some(out) } else { None }
 }
@@ -21,11 +27,21 @@ fn sysctl_string(name: &[u8]) -> Option<String> {
     let mut buf = [0u8; 256];
     let mut len = buf.len();
     let ret = unsafe {
-        sysctlbyname(name.as_ptr(), buf.as_mut_ptr(), &mut len, core::ptr::null(), 0)
+        sysctlbyname(
+            name.as_ptr(),
+            buf.as_mut_ptr(),
+            &mut len,
+            core::ptr::null(),
+            0,
+        )
     };
-    if ret != 0 { return None; }
+    if ret != 0 {
+        return None;
+    }
     let s = &buf[..len.saturating_sub(1)];
-    core::str::from_utf8(s).ok().map(|v| v.trim_end_matches('\0').to_string())
+    core::str::from_utf8(s)
+        .ok()
+        .map(|v| v.trim_end_matches('\0').to_string())
 }
 
 pub(crate) struct IntelMacCpuInfo {
@@ -41,8 +57,7 @@ pub(crate) struct IntelMacCpuInfo {
 
 pub(crate) fn detect() -> Option<IntelMacCpuInfo> {
     let physical_cores = sysctl_u64(b"hw.physicalcpu\0")? as u8;
-    let logical_cores = sysctl_u64(b"hw.logicalcpu\0")
-        .unwrap_or(physical_cores as u64) as u8;
+    let logical_cores = sysctl_u64(b"hw.logicalcpu\0").unwrap_or(physical_cores as u64) as u8;
     let freq_max_hz = sysctl_u64(b"hw.cpufrequency_max\0").unwrap_or(0);
     let freq_base_hz = sysctl_u64(b"hw.cpufrequency\0").unwrap_or(freq_max_hz);
     let cache_l3_bytes = sysctl_u64(b"hw.l3cachesize\0").unwrap_or(0);
@@ -76,7 +91,9 @@ pub(crate) struct VendorBackendConfig {
 
 pub(crate) fn default_backend_config() -> VendorBackendConfig {
     let physical = sysctl_u64(b"hw.physicalcpu\0").unwrap_or(1).max(1) as usize;
-    let logical = sysctl_u64(b"hw.logicalcpu\0").unwrap_or(physical as u64).max(1) as usize;
+    let logical = sysctl_u64(b"hw.logicalcpu\0")
+        .unwrap_or(physical as u64)
+        .max(1) as usize;
     let freq_max_hz = sysctl_u64(b"hw.cpufrequency_max\0").unwrap_or(0);
     let freq_base_hz = sysctl_u64(b"hw.cpufrequency\0").unwrap_or(freq_max_hz);
     let cache_l3_bytes = sysctl_u64(b"hw.l3cachesize\0").unwrap_or(0);

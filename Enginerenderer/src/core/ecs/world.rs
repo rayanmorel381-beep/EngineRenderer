@@ -1,6 +1,6 @@
-use std::any::{Any, TypeId};
-use super::entity::{Entity, EntityAllocator};
 use super::component::ComponentRegistry;
+use super::entity::{Entity, EntityAllocator};
+use std::any::{Any, TypeId};
 
 pub struct World {
     entities: EntityAllocator,
@@ -36,7 +36,7 @@ impl World {
         self.components.get_mut(entity)
     }
 
-    pub fn query<T: Any + Send + Sync>(&self) -> impl Iterator<Item=(Entity, &T)> {
+    pub fn query<T: Any + Send + Sync>(&self) -> impl Iterator<Item = (Entity, &T)> {
         self.components.query::<T>()
     }
 

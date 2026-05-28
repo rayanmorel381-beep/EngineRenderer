@@ -1,16 +1,8 @@
-
 use std::error::Error;
 
-use crate::core::engine::rendering::renderer::types::RenderReport;
 use crate::core::engine::rendering::renderer::Renderer;
+use crate::core::engine::rendering::renderer::types::RenderReport;
 
-use crate::core::engine::config::EngineConfig;
-use crate::core::engine::scene::celestial::CelestialBodies;
-use crate::core::engine::scene::engine_scene::EngineScene;
-use crate::core::engine::scene::graph::SceneGraph;
-use crate::core::scheduler::loop_controller::LoopController;
-use crate::core::scheduler::profiling::FrameProfiler;
-use crate::core::scheduler::resource::ResourceManager;
 use crate::core::coremanager::audio_manager::AudioManager;
 use crate::core::coremanager::camera_manager::CameraManager;
 use crate::core::coremanager::input_manager::InputManager;
@@ -21,8 +13,15 @@ use crate::core::debug::profiling::format_adaptation;
 use crate::core::debug::runtime::RuntimeAdaptationState;
 use crate::core::debug::serialization::SerializationManager;
 use crate::core::debug::tools::DebugTools;
+use crate::core::engine::config::EngineConfig;
 use crate::core::engine::event::event_system::{EngineEvent, EventBus};
 use crate::core::engine::physics::physics_manager::PhysicsManager;
+use crate::core::engine::scene::celestial::CelestialBodies;
+use crate::core::engine::scene::engine_scene::EngineScene;
+use crate::core::engine::scene::graph::SceneGraph;
+use crate::core::scheduler::loop_controller::LoopController;
+use crate::core::scheduler::profiling::FrameProfiler;
+use crate::core::scheduler::resource::ResourceManager;
 
 #[derive(Debug, Clone, Copy)]
 struct FrameTimingStats {
@@ -101,7 +100,8 @@ impl EngineLoop {
             let tail = ((stats.p99_ms / frame_target.target_frame_ms) - 1.0).max(0.0);
             let jitter = (stats.jitter_ms / frame_target.target_frame_ms).max(0.0);
 
-            let quality_scale = (1.0 - pressure * 0.22 - tail * 0.18 - jitter * 0.15).clamp(0.58, 1.08);
+            let quality_scale =
+                (1.0 - pressure * 0.22 - tail * 0.18 - jitter * 0.15).clamp(0.58, 1.08);
             let target_quality_bias = (frame_target.quality_bias * quality_scale).clamp(0.55, 1.15);
             self.smoothed_quality_bias = smooth_with_hysteresis(
                 self.smoothed_quality_bias,
@@ -112,7 +112,8 @@ impl EngineLoop {
             );
             frame_target.quality_bias = self.smoothed_quality_bias;
 
-            let target_sample_pressure_scale = (1.0 - pressure * 0.30 - tail * 0.24 - jitter * 0.18).clamp(0.55, 1.12);
+            let target_sample_pressure_scale =
+                (1.0 - pressure * 0.30 - tail * 0.24 - jitter * 0.18).clamp(0.55, 1.12);
             self.smoothed_sample_pressure_scale = smooth_with_hysteresis(
                 self.smoothed_sample_pressure_scale,
                 target_sample_pressure_scale,
@@ -122,7 +123,8 @@ impl EngineLoop {
             );
             sample_pressure_scale = self.smoothed_sample_pressure_scale;
 
-            let target_substep_scale = (1.0 - pressure * 0.35 - tail * 0.30 - jitter * 0.20).clamp(0.45, 1.0);
+            let target_substep_scale =
+                (1.0 - pressure * 0.35 - tail * 0.30 - jitter * 0.20).clamp(0.45, 1.0);
             self.smoothed_substep_scale = smooth_with_hysteresis(
                 self.smoothed_substep_scale,
                 target_substep_scale,
@@ -133,12 +135,20 @@ impl EngineLoop {
             requested_substeps = ((4.0 * self.smoothed_substep_scale).round() as u32).clamp(1, 8);
         }
 
-        let substeps = self.loop_controller.recommended_substeps(frame_target.quality_bias, requested_substeps);
+        let substeps = self
+            .loop_controller
+            .recommended_substeps(frame_target.quality_bias, requested_substeps);
         let adaptation_state = RuntimeAdaptationState {
             target_frame_ms: frame_target.target_frame_ms,
-            frame_p50_ms: timing.map(|s| s.p50_ms).unwrap_or(frame_target.target_frame_ms),
-            frame_p95_ms: timing.map(|s| s.p95_ms).unwrap_or(frame_target.target_frame_ms),
-            frame_p99_ms: timing.map(|s| s.p99_ms).unwrap_or(frame_target.target_frame_ms),
+            frame_p50_ms: timing
+                .map(|s| s.p50_ms)
+                .unwrap_or(frame_target.target_frame_ms),
+            frame_p95_ms: timing
+                .map(|s| s.p95_ms)
+                .unwrap_or(frame_target.target_frame_ms),
+            frame_p99_ms: timing
+                .map(|s| s.p99_ms)
+                .unwrap_or(frame_target.target_frame_ms),
             jitter_ms: timing.map(|s| s.jitter_ms).unwrap_or(0.0),
             quality_bias: frame_target.quality_bias,
             sample_pressure_scale,
@@ -152,7 +162,9 @@ impl EngineLoop {
             over_budget_streak: 0,
             under_budget_streak: 0,
         };
-        let step = self.time.advance_frame(frame_target.target_frame_ms / 1000.0, substeps);
+        let step = self
+            .time
+            .advance_frame(frame_target.target_frame_ms / 1000.0, substeps);
 
         self.events.push(EngineEvent::FrameStarted {
             frame_index: step.frame_index,
@@ -176,10 +188,8 @@ impl EngineLoop {
 
         // ── scene assembly ──────────────────────────────────────────
         let graph = SceneGraph::from_bodies(&bodies);
-        let camera_manager = CameraManager::cinematic_for_scene(
-            graph.focus_point(),
-            graph.scene_radius(),
-        );
+        let camera_manager =
+            CameraManager::cinematic_for_scene(graph.focus_point(), graph.scene_radius());
         let engine_scene = EngineScene::from_bodies(
             &bodies,
             &camera_manager,
@@ -204,7 +214,9 @@ impl EngineLoop {
             master_gain: audio_mix.master_gain,
         });
 
-        let net_snap = self.network.sync_scene(&engine_scene.graph, step.frame_index);
+        let net_snap = self
+            .network
+            .sync_scene(&engine_scene.graph, step.frame_index);
         self.sync_server.publish(step.frame_index, &net_snap);
         self.events.push(EngineEvent::NetworkSynchronized {
             checksum: net_snap.checksum,
@@ -213,7 +225,11 @@ impl EngineLoop {
 
         // ── render ──────────────────────────────────────────────────
         if step.frame_index % 30 == 0 {
-            self.logger.info(format!("frame {} — {}", step.frame_index, format_adaptation(&adaptation_state)));
+            self.logger.info(format!(
+                "frame {} — {}",
+                step.frame_index,
+                format_adaptation(&adaptation_state)
+            ));
         }
 
         let renderer = Renderer::with_resolution(self.config.width, self.config.height);
@@ -232,20 +248,24 @@ impl EngineLoop {
         });
 
         // ── profiling & debug ───────────────────────────────────────
-        let summary = self.profiler.finish_frame(profile, &report, engine_scene.node_count());
+        let summary = self
+            .profiler
+            .finish_frame(profile, &report, engine_scene.node_count());
         let event_summary = self.events.summarize_history();
         let network_status = self.network.status();
-        let overlay = self.debug.capture(crate::core::debug::tools::DebugCaptureInput {
-            summary: &summary,
-            report: &report,
-            network: network_status,
-            audio: audio_mix,
-            event_summary: &event_summary,
-            warning_count: self.logger.warning_count(),
-            momentum_hint: self.physics.total_momentum(),
-            log_depth: self.logger.len(),
-            adaptation: adaptation_state,
-        });
+        let overlay = self
+            .debug
+            .capture(crate::core::debug::tools::DebugCaptureInput {
+                summary: &summary,
+                report: &report,
+                network: network_status,
+                audio: audio_mix,
+                event_summary: &event_summary,
+                warning_count: self.logger.warning_count(),
+                momentum_hint: self.physics.total_momentum(),
+                log_depth: self.logger.len(),
+                adaptation: adaptation_state,
+            });
         let overlay_payload = self.serializer.serialize_overlay(&overlay);
 
         self.logger.debug(format!(
@@ -278,7 +298,10 @@ impl EngineLoop {
         let mut reports = Vec::with_capacity(shots.len());
 
         for shot in &shots {
-            let path = self.config.output_path.with_file_name(format!("gallery_{}.ppm", shot.name));
+            let path = self
+                .config
+                .output_path
+                .with_file_name(format!("gallery_{}.ppm", shot.name));
             let report = renderer.render_scene_to_file(
                 &shot.scene,
                 &shot.camera,
@@ -342,7 +365,13 @@ fn percentile_from_sorted(sorted: &[f64], percentile: f64) -> f64 {
     sorted[idx]
 }
 
-fn smooth_with_hysteresis(current: f64, target: f64, rise_alpha: f64, fall_alpha: f64, dead_band: f64) -> f64 {
+fn smooth_with_hysteresis(
+    current: f64,
+    target: f64,
+    rise_alpha: f64,
+    fall_alpha: f64,
+    dead_band: f64,
+) -> f64 {
     let delta = target - current;
     if delta.abs() <= dead_band {
         return current;

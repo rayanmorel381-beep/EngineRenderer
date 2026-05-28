@@ -55,12 +55,10 @@ mod android {
     type GlFinish = unsafe extern "C" fn();
 
     type GlCreateShader = unsafe extern "C" fn(c_uint) -> c_uint;
-    type GlShaderSource =
-        unsafe extern "C" fn(c_uint, i32, *const *const c_char, *const i32);
+    type GlShaderSource = unsafe extern "C" fn(c_uint, i32, *const *const c_char, *const i32);
     type GlCompileShader = unsafe extern "C" fn(c_uint);
     type GlGetShaderiv = unsafe extern "C" fn(c_uint, c_uint, *mut i32);
-    type GlGetShaderInfoLog =
-        unsafe extern "C" fn(c_uint, i32, *mut i32, *mut c_char);
+    type GlGetShaderInfoLog = unsafe extern "C" fn(c_uint, i32, *mut i32, *mut c_char);
     type GlCreateProgram = unsafe extern "C" fn() -> c_uint;
     type GlAttachShader = unsafe extern "C" fn(c_uint, c_uint);
     type GlLinkProgram = unsafe extern "C" fn(c_uint);
@@ -75,8 +73,7 @@ mod android {
     type GlDeleteBuffers = unsafe extern "C" fn(i32, *const c_uint);
     type GlDeleteProgram = unsafe extern "C" fn(c_uint);
     type GlDeleteShader = unsafe extern "C" fn(c_uint);
-    type GlMapBufferRange =
-        unsafe extern "C" fn(c_uint, isize, isize, c_uint) -> *mut c_void;
+    type GlMapBufferRange = unsafe extern "C" fn(c_uint, isize, isize, c_uint) -> *mut c_void;
     type GlUnmapBuffer = unsafe extern "C" fn(c_uint) -> u8;
 
     unsafe fn load<T: Copy>(window: &NativeWindow, name: &[u8]) -> T {
@@ -281,34 +278,26 @@ mod android {
     ) -> Option<ComputeProgram> {
         let gl_create_shader: GlCreateShader = unsafe { load(window, b"glCreateShader\0") };
         let gl_shader_source: GlShaderSource = unsafe { load(window, b"glShaderSource\0") };
-        let gl_compile_shader: GlCompileShader =
-            unsafe { load(window, b"glCompileShader\0") };
+        let gl_compile_shader: GlCompileShader = unsafe { load(window, b"glCompileShader\0") };
         let gl_get_shader_iv: GlGetShaderiv = unsafe { load(window, b"glGetShaderiv\0") };
         let gl_get_shader_info_log: GlGetShaderInfoLog =
             unsafe { load(window, b"glGetShaderInfoLog\0") };
-        let gl_create_program: GlCreateProgram =
-            unsafe { load(window, b"glCreateProgram\0") };
+        let gl_create_program: GlCreateProgram = unsafe { load(window, b"glCreateProgram\0") };
         let gl_attach_shader: GlAttachShader = unsafe { load(window, b"glAttachShader\0") };
         let gl_link_program: GlLinkProgram = unsafe { load(window, b"glLinkProgram\0") };
-        let gl_get_program_iv: GlGetProgramiv =
-            unsafe { load(window, b"glGetProgramiv\0") };
+        let gl_get_program_iv: GlGetProgramiv = unsafe { load(window, b"glGetProgramiv\0") };
         let gl_use_program: GlUseProgram = unsafe { load(window, b"glUseProgram\0") };
         let gl_gen_buffers: GlGenBuffers = unsafe { load(window, b"glGenBuffers\0") };
         let gl_bind_buffer: GlBindBuffer = unsafe { load(window, b"glBindBuffer\0") };
         let gl_buffer_data: GlBufferData = unsafe { load(window, b"glBufferData\0") };
-        let gl_bind_buffer_base: GlBindBufferBase =
-            unsafe { load(window, b"glBindBufferBase\0") };
+        let gl_bind_buffer_base: GlBindBufferBase = unsafe { load(window, b"glBindBufferBase\0") };
         let gl_dispatch_compute: GlDispatchCompute =
             unsafe { load(window, b"glDispatchCompute\0") };
-        let gl_memory_barrier: GlMemoryBarrier =
-            unsafe { load(window, b"glMemoryBarrier\0") };
+        let gl_memory_barrier: GlMemoryBarrier = unsafe { load(window, b"glMemoryBarrier\0") };
         let gl_finish: GlFinish = unsafe { load(window, b"glFinish\0") };
-        let gl_delete_buffers: GlDeleteBuffers =
-            unsafe { load(window, b"glDeleteBuffers\0") };
-        let gl_delete_program: GlDeleteProgram =
-            unsafe { load(window, b"glDeleteProgram\0") };
-        let gl_delete_shader: GlDeleteShader =
-            unsafe { load(window, b"glDeleteShader\0") };
+        let gl_delete_buffers: GlDeleteBuffers = unsafe { load(window, b"glDeleteBuffers\0") };
+        let gl_delete_program: GlDeleteProgram = unsafe { load(window, b"glDeleteProgram\0") };
+        let gl_delete_shader: GlDeleteShader = unsafe { load(window, b"glDeleteShader\0") };
 
         let local_size_x: u32 = local_size_x;
         let _ = local_size_x;
@@ -390,8 +379,7 @@ mod android {
     const GL_MAP_READ_BIT: c_uint = 0x0001;
 
     fn verify_gpu_executed(window: &NativeWindow, prog: &ComputeProgram) {
-        let gl_map_buffer_range: GlMapBufferRange =
-            unsafe { load(window, b"glMapBufferRange\0") };
+        let gl_map_buffer_range: GlMapBufferRange = unsafe { load(window, b"glMapBufferRange\0") };
         let gl_unmap_buffer: GlUnmapBuffer = unsafe { load(window, b"glUnmapBuffer\0") };
 
         let groups = prog.elements.div_ceil(prog.local_size_x);
@@ -404,8 +392,7 @@ mod android {
             (prog.gl_finish)();
         }
 
-        let total_bytes =
-            (prog.elements as usize * core::mem::size_of::<f32>()) as isize;
+        let total_bytes = (prog.elements as usize * core::mem::size_of::<f32>()) as isize;
         let ptr = unsafe {
             gl_map_buffer_range(GL_SHADER_STORAGE_BUFFER, 0, total_bytes, GL_MAP_READ_BIT)
         };
@@ -417,9 +404,8 @@ mod android {
             println!();
             return;
         }
-        let slice = unsafe {
-            core::slice::from_raw_parts(ptr as *const f32, prog.elements as usize)
-        };
+        let slice =
+            unsafe { core::slice::from_raw_parts(ptr as *const f32, prog.elements as usize) };
 
         let sample_count: usize = 8;
         let stride = (prog.elements as usize / sample_count).max(1);
@@ -442,7 +428,11 @@ mod android {
             }
             println!(
                 "  v[{:>4}]  cpu_initial={:>10.6}  expected={:>10.6}  gpu_returned={:>10.6}  abs_err={:>10.2e}  {}",
-                i, initial, expected, got, abs_err,
+                i,
+                initial,
+                expected,
+                got,
+                abs_err,
                 if ok { "OK" } else { "MISMATCH" }
             );
         }
@@ -450,7 +440,9 @@ mod android {
             gl_unmap_buffer(GL_SHADER_STORAGE_BUFFER);
         }
         if all_ok {
-            println!("  >> GPU EXECUTION CONFIRMED: SSBO contains values transformed by the compute shader running on the GPU.");
+            println!(
+                "  >> GPU EXECUTION CONFIRMED: SSBO contains values transformed by the compute shader running on the GPU."
+            );
         } else {
             println!("  >> GPU EXECUTION FAILED: SSBO does not match expected values.");
         }
@@ -529,16 +521,28 @@ mod android {
             eprintln!("compute_large program failed to build (skipped)");
         }
         if let Some(p) = mandel_64k.as_ref() {
-            samples.push(bench_compute_dispatch(p, "gpu_mandelbrot_64k_x_512iter_lsx64"));
+            samples.push(bench_compute_dispatch(
+                p,
+                "gpu_mandelbrot_64k_x_512iter_lsx64",
+            ));
         }
         if let Some(p) = mandel_1m.as_ref() {
-            samples.push(bench_compute_dispatch(p, "gpu_mandelbrot_1m_x_512iter_lsx64"));
+            samples.push(bench_compute_dispatch(
+                p,
+                "gpu_mandelbrot_1m_x_512iter_lsx64",
+            ));
         }
         if let Some(p) = mandel_64k_4x4.as_ref() {
-            samples.push(bench_compute_dispatch(p, "gpu_mandelbrot_64k_x_512iter_lsx128"));
+            samples.push(bench_compute_dispatch(
+                p,
+                "gpu_mandelbrot_64k_x_512iter_lsx128",
+            ));
         }
         if let Some(p) = mandel_1m_4x4.as_ref() {
-            samples.push(bench_compute_dispatch(p, "gpu_mandelbrot_1m_x_512iter_lsx128"));
+            samples.push(bench_compute_dispatch(
+                p,
+                "gpu_mandelbrot_1m_x_512iter_lsx128",
+            ));
         }
 
         if let Some(p) = build_compute_program(&window, 4096, MEMORY_BOUND_SRC, 64) {

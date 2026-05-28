@@ -5,10 +5,14 @@
 //! [`ObjLoadError`] carrying the line number, instead of silently producing
 //! garbage geometry. Hard limits guard against pathological inputs.
 
-use std::{fs, io, path::{Path, PathBuf}};
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+};
 
 use crate::core::engine::rendering::{
-    mesh::asset::MeshAsset, mesh::vertex::{MeshDescriptor, Vertex},
+    mesh::asset::MeshAsset,
+    mesh::vertex::{MeshDescriptor, Vertex},
     raytracing::Vec3,
 };
 
@@ -139,10 +143,20 @@ impl std::fmt::Display for ObjLoadError {
                 write!(f, "line {line}: zero index is forbidden by obj spec")
             }
             Self::FaceTooSmall { line, vertices } => {
-                write!(f, "line {line}: face needs at least 3 vertices, found {vertices}")
+                write!(
+                    f,
+                    "line {line}: face needs at least 3 vertices, found {vertices}"
+                )
             }
-            Self::FaceTooLarge { line, vertices, limit } => {
-                write!(f, "line {line}: face has {vertices} vertices, limit is {limit}")
+            Self::FaceTooLarge {
+                line,
+                vertices,
+                limit,
+            } => {
+                write!(
+                    f,
+                    "line {line}: face has {vertices} vertices, limit is {limit}"
+                )
             }
             Self::TooManyVertices { count, limit } => {
                 write!(f, "vertex count {count} exceeds limit {limit}")
@@ -371,7 +385,11 @@ impl ObjLoader {
         let metadata = fs::metadata(path)?;
         let size = metadata.len();
         if size > MAX_OBJ_FILE_SIZE {
-            return Err(ObjLoadError::FileTooLarge { size, limit: MAX_OBJ_FILE_SIZE }.into());
+            return Err(ObjLoadError::FileTooLarge {
+                size,
+                limit: MAX_OBJ_FILE_SIZE,
+            }
+            .into());
         }
         if size == 0 {
             return Err(ObjLoadError::Empty.into());
@@ -569,8 +587,7 @@ impl ObjLoader {
                         normals,
                     )?;
 
-                    if Self::triangle_area_2x(v0.position, v1.position, v2.position)
-                        <= f64::EPSILON
+                    if Self::triangle_area_2x(v0.position, v1.position, v2.position) <= f64::EPSILON
                     {
                         return Ok(());
                     }
@@ -704,11 +721,13 @@ impl ObjLoader {
                     line: line_number,
                     token: token.to_string(),
                 })?;
-            let position = *positions.get(position_index).ok_or(ObjLoadError::IndexOutOfRange {
-                line: line_number,
-                index: (position_index as isize) + 1,
-                len: positions.len(),
-            })?;
+            let position = *positions
+                .get(position_index)
+                .ok_or(ObjLoadError::IndexOutOfRange {
+                    line: line_number,
+                    index: (position_index as isize) + 1,
+                    len: positions.len(),
+                })?;
             return Ok(Vertex {
                 position,
                 normal: Vec3::ZERO,
@@ -741,11 +760,13 @@ impl ObjLoader {
             _ => None,
         };
 
-        let position = *positions.get(position_index).ok_or(ObjLoadError::IndexOutOfRange {
-            line: line_number,
-            index: (position_index as isize) + 1,
-            len: positions.len(),
-        })?;
+        let position = *positions
+            .get(position_index)
+            .ok_or(ObjLoadError::IndexOutOfRange {
+                line: line_number,
+                index: (position_index as isize) + 1,
+                len: positions.len(),
+            })?;
 
         let normal = match normal_index {
             Some(index) => *normals.get(index).ok_or(ObjLoadError::IndexOutOfRange {
@@ -795,10 +816,12 @@ impl ObjLoader {
             }
             return Ok(Some(idx));
         }
-        let parsed = trimmed.parse::<i64>().map_err(|_| ObjLoadError::InvalidIndex {
-            line: line_number,
-            token: trimmed.to_string(),
-        })?;
+        let parsed = trimmed
+            .parse::<i64>()
+            .map_err(|_| ObjLoadError::InvalidIndex {
+                line: line_number,
+                token: trimmed.to_string(),
+            })?;
         if parsed == 0 {
             return Err(ObjLoadError::ZeroIndex { line: line_number });
         }
@@ -813,10 +836,12 @@ impl ObjLoader {
             }
             Ok(Some(idx as usize))
         } else {
-            let offset = (len as i64).checked_add(parsed).ok_or(ObjLoadError::InvalidIndex {
-                line: line_number,
-                token: trimmed.to_string(),
-            })?;
+            let offset = (len as i64)
+                .checked_add(parsed)
+                .ok_or(ObjLoadError::InvalidIndex {
+                    line: line_number,
+                    token: trimmed.to_string(),
+                })?;
             if offset < 0 {
                 return Err(ObjLoadError::IndexOutOfRange {
                     line: line_number,
@@ -851,7 +876,9 @@ impl ObjLoader {
             return Vec::new();
         }
         if count == 3 {
-            if Self::triangle_area_2x(face[0].position, face[1].position, face[2].position) <= f64::EPSILON {
+            if Self::triangle_area_2x(face[0].position, face[1].position, face[2].position)
+                <= f64::EPSILON
+            {
                 return Vec::new();
             }
             return vec![[0, 1, 2]];
@@ -923,8 +950,11 @@ impl ObjLoader {
         }
 
         output.retain(|tri| {
-            Self::triangle_area_2x(face[tri[0]].position, face[tri[1]].position, face[tri[2]].position)
-                > f64::EPSILON
+            Self::triangle_area_2x(
+                face[tri[0]].position,
+                face[tri[1]].position,
+                face[tri[2]].position,
+            ) > f64::EPSILON
         });
 
         output
@@ -1179,7 +1209,8 @@ mod tests {
 
     #[test]
     fn face_with_full_vtn_parses() {
-        let source = "v 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 0 1\nvn 0 0 1\nf 1/1/1 2/2/1 3/3/1\n";
+        let source =
+            "v 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 0 1\nvn 0 0 1\nf 1/1/1 2/2/1 3/3/1\n";
         let mesh = ObjLoader::parse_str(source, "full".to_string()).expect("full parse");
         assert_eq!(mesh.indices.len(), 3);
     }

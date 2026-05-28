@@ -1,4 +1,3 @@
-
 use crate::core::engine::rendering::raytracing::Vec3;
 
 /// Builds normalized 1D Gaussian weights for separable blur.
@@ -38,8 +37,8 @@ pub fn horizontal_blur(
         for x in 0..width {
             let mut acc = Vec3::ZERO;
             for (k, &w) in weights.iter().enumerate() {
-                let sx = (x as isize + k as isize - radius as isize)
-                    .clamp(0, width as isize - 1) as usize;
+                let sx = (x as isize + k as isize - radius as isize).clamp(0, width as isize - 1)
+                    as usize;
                 acc += src[y * width + sx] * w;
             }
             dst[y * width + x] = acc;
@@ -48,21 +47,15 @@ pub fn horizontal_blur(
 }
 
 /// Applies vertical blur pass.
-pub fn vertical_blur(
-    src: &[Vec3],
-    dst: &mut [Vec3],
-    width: usize,
-    height: usize,
-    weights: &[f64],
-) {
+pub fn vertical_blur(src: &[Vec3], dst: &mut [Vec3], width: usize, height: usize, weights: &[f64]) {
     let radius = weights.len() / 2;
 
     for y in 0..height {
         for x in 0..width {
             let mut acc = Vec3::ZERO;
             for (k, &w) in weights.iter().enumerate() {
-                let sy = (y as isize + k as isize - radius as isize)
-                    .clamp(0, height as isize - 1) as usize;
+                let sy = (y as isize + k as isize - radius as isize).clamp(0, height as isize - 1)
+                    as usize;
                 acc += src[sy * width + x] * w;
             }
             dst[y * width + x] = acc;

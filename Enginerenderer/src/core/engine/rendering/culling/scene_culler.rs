@@ -1,4 +1,3 @@
-
 use crate::core::engine::rendering::raytracing::{Camera, Scene};
 
 use super::frustum::{CullResult, Frustum};
@@ -158,9 +157,7 @@ impl SceneCuller {
             .objects
             .iter()
             .copied()
-            .filter(|obj| {
-                frustum.contains_sphere(obj.center, obj.radius) != CullResult::Outside
-            })
+            .filter(|obj| frustum.contains_sphere(obj.center, obj.radius) != CullResult::Outside)
             .collect();
 
         let triangles = scene

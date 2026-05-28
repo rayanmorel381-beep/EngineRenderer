@@ -49,13 +49,19 @@ impl LightTileGrid {
             extent.y / resolution[1] as f64,
             extent.z / resolution[2] as f64,
         );
-        let mut cells: Vec<LightTile> =
-            (0..total_cells).map(|_| LightTile { indices: Vec::new() }).collect();
+        let mut cells: Vec<LightTile> = (0..total_cells)
+            .map(|_| LightTile {
+                indices: Vec::new(),
+            })
+            .collect();
         for (i, obj) in scene.objects.iter().enumerate() {
             if obj.material.emission.length_squared() <= 0.01 {
                 continue;
             }
-            if cell_size.x < f64::EPSILON || cell_size.y < f64::EPSILON || cell_size.z < f64::EPSILON {
+            if cell_size.x < f64::EPSILON
+                || cell_size.y < f64::EPSILON
+                || cell_size.z < f64::EPSILON
+            {
                 for cell in cells.iter_mut() {
                     cell.indices.push(i);
                 }
@@ -70,7 +76,12 @@ impl LightTileGrid {
                 cells[cell_idx].indices.push(i);
             }
         }
-        Self { cells, resolution, bounds_min, bounds_max }
+        Self {
+            cells,
+            resolution,
+            bounds_min,
+            bounds_max,
+        }
     }
 
     pub fn query_sphere(&self, center: Vec3, radius: f64) -> Vec<usize> {
@@ -84,7 +95,11 @@ impl LightTileGrid {
             extent.z / self.resolution[2] as f64,
         );
         if cell_size.x < f64::EPSILON || cell_size.y < f64::EPSILON || cell_size.z < f64::EPSILON {
-            return self.cells.iter().flat_map(|c| c.indices.iter().copied()).collect();
+            return self
+                .cells
+                .iter()
+                .flat_map(|c| c.indices.iter().copied())
+                .collect();
         }
         let clamp_cell = |v: f64, n: usize| (v.max(0.0) as usize).min(n.saturating_sub(1));
         let lo = center - Vec3::splat(radius);
@@ -315,7 +330,13 @@ impl AdaptiveQualitySettings {
 
         Self {
             sample_multiplier: budget_factor.clamp(0.82, 1.10),
-            bounce_limit: if budget_factor > 0.85 { 4 } else if budget_factor > 0.60 { 3 } else { 2 },
+            bounce_limit: if budget_factor > 0.85 {
+                4
+            } else if budget_factor > 0.60 {
+                3
+            } else {
+                2
+            },
             shadow_quality: budget_factor.clamp(0.55, 1.0),
             ao_quality: budget_factor.clamp(0.50, 1.0),
             volumetric_quality: (budget_factor * 0.90).clamp(0.45, 1.0),

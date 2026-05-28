@@ -1,4 +1,3 @@
-
 // Re-export so `crate::core::config_manager::EngineConfig` resolves.
 pub use crate::core::engine::config::EngineConfig;
 
@@ -21,7 +20,10 @@ pub struct ConfigManager {
 impl ConfigManager {
     /// Creates a manager from an existing engine configuration.
     pub fn new(config: EngineConfig) -> Self {
-        Self { config, dirty: false }
+        Self {
+            config,
+            dirty: false,
+        }
     }
 
     /// Creates a manager from a predefined preset.

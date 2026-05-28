@@ -74,7 +74,13 @@ impl EngineApi {
     }
 
     /// Creates a sphere with an explicit base color and roughness.
-    pub fn colored_sphere(&self, center: [f64; 3], radius: f64, rgb: [f64; 3], roughness: f64) -> SceneObject {
+    pub fn colored_sphere(
+        &self,
+        center: [f64; 3],
+        radius: f64,
+        rgb: [f64; 3],
+        roughness: f64,
+    ) -> SceneObject {
         SceneObject::colored_sphere(center, radius, rgb, roughness)
     }
 

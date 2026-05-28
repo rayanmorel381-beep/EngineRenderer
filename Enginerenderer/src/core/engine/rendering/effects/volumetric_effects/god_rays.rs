@@ -1,4 +1,3 @@
-
 use crate::core::engine::rendering::raytracing::Vec3;
 
 pub struct GodRays {
@@ -27,10 +26,8 @@ impl GodRays {
                 let tex_x = x as f64 / width as f64;
                 let tex_y = y as f64 / height as f64;
 
-                let delta_x =
-                    (tex_x - light_screen_x) * self.density / self.num_samples as f64;
-                let delta_y =
-                    (tex_y - light_screen_y) * self.density / self.num_samples as f64;
+                let delta_x = (tex_x - light_screen_x) * self.density / self.num_samples as f64;
+                let delta_y = (tex_y - light_screen_y) * self.density / self.num_samples as f64;
 
                 let mut sample_x = tex_x;
                 let mut sample_y = tex_y;

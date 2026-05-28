@@ -14,11 +14,7 @@ pub fn scene_from_prompt(prompt: &str) -> SceneBuilder {
 
     // ---------- star / sun ----------
     if contains_any(&tokens, &["star", "sun", "soleil", "étoile", "etoile"]) {
-        builder = builder.add_sphere(
-            Vec3::ZERO,
-            1.6,
-            catalog.by_name("stellar_surface"),
-        );
+        builder = builder.add_sphere(Vec3::ZERO, 1.6, catalog.by_name("stellar_surface"));
         has_star = true;
         object_index += 1;
     }
@@ -50,7 +46,11 @@ pub fn scene_from_prompt(prompt: &str) -> SceneBuilder {
     // ---------- moon ----------
     let moon_count = count_tokens(&tokens, &["moon", "lune"]);
     for i in 0..moon_count {
-        let parent = if object_index > 0 { object_index - 1 } else { 0 };
+        let parent = if object_index > 0 {
+            object_index - 1
+        } else {
+            0
+        };
         let angle = std::f64::consts::TAU * i as f64 / moon_count.max(1) as f64;
         let offset = Vec3::new(angle.cos() * 1.2, 0.4, angle.sin() * 1.2);
         let base = orbit_slot(parent, has_star);
@@ -94,7 +94,10 @@ pub fn scene_from_prompt(prompt: &str) -> SceneBuilder {
     }
 
     // ---------- nebula ----------
-    if contains_any(&tokens, &["nebula", "nébuleuse", "nebuleuse", "fog", "brouillard"]) {
+    if contains_any(
+        &tokens,
+        &["nebula", "nébuleuse", "nebuleuse", "fog", "brouillard"],
+    ) {
         builder = builder.with_dense_volume();
     }
 
@@ -102,7 +105,11 @@ pub fn scene_from_prompt(prompt: &str) -> SceneBuilder {
     if object_index == 0 {
         builder = builder
             .add_sphere(Vec3::ZERO, 1.6, catalog.by_name("stellar_surface"))
-            .add_sphere(Vec3::new(5.0, 0.3, 0.0), 0.55, catalog.by_name("ocean_world"));
+            .add_sphere(
+                Vec3::new(5.0, 0.3, 0.0),
+                0.55,
+                catalog.by_name("ocean_world"),
+            );
     }
 
     builder

@@ -50,15 +50,25 @@ impl VirtualShadowMap {
     }
 
     pub fn mark_page_needed(&mut self, clip_level: u32, page_x: u32, page_y: u32) {
-        let key = PageKey { clip_level, page_x, page_y };
+        let key = PageKey {
+            clip_level,
+            page_x,
+            page_y,
+        };
         if !self.pages.iter().any(|p| p.key == key) {
             let slot = self.allocate_atlas_slot();
             let state = match slot {
-                Some((ax, ay)) => PageState::Resident { atlas_x: ax, atlas_y: ay },
+                Some((ax, ay)) => PageState::Resident {
+                    atlas_x: ax,
+                    atlas_y: ay,
+                },
                 None => {
                     let evicted = self.evict_lru_page();
                     match evicted {
-                        Some((ax, ay)) => PageState::Resident { atlas_x: ax, atlas_y: ay },
+                        Some((ax, ay)) => PageState::Resident {
+                            atlas_x: ax,
+                            atlas_y: ay,
+                        },
                         None => PageState::Free,
                     }
                 }
@@ -71,21 +81,22 @@ impl VirtualShadowMap {
             });
         } else {
             for p in &mut self.pages {
-                if p.key == key { p.last_used_frame = self.current_frame; }
+                if p.key == key {
+                    p.last_used_frame = self.current_frame;
+                }
             }
         }
     }
 
-    pub fn query_shadow(
-        &self,
-        world_pos: Vec3,
-        shading_normal: Vec3,
-        clip_level: u32,
-    ) -> f32 {
+    pub fn query_shadow(&self, world_pos: Vec3, shading_normal: Vec3, clip_level: u32) -> f32 {
         let projected = self.project_to_light_space(world_pos);
         let page_x = (projected.x * VSM_ATLAS_PAGES_X as f64) as u32 % VSM_ATLAS_PAGES_X;
         let page_y = (projected.y * VSM_ATLAS_PAGES_Y as f64) as u32 % VSM_ATLAS_PAGES_Y;
-        let key = PageKey { clip_level, page_x, page_y };
+        let key = PageKey {
+            clip_level,
+            page_x,
+            page_y,
+        };
 
         let n_dot_l = shading_normal.dot(-self.light_direction).max(0.0) as f32;
 
@@ -108,7 +119,10 @@ impl VirtualShadowMap {
         1.0
     }
 
-    pub fn update_page_depths(&mut self, scene_objects: &[crate::core::engine::rendering::raytracing::primitives::Sphere]) {
+    pub fn update_page_depths(
+        &mut self,
+        scene_objects: &[crate::core::engine::rendering::raytracing::primitives::Sphere],
+    ) {
         let light_dir = self.light_direction;
         let world_texel_size = self.world_texel_size;
         for page in &mut self.pages {
@@ -135,11 +149,16 @@ impl VirtualShadowMap {
 
     pub fn advance_frame(&mut self) {
         self.current_frame += 1;
-        self.pages.retain(|p| self.current_frame - p.last_used_frame < 4);
+        self.pages
+            .retain(|p| self.current_frame - p.last_used_frame < 4);
     }
 
     pub fn stats(&self) -> VsmStats {
-        let resident = self.pages.iter().filter(|p| matches!(p.state, PageState::Resident { .. })).count();
+        let resident = self
+            .pages
+            .iter()
+            .filter(|p| matches!(p.state, PageState::Resident { .. }))
+            .count();
         VsmStats {
             total_pages: self.pages.len(),
             resident_pages: resident,
@@ -164,7 +183,8 @@ impl VirtualShadowMap {
     }
 
     fn evict_lru_page(&mut self) -> Option<(u32, u32)> {
-        let lru_idx = self.pages
+        let lru_idx = self
+            .pages
             .iter()
             .enumerate()
             .filter(|(_, p)| matches!(p.state, PageState::Resident { .. }))
@@ -192,7 +212,11 @@ impl VirtualShadowMap {
 
 fn project_light_space(world_pos: Vec3, light_direction: Vec3) -> Vec3 {
     let fwd = -light_direction;
-    let up_hint = if fwd.y.abs() < 0.99 { Vec3::new(0.0, 1.0, 0.0) } else { Vec3::new(1.0, 0.0, 0.0) };
+    let up_hint = if fwd.y.abs() < 0.99 {
+        Vec3::new(0.0, 1.0, 0.0)
+    } else {
+        Vec3::new(1.0, 0.0, 0.0)
+    };
     let right = up_hint.cross(fwd).normalize();
     let up = fwd.cross(right).normalize();
     Vec3::new(

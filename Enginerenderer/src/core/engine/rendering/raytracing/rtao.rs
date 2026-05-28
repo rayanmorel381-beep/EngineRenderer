@@ -1,8 +1,8 @@
-use crate::core::engine::rendering::raytracing::{Ray, Scene, Vec3};
+use crate::core::engine::rendering::framebuffer::FrameBuffer;
 use crate::core::engine::rendering::raytracing::acceleration::BvhNode;
 use crate::core::engine::rendering::raytracing::primitives::EPSILON;
 use crate::core::engine::rendering::raytracing::shading::{make_seed, random_scalar};
-use crate::core::engine::rendering::framebuffer::FrameBuffer;
+use crate::core::engine::rendering::raytracing::{Ray, Scene, Vec3};
 
 #[derive(Debug, Clone, Copy)]
 pub struct RtaoConfig {
@@ -48,7 +48,9 @@ impl RtaoPass {
                 let idx = y * w + x;
                 let world_pos = world_pos_fb[idx];
                 let normal = normal_fb[idx];
-                if normal.length_squared() < 0.1 { continue; }
+                if normal.length_squared() < 0.1 {
+                    continue;
+                }
                 let normal = normal.normalize();
 
                 let mut ao = 0.0_f64;
@@ -64,10 +66,12 @@ impl RtaoPass {
                     let origin = world_pos + normal * config.bias;
                     let ray = Ray::new(origin, dir);
 
-                    let occluded = BvhNode::hit_scene(scene, &ray, EPSILON, config.radius, bvh).is_some();
+                    let occluded =
+                        BvhNode::hit_scene(scene, &ray, EPSILON, config.radius, bvh).is_some();
                     if occluded {
                         let hit_t = config.radius * 0.5;
-                        let falloff = 1.0 - (hit_t / config.radius).clamp(0.0, 1.0) * config.falloff;
+                        let falloff =
+                            1.0 - (hit_t / config.radius).clamp(0.0, 1.0) * config.falloff;
                         ao += falloff;
                     }
                     valid_samples += 1;
@@ -100,7 +104,8 @@ impl RtaoPass {
         base_seed: u32,
     ) -> Vec<f64> {
         let bounces = config.indirect_bounces.max(1);
-        let mut accumulated = Self::compute(fb, scene, normal_fb, world_pos_fb, config, bvh, base_seed);
+        let mut accumulated =
+            Self::compute(fb, scene, normal_fb, world_pos_fb, config, bvh, base_seed);
 
         for bounce in 1..bounces {
             let bounce_seed = base_seed.wrapping_add(bounce.wrapping_mul(0xDEAD_BEEF));
@@ -112,7 +117,9 @@ impl RtaoPass {
                     let idx = y * w + x;
                     let world_pos = world_pos_fb[idx];
                     let normal = normal_fb[idx];
-                    if normal.length_squared() < 0.1 { continue; }
+                    if normal.length_squared() < 0.1 {
+                        continue;
+                    }
                     let normal = normal.normalize();
 
                     let mut indirect_ao = 0.0_f64;
@@ -128,14 +135,21 @@ impl RtaoPass {
                         let bounce_origin = world_pos + normal * config.bias;
                         let bounce_ray = Ray::new(bounce_origin, dir);
 
-                        if let Some(hit) = BvhNode::hit_scene(scene, &bounce_ray, EPSILON, config.radius, bvh) {
+                        if let Some(hit) =
+                            BvhNode::hit_scene(scene, &bounce_ray, EPSILON, config.radius, bvh)
+                        {
                             let secondary_origin = bounce_origin + dir * hit.distance;
                             let secondary_normal = hit.normal;
                             for s2 in 0..config.samples / 2 {
                                 let seed2 = make_seed(seed, s2, bounce_seed);
                                 let dir2 = cosine_weighted_hemisphere(secondary_normal, seed2);
-                                let ray2 = Ray::new(secondary_origin + secondary_normal * config.bias, dir2);
-                                if BvhNode::hit_scene(scene, &ray2, EPSILON, config.radius, bvh).is_some() {
+                                let ray2 = Ray::new(
+                                    secondary_origin + secondary_normal * config.bias,
+                                    dir2,
+                                );
+                                if BvhNode::hit_scene(scene, &ray2, EPSILON, config.radius, bvh)
+                                    .is_some()
+                                {
                                     indirect_ao += 0.5 / (bounce as f64 + 1.0);
                                 }
                             }
@@ -162,7 +176,11 @@ fn cosine_weighted_hemisphere(normal: Vec3, seed: u32) -> Vec3 {
     let r = u1.sqrt();
     let phi = TAU * u2;
     let local = Vec3::new(r * phi.cos(), (1.0 - u1).sqrt().max(0.0), r * phi.sin());
-    let up = if normal.y.abs() < 0.99 { Vec3::new(0.0, 1.0, 0.0) } else { Vec3::new(1.0, 0.0, 0.0) };
+    let up = if normal.y.abs() < 0.99 {
+        Vec3::new(0.0, 1.0, 0.0)
+    } else {
+        Vec3::new(1.0, 0.0, 0.0)
+    };
     let right = normal.cross(up).normalize();
     let fwd = right.cross(normal).normalize();
     (right * local.x + normal * local.y + fwd * local.z).normalize()

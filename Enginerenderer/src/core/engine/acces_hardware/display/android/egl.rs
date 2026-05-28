@@ -37,45 +37,40 @@ pub(super) const EGL_CONTEXT_CLIENT_VERSION: c_int = 0x3098;
 
 pub(super) type FnEglGetDisplay = unsafe extern "C" fn(EGLNativeDisplayType) -> EGLDisplay;
 pub(super) type FnEglInitialize =
-	unsafe extern "C" fn(EGLDisplay, *mut c_int, *mut c_int) -> EGLBoolean;
+    unsafe extern "C" fn(EGLDisplay, *mut c_int, *mut c_int) -> EGLBoolean;
 pub(super) type FnEglTerminate = unsafe extern "C" fn(EGLDisplay) -> EGLBoolean;
 pub(super) type FnEglBindAPI = unsafe extern "C" fn(c_uint) -> EGLBoolean;
-pub(super) type FnEglChooseConfig = unsafe extern "C" fn(
-	EGLDisplay,
-	*const c_int,
-	*mut EGLConfig,
-	c_int,
-	*mut c_int,
-) -> EGLBoolean;
+pub(super) type FnEglChooseConfig =
+    unsafe extern "C" fn(EGLDisplay, *const c_int, *mut EGLConfig, c_int, *mut c_int) -> EGLBoolean;
 pub(super) type FnEglCreatePbufferSurface =
-	unsafe extern "C" fn(EGLDisplay, EGLConfig, *const c_int) -> EGLSurface;
+    unsafe extern "C" fn(EGLDisplay, EGLConfig, *const c_int) -> EGLSurface;
 pub(super) type FnEglDestroySurface = unsafe extern "C" fn(EGLDisplay, EGLSurface) -> EGLBoolean;
 pub(super) type FnEglCreateContext =
-	unsafe extern "C" fn(EGLDisplay, EGLConfig, EGLContext, *const c_int) -> EGLContext;
+    unsafe extern "C" fn(EGLDisplay, EGLConfig, EGLContext, *const c_int) -> EGLContext;
 pub(super) type FnEglDestroyContext = unsafe extern "C" fn(EGLDisplay, EGLContext) -> EGLBoolean;
 pub(super) type FnEglMakeCurrent =
-	unsafe extern "C" fn(EGLDisplay, EGLSurface, EGLSurface, EGLContext) -> EGLBoolean;
+    unsafe extern "C" fn(EGLDisplay, EGLSurface, EGLSurface, EGLContext) -> EGLBoolean;
 pub(super) type FnEglSwapBuffers = unsafe extern "C" fn(EGLDisplay, EGLSurface) -> EGLBoolean;
 pub(super) type FnEglGetProcAddress = unsafe extern "C" fn(*const c_char) -> *mut c_void;
 pub(super) type FnEglGetError = unsafe extern "C" fn() -> c_int;
 
 #[allow(non_snake_case, dead_code)]
 pub(super) struct EglLib {
-	pub handle: *mut c_void,
-	pub gles_handle: *mut c_void,
-	pub eglGetDisplay: FnEglGetDisplay,
-	pub eglInitialize: FnEglInitialize,
-	pub eglTerminate: FnEglTerminate,
-	pub eglBindAPI: FnEglBindAPI,
-	pub eglChooseConfig: FnEglChooseConfig,
-	pub eglCreatePbufferSurface: FnEglCreatePbufferSurface,
-	pub eglDestroySurface: FnEglDestroySurface,
-	pub eglCreateContext: FnEglCreateContext,
-	pub eglDestroyContext: FnEglDestroyContext,
-	pub eglMakeCurrent: FnEglMakeCurrent,
-	pub eglSwapBuffers: FnEglSwapBuffers,
-	pub eglGetProcAddress: FnEglGetProcAddress,
-	pub eglGetError: FnEglGetError,
+    pub handle: *mut c_void,
+    pub gles_handle: *mut c_void,
+    pub eglGetDisplay: FnEglGetDisplay,
+    pub eglInitialize: FnEglInitialize,
+    pub eglTerminate: FnEglTerminate,
+    pub eglBindAPI: FnEglBindAPI,
+    pub eglChooseConfig: FnEglChooseConfig,
+    pub eglCreatePbufferSurface: FnEglCreatePbufferSurface,
+    pub eglDestroySurface: FnEglDestroySurface,
+    pub eglCreateContext: FnEglCreateContext,
+    pub eglDestroyContext: FnEglDestroyContext,
+    pub eglMakeCurrent: FnEglMakeCurrent,
+    pub eglSwapBuffers: FnEglSwapBuffers,
+    pub eglGetProcAddress: FnEglGetProcAddress,
+    pub eglGetError: FnEglGetError,
 }
 
 unsafe impl Send for EglLib {}
@@ -84,34 +79,34 @@ unsafe impl Sync for EglLib {}
 static EGL: Mutex<Option<&'static EglLib>> = Mutex::new(None);
 
 pub(super) fn egl() -> Option<&'static EglLib> {
-	let mut guard = EGL.lock().ok()?;
-	if let Some(lib) = *guard {
-		return Some(lib);
-	}
-	let handle = try_open(b"libEGL.so\0")?;
-	let gles_handle = try_open(b"libGLESv3.so\0")
-		.or_else(|| try_open(b"libGLESv2.so\0"))
-		.unwrap_or(core::ptr::null_mut());
-	let lib = unsafe {
-		EglLib {
-			handle,
-			gles_handle,
-			eglGetDisplay: load_sym(handle, b"eglGetDisplay\0")?,
-			eglInitialize: load_sym(handle, b"eglInitialize\0")?,
-			eglTerminate: load_sym(handle, b"eglTerminate\0")?,
-			eglBindAPI: load_sym(handle, b"eglBindAPI\0")?,
-			eglChooseConfig: load_sym(handle, b"eglChooseConfig\0")?,
-			eglCreatePbufferSurface: load_sym(handle, b"eglCreatePbufferSurface\0")?,
-			eglDestroySurface: load_sym(handle, b"eglDestroySurface\0")?,
-			eglCreateContext: load_sym(handle, b"eglCreateContext\0")?,
-			eglDestroyContext: load_sym(handle, b"eglDestroyContext\0")?,
-			eglMakeCurrent: load_sym(handle, b"eglMakeCurrent\0")?,
-			eglSwapBuffers: load_sym(handle, b"eglSwapBuffers\0")?,
-			eglGetProcAddress: load_sym(handle, b"eglGetProcAddress\0")?,
-			eglGetError: load_sym(handle, b"eglGetError\0")?,
-		}
-	};
-	let leaked: &'static EglLib = Box::leak(Box::new(lib));
-	*guard = Some(leaked);
-	Some(leaked)
+    let mut guard = EGL.lock().ok()?;
+    if let Some(lib) = *guard {
+        return Some(lib);
+    }
+    let handle = try_open(b"libEGL.so\0")?;
+    let gles_handle = try_open(b"libGLESv3.so\0")
+        .or_else(|| try_open(b"libGLESv2.so\0"))
+        .unwrap_or(core::ptr::null_mut());
+    let lib = unsafe {
+        EglLib {
+            handle,
+            gles_handle,
+            eglGetDisplay: load_sym(handle, b"eglGetDisplay\0")?,
+            eglInitialize: load_sym(handle, b"eglInitialize\0")?,
+            eglTerminate: load_sym(handle, b"eglTerminate\0")?,
+            eglBindAPI: load_sym(handle, b"eglBindAPI\0")?,
+            eglChooseConfig: load_sym(handle, b"eglChooseConfig\0")?,
+            eglCreatePbufferSurface: load_sym(handle, b"eglCreatePbufferSurface\0")?,
+            eglDestroySurface: load_sym(handle, b"eglDestroySurface\0")?,
+            eglCreateContext: load_sym(handle, b"eglCreateContext\0")?,
+            eglDestroyContext: load_sym(handle, b"eglDestroyContext\0")?,
+            eglMakeCurrent: load_sym(handle, b"eglMakeCurrent\0")?,
+            eglSwapBuffers: load_sym(handle, b"eglSwapBuffers\0")?,
+            eglGetProcAddress: load_sym(handle, b"eglGetProcAddress\0")?,
+            eglGetError: load_sym(handle, b"eglGetError\0")?,
+        }
+    };
+    let leaked: &'static EglLib = Box::leak(Box::new(lib));
+    *guard = Some(leaked);
+    Some(leaked)
 }

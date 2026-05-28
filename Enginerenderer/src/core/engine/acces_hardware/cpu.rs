@@ -1,4 +1,3 @@
-
 use std::thread::available_parallelism;
 
 use super::arch::compute_dispatch;
@@ -43,30 +42,48 @@ impl CpuProfile {
             .saturating_mul(vendor_scale)
             .saturating_mul(power_scale)
             .saturating_mul(budget_scale);
-        let logical_cores = compute_dispatch::clamp_cpu_workers(
-            requested.min(cfg.render_workers.max(1))
-        ) as u8;
+        let logical_cores =
+            compute_dispatch::clamp_cpu_workers(requested.min(cfg.render_workers.max(1))) as u8;
         let l2_cache_kb = detect_l2_cache_kb();
         let physical = detect_physical_cores();
         let has_ht = (logical_cores as usize) > physical;
-        let vector_width_bits = if simd.avx512f { 512 }
-            else if simd.avx2 || simd.avx { 256 }
-            else if simd.sse4_2 || simd.sse2 || simd.neon { 128 }
-            else { 64 };
-        Self { logical_cores, l2_cache_kb, has_ht, simd_features: simd, vector_width_bits }
+        let vector_width_bits = if simd.avx512f {
+            512
+        } else if simd.avx2 || simd.avx {
+            256
+        } else if simd.sse4_2 || simd.sse2 || simd.neon {
+            128
+        } else {
+            64
+        };
+        Self {
+            logical_cores,
+            l2_cache_kb,
+            has_ht,
+            simd_features: simd,
+            vector_width_bits,
+        }
     }
 
     pub fn optimal_tile_width(&self) -> usize {
-        if self.simd_features.avx512f { 16 }
-        else if self.simd_features.avx2 || self.simd_features.avx { 8 }
-        else if self.simd_features.sse4_2 || self.simd_features.sse2 || self.simd_features.neon { 4 }
-        else { 2 }
+        if self.simd_features.avx512f {
+            16
+        } else if self.simd_features.avx2 || self.simd_features.avx {
+            8
+        } else if self.simd_features.sse4_2 || self.simd_features.sse2 || self.simd_features.neon {
+            4
+        } else {
+            2
+        }
     }
 
     pub fn log_summary(&self) {
         crate::runtime_log!(
             "cpu: cores={} l2={}KB ht={} vec={}bit",
-            self.logical_cores, self.l2_cache_kb, self.has_ht, self.vector_width_bits,
+            self.logical_cores,
+            self.l2_cache_kb,
+            self.has_ht,
+            self.vector_width_bits,
         );
     }
 

@@ -54,21 +54,16 @@ struct DrmAmdgpuWaitCs {
 
 pub(crate) fn probe_amdgpu_telemetry(card: &str) -> (u32, u32, u32, i32) {
     let base = format!("/sys/class/drm/{}/device", card);
-    let active_cu = read_sysfs_u64(&format!("{}/num_cu", base))
-        .unwrap_or(0) as u32;
-    let shader_engines = read_sysfs_u64(&format!("{}/num_shader_engines", base))
-        .unwrap_or(0) as u32;
+    let active_cu = read_sysfs_u64(&format!("{}/num_cu", base)).unwrap_or(0) as u32;
+    let shader_engines =
+        read_sysfs_u64(&format!("{}/num_shader_engines", base)).unwrap_or(0) as u32;
     let sclk = read_sysfs_u64(&format!("{}/pp_dpm_sclk", base))
-        .and_then(|_| {
-            fs::read_to_string(format!("{}/pp_dpm_sclk", base)).ok()
-        })
+        .and_then(|_| fs::read_to_string(format!("{}/pp_dpm_sclk", base)).ok())
         .and_then(|content| {
-            content.lines()
-                .filter(|l| l.contains('*'))
-                .find_map(|l| {
-                    l.split_whitespace()
-                        .find_map(|w| w.trim_end_matches("Mhz").parse::<u64>().ok())
-                })
+            content.lines().filter(|l| l.contains('*')).find_map(|l| {
+                l.split_whitespace()
+                    .find_map(|w| w.trim_end_matches("Mhz").parse::<u64>().ok())
+            })
         })
         .unwrap_or(0) as u32;
     let temp = fs::read_dir(format!("{}/hwmon", base))
@@ -96,11 +91,20 @@ pub(crate) fn drm_amdgpu_alloc_gem(fd: RawFd, size_bytes: u64) -> Option<GemBuff
         domain_flags: 0,
     };
     let ret = unsafe {
-        raw_ioctl(fd, DRM_IOCTL_AMDGPU_GEM_CREATE, core::ptr::addr_of_mut!(args).cast())
+        raw_ioctl(
+            fd,
+            DRM_IOCTL_AMDGPU_GEM_CREATE,
+            core::ptr::addr_of_mut!(args).cast(),
+        )
     };
     let handle = args.bo_size as u32;
     if ret == 0 && handle != 0 {
-        Some(GemBuffer { fd, handle, size: aligned, mmap_offset: 0 })
+        Some(GemBuffer {
+            fd,
+            handle,
+            size: aligned,
+            mmap_offset: 0,
+        })
     } else {
         None
     }
@@ -113,7 +117,11 @@ pub(crate) fn drm_amdgpu_gem_mmap(fd: RawFd, handle: u32) -> Option<u64> {
         out_addr_ptr: 0,
     };
     let ret = unsafe {
-        raw_ioctl(fd, DRM_IOCTL_AMDGPU_GEM_MMAP, core::ptr::addr_of_mut!(args).cast())
+        raw_ioctl(
+            fd,
+            DRM_IOCTL_AMDGPU_GEM_MMAP,
+            core::ptr::addr_of_mut!(args).cast(),
+        )
     };
     if ret == 0 && args.out_addr_ptr != 0 {
         Some(args.out_addr_ptr)
@@ -133,20 +141,26 @@ pub(crate) fn drm_amdgpu_wait_cs(fd: RawFd, seq_handle: u64, timeout_ns: u64) ->
         status: 0,
     };
     let ret = unsafe {
-        raw_ioctl(fd, DRM_IOCTL_AMDGPU_WAIT_CS, core::ptr::addr_of_mut!(args).cast())
+        raw_ioctl(
+            fd,
+            DRM_IOCTL_AMDGPU_WAIT_CS,
+            core::ptr::addr_of_mut!(args).cast(),
+        )
     };
     ret == 0 && args.status == 0
 }
 
-pub(crate) fn submit_amdgpu_cs(fd: RawFd, gem_handle: u32, packets: &[u32]) -> Result<i64, &'static str> {
+pub(crate) fn submit_amdgpu_cs(
+    fd: RawFd,
+    gem_handle: u32,
+    packets: &[u32],
+) -> Result<i64, &'static str> {
     let ib_chunk = DrmAmdgpuCsChunk {
         chunk_id: 0x01,
         length_dw: packets.len() as u32,
         chunk_data: packets.as_ptr() as u64,
     };
-    let chunk_ptrs: [u64; 1] = [
-        core::ptr::addr_of!(ib_chunk) as u64,
-    ];
+    let chunk_ptrs: [u64; 1] = [core::ptr::addr_of!(ib_chunk) as u64];
     let mut cs_in = DrmAmdgpuCsIn {
         ctx_id: 0,
         bo_list_handle: 0,
@@ -155,12 +169,17 @@ pub(crate) fn submit_amdgpu_cs(fd: RawFd, gem_handle: u32, packets: &[u32]) -> R
         chunks: chunk_ptrs.as_ptr() as u64,
     };
     let ret = unsafe {
-        raw_ioctl(fd, DRM_IOCTL_AMDGPU_CS, core::ptr::addr_of_mut!(cs_in).cast())
+        raw_ioctl(
+            fd,
+            DRM_IOCTL_AMDGPU_CS,
+            core::ptr::addr_of_mut!(cs_in).cast(),
+        )
     };
     if ret == 0 {
         crate::runtime_log!(
             "gpu: amdgpu CS submitted — {} PM4 dwords, gem_handle={}",
-            packets.len(), gem_handle,
+            packets.len(),
+            gem_handle,
         );
         Ok(packets.len() as i64)
     } else {

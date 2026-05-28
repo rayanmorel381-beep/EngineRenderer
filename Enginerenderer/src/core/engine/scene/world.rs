@@ -5,7 +5,7 @@ use crate::core::engine::rendering::{
 
 use super::{
     objects::{append_car, append_house, append_tree},
-    primitives::{append_box, append_ring, RingSpec},
+    primitives::{RingSpec, append_box, append_ring},
 };
 
 pub(crate) fn append_showcase_world(scene: &mut Scene, anchor: Vec3) {
@@ -42,9 +42,24 @@ pub(crate) fn append_showcase_world(scene: &mut Scene, anchor: Vec3) {
     append_house(scene, anchor + Vec3::new(2.4, 0.0, -2.8), 1.10);
     append_house(scene, anchor + Vec3::new(5.4, 0.0, -2.5), 0.88);
 
-    append_car(scene, anchor + Vec3::new(-2.8, 0.0, -0.15), 0.95, Vec3::new(0.84, 0.16, 0.10));
-    append_car(scene, anchor + Vec3::new(0.4, 0.0, 0.18), 1.00, Vec3::new(0.18, 0.32, 0.82));
-    append_car(scene, anchor + Vec3::new(3.5, 0.0, -0.22), 0.90, Vec3::new(0.72, 0.74, 0.78));
+    append_car(
+        scene,
+        anchor + Vec3::new(-2.8, 0.0, -0.15),
+        0.95,
+        Vec3::new(0.84, 0.16, 0.10),
+    );
+    append_car(
+        scene,
+        anchor + Vec3::new(0.4, 0.0, 0.18),
+        1.00,
+        Vec3::new(0.18, 0.32, 0.82),
+    );
+    append_car(
+        scene,
+        anchor + Vec3::new(3.5, 0.0, -0.22),
+        0.90,
+        Vec3::new(0.72, 0.74, 0.78),
+    );
 
     for &(x, z, scale) in &[
         (-6.4, -1.8, 1.25),
@@ -87,26 +102,32 @@ pub(crate) fn append_celestial_panorama(scene: &mut Scene, focus: Vec3) {
         },
     ]);
 
-    append_ring(&mut scene.triangles, RingSpec {
-        center: planet_center,
-        inner_radius: 2.9,
-        outer_radius: 4.0,
-        axis_u: Vec3::new(1.0, 0.0, 0.0),
-        axis_v: Vec3::new(0.0, 0.12, 1.0).normalize(),
-        segments: 64,
-        material: Material::new(Vec3::new(0.66, 0.60, 0.48), 0.72, 0.04, 0.06, Vec3::ZERO)
-            .with_layers(0.94, 0.03, Vec3::new(0.03, 0.03, 0.02))
-            .with_optics(0.12, 0.05, 0.02),
-    });
-    append_ring(&mut scene.triangles, RingSpec {
-        center: black_hole_center,
-        inner_radius: 3.4,
-        outer_radius: 6.1,
-        axis_u: Vec3::new(1.0, 0.0, 0.0),
-        axis_v: Vec3::new(0.0, 0.26, 1.0).normalize(),
-        segments: 96,
-        material: MaterialLibrary::accretion_disk(),
-    });
+    append_ring(
+        &mut scene.triangles,
+        RingSpec {
+            center: planet_center,
+            inner_radius: 2.9,
+            outer_radius: 4.0,
+            axis_u: Vec3::new(1.0, 0.0, 0.0),
+            axis_v: Vec3::new(0.0, 0.12, 1.0).normalize(),
+            segments: 64,
+            material: Material::new(Vec3::new(0.66, 0.60, 0.48), 0.72, 0.04, 0.06, Vec3::ZERO)
+                .with_layers(0.94, 0.03, Vec3::new(0.03, 0.03, 0.02))
+                .with_optics(0.12, 0.05, 0.02),
+        },
+    );
+    append_ring(
+        &mut scene.triangles,
+        RingSpec {
+            center: black_hole_center,
+            inner_radius: 3.4,
+            outer_radius: 6.1,
+            axis_u: Vec3::new(1.0, 0.0, 0.0),
+            axis_v: Vec3::new(0.0, 0.26, 1.0).normalize(),
+            segments: 96,
+            material: MaterialLibrary::accretion_disk(),
+        },
+    );
 
     scene.area_lights.extend([
         AreaLight {
@@ -126,14 +147,14 @@ pub(crate) fn append_celestial_panorama(scene: &mut Scene, focus: Vec3) {
     ]);
 
     let background_stars: &[((f64, f64, f64), f64)] = &[
-        ((-52.0,  18.0, -70.0), 0.45),
-        (( 44.0,  31.0, -85.0), 0.38),
-        ((-18.0,  55.0, -92.0), 0.52),
-        (( 78.0, -12.0, -60.0), 0.41),
-        ((-65.0,  42.0, -50.0), 0.36),
-        (( 28.0,  68.0, -78.0), 0.48),
+        ((-52.0, 18.0, -70.0), 0.45),
+        ((44.0, 31.0, -85.0), 0.38),
+        ((-18.0, 55.0, -92.0), 0.52),
+        ((78.0, -12.0, -60.0), 0.41),
+        ((-65.0, 42.0, -50.0), 0.36),
+        ((28.0, 68.0, -78.0), 0.48),
         ((-38.0, -20.0, -88.0), 0.43),
-        (( 60.0,  24.0, -95.0), 0.50),
+        ((60.0, 24.0, -95.0), 0.50),
     ];
     for &((x, y, z), r) in background_stars {
         scene.objects.push(Sphere {
@@ -145,9 +166,9 @@ pub(crate) fn append_celestial_panorama(scene: &mut Scene, focus: Vec3) {
 
     let distant_planets: &[((f64, f64, f64), f64, u8)] = &[
         ((-30.0, 12.0, -48.0), 1.85, 0),
-        (( 38.0, -8.0, -42.0), 1.42, 1),
+        ((38.0, -8.0, -42.0), 1.42, 1),
         ((-44.0, 22.0, -35.0), 1.60, 2),
-        (( 22.0, 16.0, -55.0), 1.25, 3),
+        ((22.0, 16.0, -55.0), 1.25, 3),
     ];
     for &((x, y, z), r, kind) in distant_planets {
         let material = match kind {
@@ -164,14 +185,14 @@ pub(crate) fn append_celestial_panorama(scene: &mut Scene, focus: Vec3) {
     }
 
     let rogue_moons: &[((f64, f64, f64), f64)] = &[
-        ((-22.0,  6.0, -32.0), 0.68),
-        (( 26.0, -4.0, -28.0), 0.54),
+        ((-22.0, 6.0, -32.0), 0.68),
+        ((26.0, -4.0, -28.0), 0.54),
         ((-14.0, 18.0, -38.0), 0.72),
-        (( 34.0, 10.0, -44.0), 0.60),
+        ((34.0, 10.0, -44.0), 0.60),
         ((-40.0, -6.0, -26.0), 0.58),
-        (( 18.0, 22.0, -50.0), 0.65),
+        ((18.0, 22.0, -50.0), 0.65),
         ((-26.0, 14.0, -24.0), 0.48),
-        (( 42.0, -2.0, -34.0), 0.55),
+        ((42.0, -2.0, -34.0), 0.55),
     ];
     for &((x, y, z), r) in rogue_moons {
         scene.objects.push(Sphere {

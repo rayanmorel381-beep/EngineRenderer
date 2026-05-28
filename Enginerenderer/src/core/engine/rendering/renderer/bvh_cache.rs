@@ -8,11 +8,18 @@ use crate::core::engine::rendering::raytracing::{Scene, acceleration::BvhNode};
 use super::state::{CachedBvh, Renderer};
 
 impl Renderer {
-    fn persistent_bvh_cache_path(signature: u64, object_count: usize, triangle_count: usize) -> std::path::PathBuf {
+    fn persistent_bvh_cache_path(
+        signature: u64,
+        object_count: usize,
+        triangle_count: usize,
+    ) -> std::path::PathBuf {
         let mut path = std::env::temp_dir();
         path.push("enginerenderer-cache");
         path.push("bvh-cache");
-        path.push(format!("{:016x}-{}-{}.bvh", signature, object_count, triangle_count));
+        path.push(format!(
+            "{:016x}-{}-{}.bvh",
+            signature, object_count, triangle_count
+        ));
         path
     }
 
@@ -37,7 +44,8 @@ impl Renderer {
         if let Ok(loaded) = BvhNode::load_from_path(&cache_path, scene) {
             let loaded = Arc::new(loaded);
             let stats = loaded.stats();
-            let load_ms = acces_hardware::elapsed_ms(t_load, acces_hardware::precise_timestamp_ns());
+            let load_ms =
+                acces_hardware::elapsed_ms(t_load, acces_hardware::precise_timestamp_ns());
             crate::runtime_log!(
                 "tracer: BVH disk-load {:.2}ms (nodes={} leaves={})",
                 load_ms,
@@ -58,7 +66,8 @@ impl Renderer {
         let built = BvhNode::build(scene).map(Arc::new);
         if let Some(ref bvh) = built {
             let stats = bvh.stats();
-            let build_ms = acces_hardware::elapsed_ms(t_build, acces_hardware::precise_timestamp_ns());
+            let build_ms =
+                acces_hardware::elapsed_ms(t_build, acces_hardware::precise_timestamp_ns());
             crate::runtime_log!(
                 "tracer: BVH build {:.2}ms (nodes={} leaves={})",
                 build_ms,

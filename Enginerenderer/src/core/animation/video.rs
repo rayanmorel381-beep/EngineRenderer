@@ -1,9 +1,4 @@
-use std::{
-    error::Error,
-    fmt,
-    path::Path,
-    process::Command,
-};
+use std::{error::Error, fmt, path::Path, process::Command};
 
 use super::sequence::SequenceResult;
 
@@ -25,16 +20,16 @@ pub struct VideoExporter;
 impl VideoExporter {
     /// Encodes an image sequence into an H.264 MP4 file using ffmpeg.
     pub fn encode_h264<P: AsRef<Path>, Q: AsRef<Path>>(
-        frame_dir:    P,
+        frame_dir: P,
         frame_prefix: &str,
-        fps:          f64,
-        output_path:  Q,
+        fps: f64,
+        output_path: Q,
     ) -> Result<(), Box<dyn Error>> {
         if !ffmpeg_available() {
             return Err(Box::new(FfmpegNotFound));
         }
 
-        let frame_dir   = frame_dir.as_ref();
+        let frame_dir = frame_dir.as_ref();
         let output_path = output_path.as_ref();
 
         if let Some(parent) = output_path.parent()
@@ -48,12 +43,18 @@ impl VideoExporter {
         let status = Command::new("ffmpeg")
             .args([
                 "-y",
-                "-r",          &format!("{fps:.6}"),
-                "-i",          input_pattern.to_str().unwrap_or(""),
-                "-vcodec",     "libx264",
-                "-crf",        "18",
-                "-pix_fmt",    "yuv420p",
-                "-movflags",   "+faststart",
+                "-r",
+                &format!("{fps:.6}"),
+                "-i",
+                input_pattern.to_str().unwrap_or(""),
+                "-vcodec",
+                "libx264",
+                "-crf",
+                "18",
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
                 output_path.to_str().unwrap_or(""),
             ])
             .status()?;
@@ -67,15 +68,15 @@ impl VideoExporter {
 
     /// Encodes a sequence result into an H.264 video file.
     pub fn encode_from_result<P: AsRef<Path>>(
-        result:      &SequenceResult,
+        result: &SequenceResult,
         output_path: P,
     ) -> Result<(), Box<dyn Error>> {
         if result.frames.is_empty() {
             return Err("no frames to encode".into());
         }
-        let first    = &result.frames[0].output_path;
-        let ext      = first.extension().and_then(|e| e.to_str()).unwrap_or("png");
-        let stem     = first
+        let first = &result.frames[0].output_path;
+        let ext = first.extension().and_then(|e| e.to_str()).unwrap_or("png");
+        let stem = first
             .file_name()
             .and_then(|n| n.to_str())
             .and_then(|n| n.rfind('_').map(|i| &n[..i]))
@@ -83,7 +84,7 @@ impl VideoExporter {
 
         if ext != "png" {
             return Err(
-                "video encoding requires PNG frames — rerun sequence with .png prefix".into()
+                "video encoding requires PNG frames — rerun sequence with .png prefix".into(),
             );
         }
 

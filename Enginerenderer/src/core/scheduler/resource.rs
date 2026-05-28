@@ -41,16 +41,10 @@ impl ResourceManager {
         let surface_detail_scale = (pixel_count / hd_reference).sqrt().clamp(1.0, 2.5);
         let procedural_environment = ProceduralEnvironment::cinematic_space();
         let solar_elevation: f64 = 0.48;
-        let sun_dir = Vec3::new(
-            solar_elevation.cos(),
-            solar_elevation.sin(),
-            0.0,
-        );
+        let sun_dir = Vec3::new(solar_elevation.cos(), solar_elevation.sin(), 0.0);
         let sky_top = procedural_environment.hdri_probe(Vec3::new(0.0, 1.0, 0.0), sun_dir);
-        let sky_bottom = procedural_environment.hdri_probe(
-            Vec3::new(0.0, 0.12, 1.0).normalize(),
-            sun_dir,
-        );
+        let sky_bottom =
+            procedural_environment.hdri_probe(Vec3::new(0.0, 0.12, 1.0).normalize(), sun_dir);
 
         Self {
             output_path: config.output_path.clone(),

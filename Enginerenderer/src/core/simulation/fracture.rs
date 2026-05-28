@@ -24,11 +24,14 @@ pub struct FractureBody {
 impl FractureBody {
     pub fn generate(bounds_min: Vec3, bounds_max: Vec3, seed_count: usize, seed: u64) -> Self {
         let centers = lcg_points(bounds_min, bounds_max, seed_count, seed);
-        let cells: Vec<VoronoiCell> = centers.into_iter().map(|c| VoronoiCell {
-            center: c,
-            vertices: Vec::new(),
-            broken: false,
-        }).collect();
+        let cells: Vec<VoronoiCell> = centers
+            .into_iter()
+            .map(|c| VoronoiCell {
+                center: c,
+                vertices: Vec::new(),
+                broken: false,
+            })
+            .collect();
 
         let n = cells.len();
         let mut bonds = Vec::new();
@@ -38,17 +41,28 @@ impl FractureBody {
                 let extent = (bounds_max - bounds_min).length();
                 let neighbor_threshold = extent / (seed_count as f64).sqrt() * 1.5;
                 if dist < neighbor_threshold {
-                    bonds.push(Bond { a: i, b: j, strength: 1.0, broken: false });
+                    bonds.push(Bond {
+                        a: i,
+                        b: j,
+                        strength: 1.0,
+                        broken: false,
+                    });
                 }
             }
         }
 
-        Self { cells, bonds, threshold: 0.5 }
+        Self {
+            cells,
+            bonds,
+            threshold: 0.5,
+        }
     }
 
     pub fn apply_impulse(&mut self, point: Vec3, force_magnitude: f64) {
         for bond in &mut self.bonds {
-            if bond.broken { continue; }
+            if bond.broken {
+                continue;
+            }
             let ca = self.cells[bond.a].center;
             let cb = self.cells[bond.b].center;
             let midpoint = (ca + cb) * 0.5;
@@ -90,11 +104,17 @@ fn lcg_points(min: Vec3, max: Vec3, count: usize, seed: u64) -> Vec<Vec3> {
     let mut points = Vec::with_capacity(count);
     let range = max - min;
     for _ in 0..count {
-        s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        s = s
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         let fx = ((s >> 33) as f64) / (u32::MAX as f64);
-        s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        s = s
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         let fy = ((s >> 33) as f64) / (u32::MAX as f64);
-        s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        s = s
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         let fz = ((s >> 33) as f64) / (u32::MAX as f64);
         points.push(Vec3::new(
             min.x + fx * range.x,

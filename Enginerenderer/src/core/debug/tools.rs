@@ -66,7 +66,10 @@ impl DebugTools {
             spatial_width: input.audio.spatial_width,
             reverb_send: input.audio.reverb_send,
             warning_count: input.warning_count,
-            event_history: input.event_summary.clients.max(input.event_summary.node_count),
+            event_history: input
+                .event_summary
+                .clients
+                .max(input.event_summary.node_count),
             momentum_hint: input.momentum_hint,
             log_depth: input.log_depth,
             adaptation: input.adaptation,

@@ -1,4 +1,3 @@
-
 use std::error::Error;
 use std::io::{self, Write};
 
@@ -40,7 +39,10 @@ pub fn run_interactive() -> Result<(), Box<dyn Error>> {
             continue;
         }
 
-        if cmd.eq_ignore_ascii_case("quit") || cmd.eq_ignore_ascii_case("exit") || cmd.eq_ignore_ascii_case("qui") {
+        if cmd.eq_ignore_ascii_case("quit")
+            || cmd.eq_ignore_ascii_case("exit")
+            || cmd.eq_ignore_ascii_case("qui")
+        {
             eprintln!("bye");
             break;
         }
@@ -118,7 +120,10 @@ pub fn run_interactive() -> Result<(), Box<dyn Error>> {
                         }
                     }
                     Some(module) => {
-                        eprintln!("module '{}' item '{}': no extended metadata yet", module, item);
+                        eprintln!(
+                            "module '{}' item '{}': no extended metadata yet",
+                            module, item
+                        );
                     }
                 }
             }

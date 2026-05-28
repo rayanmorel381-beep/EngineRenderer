@@ -253,7 +253,13 @@ fn fuzz_random_inputs_never_panic() {
                 assert!(light.intensity >= 0.0);
                 assert!(light.size[0] > 0.0 && light.size[1] > 0.0);
             }
-            assert!(desc.exposure > 0.0 || desc.spheres.is_empty() && desc.triangles.is_empty() && desc.area_lights.is_empty() || desc.exposure.is_finite());
+            assert!(
+                desc.exposure > 0.0
+                    || desc.spheres.is_empty()
+                        && desc.triangles.is_empty()
+                        && desc.area_lights.is_empty()
+                    || desc.exposure.is_finite()
+            );
         }
     }
 }

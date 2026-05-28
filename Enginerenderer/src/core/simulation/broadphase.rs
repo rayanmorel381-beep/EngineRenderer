@@ -8,7 +8,10 @@ pub struct SpatialHash {
 
 impl SpatialHash {
     pub fn new(cell_size: f64) -> Self {
-        Self { cells: HashMap::new(), cell_size }
+        Self {
+            cells: HashMap::new(),
+            cell_size,
+        }
     }
 
     pub fn clear(&mut self) {

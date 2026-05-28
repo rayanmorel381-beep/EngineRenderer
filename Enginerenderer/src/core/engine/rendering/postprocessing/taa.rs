@@ -1,5 +1,5 @@
-use crate::core::engine::rendering::raytracing::Vec3;
 use crate::core::engine::rendering::framebuffer::FrameBuffer;
+use crate::core::engine::rendering::raytracing::Vec3;
 
 pub struct TaaAccumulator {
     pub history: Vec<Vec3>,
@@ -56,7 +56,9 @@ impl TaaAccumulator {
     }
 
     pub fn reset(&mut self) {
-        for p in &mut self.history { *p = Vec3::ZERO; }
+        for p in &mut self.history {
+            *p = Vec3::ZERO;
+        }
         self.frame_index = 0;
     }
 }
@@ -90,7 +92,11 @@ fn variance_clamp_history(
     let n = count as f64;
     let mean = m1 * (1.0 / n);
     let variance = m2 * (1.0 / n) - Vec3::new(mean.x * mean.x, mean.y * mean.y, mean.z * mean.z);
-    let sigma = Vec3::new(variance.x.max(0.0).sqrt(), variance.y.max(0.0).sqrt(), variance.z.max(0.0).sqrt());
+    let sigma = Vec3::new(
+        variance.x.max(0.0).sqrt(),
+        variance.y.max(0.0).sqrt(),
+        variance.z.max(0.0).sqrt(),
+    );
     let gamma = 1.25_f64;
 
     let lo = mean - sigma * gamma;
@@ -120,7 +126,9 @@ pub struct SpatialUpscaler {
 
 impl SpatialUpscaler {
     pub fn new(scale_factor: u32) -> Self {
-        Self { scale_factor: scale_factor.max(1) }
+        Self {
+            scale_factor: scale_factor.max(1),
+        }
     }
 
     pub fn upscale(&self, src: &FrameBuffer) -> FrameBuffer {

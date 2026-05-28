@@ -3,37 +3,37 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use crate::api::animation::AnimationClip;
-use crate::api::scenes::builder::SceneBuilder;
 use crate::api::scenes::SceneDescriptor;
+use crate::api::scenes::builder::SceneBuilder;
 use crate::api::types::core::{Quality, RenderRequest, RenderResult};
 use crate::core::animation::sequence::{FrameSequencer, SequenceResult};
 use crate::core::coremanager::engine_manager::Engine;
-use crate::core::engine::rendering::renderer::types::RenderPreset;
 use crate::core::engine::rendering::renderer::Renderer;
+use crate::core::engine::rendering::renderer::types::RenderPreset;
 
 use super::engine_api::EngineApi;
 
+pub use crate::core::engine::rendering::effects::volumetric_effects::medium::VolumetricMedium;
+pub use crate::core::engine::rendering::environment::procedural::ProceduralEnvironment;
 pub use crate::core::engine::rendering::framebuffer::FrameBuffer;
 pub use crate::core::engine::rendering::lod::manager::LodManager as RenderingLodManager;
 pub use crate::core::engine::rendering::lod::tier::{LodThresholds, LodTier};
 pub use crate::core::engine::rendering::postprocessing::blur::gaussian_weights;
 pub use crate::core::engine::rendering::preprocessing::tone_mapping::ToneMappingOperator;
 pub use crate::core::engine::rendering::raytracing::Vec3;
+#[cfg(target_os = "android")]
+pub use crate::core::engine::rendering::raytracing::gpu_raytracer::try_new_android as gpu_try_new_android;
+#[cfg(target_os = "linux")]
+pub use crate::core::engine::rendering::raytracing::gpu_raytracer::try_new_desktop as gpu_try_new_desktop;
 pub use crate::core::engine::rendering::raytracing::{
     AreaLight, Camera as RenderCamera, DirectionalLight, GpuDeviceInfo, GpuRaytracer,
     GpuRenderConfig, Image, Material, Scene, Sphere, Triangle,
 };
-pub use crate::core::engine::rendering::effects::volumetric_effects::medium::VolumetricMedium;
-pub use crate::core::engine::rendering::environment::procedural::ProceduralEnvironment;
-#[cfg(target_os = "linux")]
-pub use crate::core::engine::rendering::raytracing::gpu_raytracer::try_new_desktop as gpu_try_new_desktop;
-#[cfg(target_os = "android")]
-pub use crate::core::engine::rendering::raytracing::gpu_raytracer::try_new_android as gpu_try_new_android;
 pub use crate::core::engine::rendering::utils::{
-    aces_tonemap, barycentric, bias, cartesian_to_spherical, color_temperature,
-    fresnel_dielectric, fresnel_schlick, fresnel_schlick_vec, gain, hsv_to_rgb,
-    inverse_lerp, linear_to_srgb, luminance, quintic_smooth, reflect, reinhard_extended, remap,
-    rgb_to_hsv, smoothstep, spherical_to_cartesian, srgb_to_linear, triangle_area, uncharted2_tonemap,
+    aces_tonemap, barycentric, bias, cartesian_to_spherical, color_temperature, fresnel_dielectric,
+    fresnel_schlick, fresnel_schlick_vec, gain, hsv_to_rgb, inverse_lerp, linear_to_srgb,
+    luminance, quintic_smooth, reflect, reinhard_extended, remap, rgb_to_hsv, smoothstep,
+    spherical_to_cartesian, srgb_to_linear, triangle_area, uncharted2_tonemap,
 };
 
 /// Realtime run request.
@@ -94,12 +94,7 @@ impl EngineApi {
     }
 
     /// Builds a custom render request with clamped resolution.
-    pub fn request_custom(
-        &self,
-        width: usize,
-        height: usize,
-        quality: Quality,
-    ) -> RenderRequest {
+    pub fn request_custom(&self, width: usize, height: usize, quality: Quality) -> RenderRequest {
         RenderRequest {
             width: width.clamp(64, 3840),
             height: height.clamp(64, 2160),
@@ -140,10 +135,7 @@ impl EngineApi {
     }
 
     /// Renders the engine showcase scene.
-    pub fn render_showcase(
-        &self,
-        request: &RenderRequest,
-    ) -> Result<RenderResult, Box<dyn Error>> {
+    pub fn render_showcase(&self, request: &RenderRequest) -> Result<RenderResult, Box<dyn Error>> {
         let preset = preset_for(request);
         let renderer = match (preset, request.width, request.height) {
             (RenderPreset::PreviewCpu, 1920, 1080) => Renderer::from_preset(preset),

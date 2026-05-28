@@ -1,13 +1,12 @@
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::thread;
 
-use crate::core::engine::acces_hardware::{
-    self, CpuProfile, HardwareCapabilities, NativeHardwareBackend,
-    precise_timestamp_ns, elapsed_ms, gpu_dispatch_tiles,
-    alloc_dma_framebuffer, DmaFramebuffer,
-};
 use crate::core::engine::acces_hardware::cpu::{
-    detect_core_frequencies, thread_affinity_mask, CoreSnapshot,
+    CoreSnapshot, detect_core_frequencies, thread_affinity_mask,
+};
+use crate::core::engine::acces_hardware::{
+    self, CpuProfile, DmaFramebuffer, HardwareCapabilities, NativeHardwareBackend,
+    alloc_dma_framebuffer, elapsed_ms, gpu_dispatch_tiles, precise_timestamp_ns,
 };
 
 // ─── Hardware snapshot (cached once per scheduler) ─────────────────────
@@ -29,7 +28,11 @@ impl HwContext {
         let caps = backend.hw_caps().clone();
         let cpu = backend.cpu_profile().clone();
         let core_freqs = detect_core_frequencies();
-        Self { caps, cpu, core_freqs }
+        Self {
+            caps,
+            cpu,
+            core_freqs,
+        }
     }
 
     pub fn fastest_cores(&self, n: usize) -> Vec<u32> {
@@ -55,14 +58,23 @@ impl HwContext {
 
     pub fn simd_tag(&self) -> &'static str {
         let s = &self.cpu.simd_features;
-        if s.avx512f { "AVX-512" }
-        else if s.avx2 { "AVX2" }
-        else if s.avx { "AVX" }
-        else if s.fma { "FMA" }
-        else if s.sse4_2 { "SSE4.2" }
-        else if s.sse2 { "SSE2" }
-        else if s.neon { "NEON" }
-        else { "scalar" }
+        if s.avx512f {
+            "AVX-512"
+        } else if s.avx2 {
+            "AVX2"
+        } else if s.avx {
+            "AVX"
+        } else if s.fma {
+            "FMA"
+        } else if s.sse4_2 {
+            "SSE4.2"
+        } else if s.sse2 {
+            "SSE2"
+        } else if s.neon {
+            "NEON"
+        } else {
+            "scalar"
+        }
     }
 }
 
@@ -138,7 +150,8 @@ impl SchedulerReport {
     pub fn log_summary(&self) {
         crate::runtime_log!(
             "scheduler: {} tiles, {} pixels, {:.1}ms, {} workers, simd={}, gpu={}, dma={}",
-            self.total_tiles, self.total_pixels,
+            self.total_tiles,
+            self.total_pixels,
             self.dispatch_ms(),
             self.worker_stats.len(),
             self.simd_tag,
@@ -149,8 +162,12 @@ impl SchedulerReport {
             let ms = elapsed_ms(0, w.total_ns);
             crate::runtime_log!(
                 "  worker-{}: core={} tiles={} pixels={} {:.1}ms affinity=0x{:x}",
-                w.worker_id, w.core_id, w.tiles_rendered, w.pixels_rendered,
-                ms, w.affinity_mask,
+                w.worker_id,
+                w.core_id,
+                w.tiles_rendered,
+                w.pixels_rendered,
+                ms,
+                w.affinity_mask,
             );
         }
     }
@@ -222,7 +239,8 @@ impl TileScheduler {
         if pixel_bytes > max_bytes {
             crate::runtime_log!(
                 "scheduler: WARNING resolution {}×{} needs {}MB but only {}MB available",
-                image_width, image_height,
+                image_width,
+                image_height,
                 pixel_bytes / (1024 * 1024),
                 max_bytes / (1024 * 1024),
             );
@@ -230,7 +248,8 @@ impl TileScheduler {
 
         let worker_count = effective_workers(&hw, image_width, image_height, hint_threads);
         let fastest_cores = hw.fastest_cores(worker_count);
-        let (tile_width, tile_height) = adaptive_tile_size(&hw, image_width, image_height, worker_count, tuning);
+        let (tile_width, tile_height) =
+            adaptive_tile_size(&hw, image_width, image_height, worker_count, tuning);
 
         let cols = image_width.div_ceil(tile_width.max(1));
         let rows = image_height.div_ceil(tile_height.max(1));
@@ -240,7 +259,8 @@ impl TileScheduler {
         if let Some(ref fb) = dma_fb {
             crate::runtime_log!(
                 "scheduler: DMA framebuffer allocated ({}×{}, {}B, phys=0x{:x})",
-                image_width, image_height,
+                image_width,
+                image_height,
                 fb.byte_len(),
                 fb.virt_addr(),
             );
@@ -248,9 +268,13 @@ impl TileScheduler {
 
         crate::runtime_log!(
             "scheduler: {}×{} tiles={}×{}={} workers={}/{} simd={} l2_tile={}px granularity={:.2} fastest_cores={:?}",
-            image_width, image_height,
-            cols, rows, cols * rows,
-            worker_count, hw.caps.logical_cores,
+            image_width,
+            image_height,
+            cols,
+            rows,
+            cols * rows,
+            worker_count,
+            hw.caps.logical_cores,
             hw.simd_tag(),
             hw.l2_tile_pixels(),
             tuning.granularity_bias(),
@@ -334,9 +358,7 @@ impl TileScheduler {
         let worker_pixel_counts: Vec<AtomicUsize> = (0..self.worker_count)
             .map(|_| AtomicUsize::new(0))
             .collect();
-        let worker_ns: Vec<AtomicU64> = (0..self.worker_count)
-            .map(|_| AtomicU64::new(0))
-            .collect();
+        let worker_ns: Vec<AtomicU64> = (0..self.worker_count).map(|_| AtomicU64::new(0)).collect();
 
         let mut all_results: Vec<(usize, Vec<T>)> = Vec::with_capacity(total);
 
@@ -350,7 +372,10 @@ impl TileScheduler {
                 let tc = &worker_tile_counts[worker_id];
                 let pc = &worker_pixel_counts[worker_id];
                 let ns = &worker_ns[worker_id];
-                let core_id = self.fastest_cores.get(worker_id).copied()
+                let core_id = self
+                    .fastest_cores
+                    .get(worker_id)
+                    .copied()
                     .unwrap_or(worker_id as u32);
 
                 let handle_result = thread::Builder::new()
@@ -460,7 +485,13 @@ fn effective_workers(hw: &HwContext, w: usize, h: usize, hint: usize) -> usize {
     hint.min(cpus).min(max_by_pixels).min(max_by_rows).max(1)
 }
 
-fn adaptive_tile_size(hw: &HwContext, w: usize, h: usize, workers: usize, tuning: SchedulerTuning) -> (usize, usize) {
+fn adaptive_tile_size(
+    hw: &HwContext,
+    w: usize,
+    h: usize,
+    workers: usize,
+    tuning: SchedulerTuning,
+) -> (usize, usize) {
     let simd_w = hw.simd_tile_width();
     let l2_pixels = hw.l2_tile_pixels();
     let granularity_bias = tuning.granularity_bias();

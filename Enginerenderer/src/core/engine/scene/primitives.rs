@@ -29,7 +29,14 @@ pub fn append_box(triangles: &mut Vec<Triangle>, center: Vec3, half: Vec3, mater
     append_quad(triangles, p000, p100, p101, p001, material);
 }
 
-pub fn append_quad(triangles: &mut Vec<Triangle>, a: Vec3, b: Vec3, c: Vec3, d: Vec3, material: Material) {
+pub fn append_quad(
+    triangles: &mut Vec<Triangle>,
+    a: Vec3,
+    b: Vec3,
+    c: Vec3,
+    d: Vec3,
+    material: Material,
+) {
     triangles.push(Triangle::flat(a, b, c, material));
     triangles.push(Triangle::flat(a, c, d, material));
 }
@@ -49,7 +56,14 @@ pub fn append_ring(triangles: &mut Vec<Triangle>, ring: RingSpec) {
         let outer_start = ring.center + dir_start * ring.outer_radius;
         let inner_end = ring.center + dir_end * ring.inner_radius;
         let outer_end = ring.center + dir_end * ring.outer_radius;
-        append_quad(triangles, inner_start, outer_start, outer_end, inner_end, ring.material);
+        append_quad(
+            triangles,
+            inner_start,
+            outer_start,
+            outer_end,
+            inner_end,
+            ring.material,
+        );
     }
 }
 
@@ -68,8 +82,27 @@ pub fn append_gabled_roof(
     let ridge_front = center + Vec3::new(0.0, roof_height, half_depth);
     let ridge_back = center + Vec3::new(0.0, roof_height, -half_depth);
 
-    append_quad(triangles, left_front, left_back, ridge_back, ridge_front, material);
-    append_quad(triangles, right_front, ridge_front, ridge_back, right_back, material);
-    triangles.push(Triangle::flat(left_front, right_front, ridge_front, material));
+    append_quad(
+        triangles,
+        left_front,
+        left_back,
+        ridge_back,
+        ridge_front,
+        material,
+    );
+    append_quad(
+        triangles,
+        right_front,
+        ridge_front,
+        ridge_back,
+        right_back,
+        material,
+    );
+    triangles.push(Triangle::flat(
+        left_front,
+        right_front,
+        ridge_front,
+        material,
+    ));
     triangles.push(Triangle::flat(left_back, ridge_back, right_back, material));
 }

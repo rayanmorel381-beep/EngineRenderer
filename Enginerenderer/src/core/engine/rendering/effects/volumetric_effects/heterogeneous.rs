@@ -3,27 +3,55 @@ use crate::core::engine::rendering::utils::fbm_3d;
 
 #[derive(Debug, Clone, Copy)]
 pub enum DensityField {
-    Uniform { density: f64 },
-    Exponential { base_density: f64, height_falloff: f64 },
-    FbmNoise { base_density: f64, scale: f64, octaves: u32, offset: Vec3 },
-    Sphere { center: Vec3, radius: f64, density: f64, falloff: f64 },
+    Uniform {
+        density: f64,
+    },
+    Exponential {
+        base_density: f64,
+        height_falloff: f64,
+    },
+    FbmNoise {
+        base_density: f64,
+        scale: f64,
+        octaves: u32,
+        offset: Vec3,
+    },
+    Sphere {
+        center: Vec3,
+        radius: f64,
+        density: f64,
+        falloff: f64,
+    },
 }
 
 impl DensityField {
     pub fn sample(&self, pos: Vec3) -> f64 {
         match *self {
             DensityField::Uniform { density } => density,
-            DensityField::Exponential { base_density, height_falloff } => {
-                base_density * (-height_falloff * pos.y.max(0.0)).exp()
-            }
-            DensityField::FbmNoise { base_density, scale, octaves, offset } => {
+            DensityField::Exponential {
+                base_density,
+                height_falloff,
+            } => base_density * (-height_falloff * pos.y.max(0.0)).exp(),
+            DensityField::FbmNoise {
+                base_density,
+                scale,
+                octaves,
+                offset,
+            } => {
                 let p = (pos + offset) * scale;
                 let noise = fbm_3d(p, octaves, 2.0, 0.5);
                 (base_density * noise.max(0.0)).max(0.0)
             }
-            DensityField::Sphere { center, radius, density, falloff } => {
+            DensityField::Sphere {
+                center,
+                radius,
+                density,
+                falloff,
+            } => {
                 let d = (pos - center).length();
-                if d >= radius { return 0.0; }
+                if d >= radius {
+                    return 0.0;
+                }
                 let t = 1.0 - d / radius;
                 density * t.powf(falloff)
             }
@@ -76,7 +104,10 @@ impl HeterogeneousVolume {
 
     pub fn atmosphere_low() -> Self {
         Self {
-            density_field: DensityField::Exponential { base_density: 0.15, height_falloff: 0.3 },
+            density_field: DensityField::Exponential {
+                base_density: 0.15,
+                height_falloff: 0.3,
+            },
             scattering_albedo: Vec3::new(0.8, 0.85, 1.0),
             emission: Vec3::ZERO,
             phase_g: 0.5,
@@ -107,7 +138,9 @@ impl HeterogeneousVolume {
             let t = t_min + (i as f64 + 0.5) * actual_step;
             let pos = ray.at(t);
             let density = self.density_field.sample(pos);
-            if density < 1e-6 { continue; }
+            if density < 1e-6 {
+                continue;
+            }
 
             let sigma_s = density * self.scattering_albedo;
             let sigma_a = Vec3::splat(density * self.absorption_coeff);
@@ -124,11 +157,14 @@ impl HeterogeneousVolume {
 
             let emission_term = self.emission * density;
 
-            let contrib = (in_scatter + emission_term) * transmittance * (1.0 - step_transmittance) / mean_sigma_t.max(1e-12);
+            let contrib = (in_scatter + emission_term) * transmittance * (1.0 - step_transmittance)
+                / mean_sigma_t.max(1e-12);
             radiance += contrib;
             transmittance *= step_transmittance;
 
-            if transmittance < 1e-4 { break; }
+            if transmittance < 1e-4 {
+                break;
+            }
         }
 
         (radiance, transmittance)
@@ -149,7 +185,9 @@ impl HeterogeneousVolume {
                 origin.z + dir.z * t,
             );
             optical_depth += self.density_field.sample(pos) * self.absorption_coeff * actual_step;
-            if optical_depth > 10.0 { break; }
+            if optical_depth > 10.0 {
+                break;
+            }
         }
 
         (-optical_depth).exp()
@@ -165,7 +203,12 @@ impl HeterogeneousVolume {
             let t = t_min + (i as f64 + 0.5) * actual_step;
             let pos = ray.at(t);
             let density = self.density_field.sample(pos);
-            let sigma_t = density * (self.absorption_coeff + (self.scattering_albedo.x + self.scattering_albedo.y + self.scattering_albedo.z) / 3.0);
+            let sigma_t = density
+                * (self.absorption_coeff
+                    + (self.scattering_albedo.x
+                        + self.scattering_albedo.y
+                        + self.scattering_albedo.z)
+                        / 3.0);
             optical_depth += sigma_t * actual_step;
         }
 

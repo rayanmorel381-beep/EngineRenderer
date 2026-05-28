@@ -1,4 +1,3 @@
-
 use std::path::PathBuf;
 
 /// Tracks generated output files during runtime.
@@ -10,7 +9,9 @@ pub struct ResourceTracker {
 impl ResourceTracker {
     /// Creates an empty resource tracker.
     pub fn new() -> Self {
-        Self { frame_outputs: Vec::new() }
+        Self {
+            frame_outputs: Vec::new(),
+        }
     }
 
     /// Registers a new output file path.

@@ -1,5 +1,5 @@
-use crate::core::engine::rendering::raytracing::Vec3;
 use super::rigidbody::{Collider, RigidBody};
+use crate::core::engine::rendering::raytracing::Vec3;
 
 #[derive(Debug, Clone)]
 pub struct ClothParticle {
@@ -40,7 +40,13 @@ pub struct Spring {
 
 impl Spring {
     pub fn new(a: usize, b: usize, rest_length: f64) -> Self {
-        Self { a, b, rest_length, stiffness: 0.9, damping: 0.01 }
+        Self {
+            a,
+            b,
+            rest_length,
+            stiffness: 0.9,
+            damping: 0.01,
+        }
     }
 
     pub fn with_stiffness(mut self, s: f64) -> Self {
@@ -61,8 +67,7 @@ impl ClothGrid {
         let mut particles = Vec::with_capacity(cols * rows);
         for row in 0..rows {
             for col in 0..cols {
-                let pos = origin
-                    + Vec3::new(col as f64 * spacing, 0.0, row as f64 * spacing);
+                let pos = origin + Vec3::new(col as f64 * spacing, 0.0, row as f64 * spacing);
                 let p = if row == 0 {
                     ClothParticle::pinned(pos)
                 } else {
@@ -104,7 +109,12 @@ impl ClothGrid {
             }
         }
 
-        Self { particles, springs, width: cols, height: rows }
+        Self {
+            particles,
+            springs,
+            width: cols,
+            height: rows,
+        }
     }
 
     pub fn step(&mut self, dt: f64, gravity: Vec3, iterations: usize) {
@@ -131,8 +141,7 @@ impl ClothGrid {
                     continue;
                 }
                 let error = dist - spring.rest_length;
-                let sum_inv = self.particles[spring.a].inv_mass
-                    + self.particles[spring.b].inv_mass;
+                let sum_inv = self.particles[spring.a].inv_mass + self.particles[spring.b].inv_mass;
                 if sum_inv < f64::EPSILON {
                     continue;
                 }

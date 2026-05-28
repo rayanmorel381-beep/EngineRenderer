@@ -1,4 +1,3 @@
-
 use crate::core::engine::rendering::raytracing::Vec3;
 
 #[derive(Debug, Clone, Copy)]

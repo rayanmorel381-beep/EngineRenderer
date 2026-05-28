@@ -6,10 +6,14 @@
 //! payload, falling back to deterministic procedural geometry when the
 //! container does not expose decodable accessors.
 
-use std::{fs, io, path::{Path, PathBuf}};
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+};
 
 use crate::core::engine::rendering::{
-    mesh::asset::MeshAsset, mesh::vertex::{MeshDescriptor, Vertex},
+    mesh::asset::MeshAsset,
+    mesh::vertex::{MeshDescriptor, Vertex},
     raytracing::{Material, Vec3},
     texture::image_summary::TextureImageSummary,
 };
@@ -101,7 +105,10 @@ impl std::fmt::Display for GlbLoadError {
                 write!(f, "glb file size {size} exceeds limit {limit}")
             }
             Self::HeaderTruncated { size } => {
-                write!(f, "glb header truncated: {size} bytes (need {GLB_HEADER_SIZE})")
+                write!(
+                    f,
+                    "glb header truncated: {size} bytes (need {GLB_HEADER_SIZE})"
+                )
             }
             Self::InvalidMagic { found } => {
                 write!(
@@ -111,7 +118,10 @@ impl std::fmt::Display for GlbLoadError {
                 )
             }
             Self::UnsupportedVersion { version } => {
-                write!(f, "unsupported glb version: {version} (need {GLB_SUPPORTED_VERSION})")
+                write!(
+                    f,
+                    "unsupported glb version: {version} (need {GLB_SUPPORTED_VERSION})"
+                )
             }
             Self::DeclaredLengthMismatch { declared, actual } => {
                 write!(f, "glb declared length {declared} != actual {actual}")
@@ -119,7 +129,11 @@ impl std::fmt::Display for GlbLoadError {
             Self::ChunkHeaderTruncated { offset } => {
                 write!(f, "glb chunk header truncated at offset {offset}")
             }
-            Self::ChunkPayloadTruncated { offset, length, remaining } => {
+            Self::ChunkPayloadTruncated {
+                offset,
+                length,
+                remaining,
+            } => {
                 write!(
                     f,
                     "glb chunk payload truncated at offset {offset}: claims {length}, remaining {remaining}"
@@ -220,12 +234,11 @@ pub fn iter_glb_chunks(bytes: &[u8]) -> Result<Vec<(u32, &[u8])>, GlbLoadError> 
             bytes[offset + 6],
             bytes[offset + 7],
         ]);
-        let chunk_length_usize = usize::try_from(chunk_length).map_err(|_| {
-            GlbLoadError::ChunkLengthOverflow {
+        let chunk_length_usize =
+            usize::try_from(chunk_length).map_err(|_| GlbLoadError::ChunkLengthOverflow {
                 offset,
                 length: chunk_length,
-            }
-        })?;
+            })?;
         if chunk_length_usize > MAX_GLB_CHUNK_SIZE {
             return Err(GlbLoadError::ChunkTooLarge {
                 length: chunk_length as u64,
@@ -305,8 +318,14 @@ impl GlbLoader {
     /// chunks against [`iter_glb_chunks`] before extracting nodes/textures.
     pub fn load_from_path<P: AsRef<Path>>(&self, path: P) -> io::Result<Vec<MeshAsset>> {
         let path = path.as_ref();
-        let name = path.file_stem().and_then(|value| value.to_str()).unwrap_or("glb_asset");
-        let extension = path.extension().and_then(|value| value.to_str()).unwrap_or_default();
+        let name = path
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .unwrap_or("glb_asset");
+        let extension = path
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default();
 
         if extension.eq_ignore_ascii_case("gltf") {
             let metadata = fs::metadata(path)?;
@@ -370,7 +389,13 @@ impl GlbLoader {
             let y = f32::from_le_bytes([chunk[4], chunk[5], chunk[6], chunk[7]]) as f64;
             let z = f32::from_le_bytes([chunk[8], chunk[9], chunk[10], chunk[11]]) as f64;
 
-            if x.is_finite() && y.is_finite() && z.is_finite() && x.abs() < 1.0e6 && y.abs() < 1.0e6 && z.abs() < 1.0e6 {
+            if x.is_finite()
+                && y.is_finite()
+                && z.is_finite()
+                && x.abs() < 1.0e6
+                && y.abs() < 1.0e6
+                && z.abs() < 1.0e6
+            {
                 points.push(Vec3::new(x, y, z));
             }
         }
@@ -379,7 +404,11 @@ impl GlbLoader {
             let radius = 1.0 + (header.version as f64 * 0.2);
             MeshAsset::procedural_asteroid(name, radius, 18 + header.version)
         } else {
-            let centroid = points.iter().copied().fold(Vec3::ZERO, |acc, point| acc + point) / points.len() as f64;
+            let centroid = points
+                .iter()
+                .copied()
+                .fold(Vec3::ZERO, |acc, point| acc + point)
+                / points.len() as f64;
             let max_radius = points
                 .iter()
                 .map(|point| (*point - centroid).length())
@@ -451,7 +480,9 @@ impl GlbLoader {
             } else if path
                 .extension()
                 .and_then(|value| value.to_str())
-                .is_some_and(|extension| extension.eq_ignore_ascii_case("glb") || extension.eq_ignore_ascii_case("gltf"))
+                .is_some_and(|extension| {
+                    extension.eq_ignore_ascii_case("glb") || extension.eq_ignore_ascii_case("gltf")
+                })
             {
                 output.push(path);
             }
@@ -465,19 +496,30 @@ impl GlbLoader {
         Some(self.apply_image_palette(asset_path.parent(), json, material))
     }
 
-    fn apply_image_palette(&self, base_dir: Option<&Path>, json: &str, mut material: Material) -> Material {
+    fn apply_image_palette(
+        &self,
+        base_dir: Option<&Path>,
+        json: &str,
+        mut material: Material,
+    ) -> Material {
         let image_uris = Self::extract_image_uris(json);
         if let Some((tint, detail)) = self.probe_texture_palette(base_dir, &image_uris) {
             material.albedo = material.albedo.lerp(tint, 0.34);
             material.sheen += tint * 0.04;
-            material.texture_weight = (material.texture_weight + 0.12 + detail * 0.18).clamp(0.0, 1.0);
-            material.normal_map_strength = (material.normal_map_strength + detail * 0.45).clamp(0.0, 3.0);
+            material.texture_weight =
+                (material.texture_weight + 0.12 + detail * 0.18).clamp(0.0, 1.0);
+            material.normal_map_strength =
+                (material.normal_map_strength + detail * 0.45).clamp(0.0, 3.0);
             material.uv_scale *= 1.0 + detail * 0.35;
         }
         material
     }
 
-    fn probe_texture_palette(&self, base_dir: Option<&Path>, uris: &[String]) -> Option<(Vec3, f64)> {
+    fn probe_texture_palette(
+        &self,
+        base_dir: Option<&Path>,
+        uris: &[String],
+    ) -> Option<(Vec3, f64)> {
         let base_dir = base_dir?;
         let mut accumulated = Vec3::ZERO;
         let mut total_weight = 0.0;
@@ -525,7 +567,10 @@ impl GlbLoader {
         if total_weight <= f64::EPSILON {
             None
         } else {
-            Some(((accumulated / total_weight).clamp(0.0, 1.0), (detail / uris.len().max(1) as f64).clamp(0.0, 1.0)))
+            Some((
+                (accumulated / total_weight).clamp(0.0, 1.0),
+                (detail / uris.len().max(1) as f64).clamp(0.0, 1.0),
+            ))
         }
     }
 
@@ -550,9 +595,11 @@ impl GlbLoader {
             .into_iter()
             .enumerate()
             .map(|(index, node)| {
-                let mut asset = template
-                    .clone()
-                    .with_transform(node.translation, node.scale, Some(node.rotation));
+                let mut asset = template.clone().with_transform(
+                    node.translation,
+                    node.scale,
+                    Some(node.rotation),
+                );
                 asset.name = node
                     .name
                     .map(|node_name| format!("{}_{}", name, node_name))
@@ -645,11 +692,9 @@ impl GlbLoader {
             + clearcoat * 0.25
             + (1.0 - roughness) * 0.20
             + if has_normal_texture { 0.12 } else { 0.0 })
-            .clamp(0.0, 1.0);
-        let subsurface = ((transmission * 0.65)
-            + (1.0 - metallic) * 0.18
-            + thickness * 0.45)
-            .clamp(0.0, 1.0);
+        .clamp(0.0, 1.0);
+        let subsurface =
+            ((transmission * 0.65) + (1.0 - metallic) * 0.18 + thickness * 0.45).clamp(0.0, 1.0);
         let sheen = Vec3::new(base_color[0], base_color[1], base_color[2])
             * (if has_base_color_texture { 0.12 } else { 0.08 });
         let emissive_color = Vec3::new(emissive[0], emissive[1], emissive[2])
@@ -657,7 +702,11 @@ impl GlbLoader {
             * if has_emissive_texture { 1.25 } else { 1.0 };
         let texture_weight = if has_base_color_texture { 0.78 } else { 0.48 };
         let normal_strength = if has_normal_texture { 1.45 } else { 0.85 };
-        let uv_scale = if has_occlusion_texture || has_base_color_texture { 1.35 } else { 1.0 };
+        let uv_scale = if has_occlusion_texture || has_base_color_texture {
+            1.35
+        } else {
+            1.0
+        };
         let attenuated_albedo = Vec3::new(
             base_color[0] * attenuation_color[0],
             base_color[1] * attenuation_color[1],
@@ -673,7 +722,11 @@ impl GlbLoader {
                 emissive_color,
             )
             .with_layers(
-                if has_occlusion_texture { occlusion * 0.96 } else { occlusion },
+                if has_occlusion_texture {
+                    occlusion * 0.96
+                } else {
+                    occlusion
+                },
                 clearcoat.max(0.08 + (1.0 - roughness) * 0.20),
                 sheen,
             )
@@ -705,8 +758,7 @@ impl GlbLoader {
             .chars()
             .skip_while(|character| character.is_whitespace())
             .take_while(|character| {
-                character.is_ascii_digit()
-                    || matches!(character, '.' | '-' | '+' | 'e' | 'E')
+                character.is_ascii_digit() || matches!(character, '.' | '-' | '+' | 'e' | 'E')
             })
             .collect::<String>();
 
@@ -944,7 +996,9 @@ mod tests {
         let mut buf = build_header(GLB_SUPPORTED_VERSION, total as u32);
         buf.extend(tail);
         match iter_glb_chunks(&buf) {
-            Err(GlbLoadError::ChunkPayloadTruncated { length, remaining, .. }) => {
+            Err(GlbLoadError::ChunkPayloadTruncated {
+                length, remaining, ..
+            }) => {
                 assert_eq!(length, 16);
                 assert_eq!(remaining, 3);
             }

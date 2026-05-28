@@ -1,8 +1,8 @@
-use crate::core::engine::rendering::raytracing::{Ray, Scene, Vec3};
+use crate::core::engine::rendering::framebuffer::FrameBuffer;
 use crate::core::engine::rendering::raytracing::acceleration::BvhNode;
 use crate::core::engine::rendering::raytracing::primitives::EPSILON;
 use crate::core::engine::rendering::raytracing::shading::{make_seed, random_scalar};
-use crate::core::engine::rendering::framebuffer::FrameBuffer;
+use crate::core::engine::rendering::raytracing::{Ray, Scene, Vec3};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Photon {
@@ -63,7 +63,9 @@ impl PhotonMap {
                         Some(hit) => {
                             let russian = random_scalar(rng.wrapping_mul(0x1234_5678));
                             let albedo_lum = luminance(hit.material.albedo);
-                            if russian > albedo_lum || albedo_lum < 0.01 { break; }
+                            if russian > albedo_lum || albedo_lum < 0.01 {
+                                break;
+                            }
                             power = power * hit.material.albedo * (1.0 / albedo_lum.max(1e-6));
                             self.photons.push(Photon {
                                 position: hit.point,
@@ -87,17 +89,33 @@ impl PhotonMap {
     fn build_kd_tree(&mut self) {
         let n = self.photons.len();
         self.kd_indices = (0..n).collect();
-        if n == 0 { self.built = true; return; }
+        if n == 0 {
+            self.built = true;
+            return;
+        }
         kd_sort(&mut self.kd_indices, &self.photons, 0, n, 0);
         self.built = true;
     }
 
     pub fn gather(&self, pos: Vec3, normal: Vec3, radius: f64) -> Vec3 {
-        if !self.built || self.photons.is_empty() { return Vec3::ZERO; }
+        if !self.built || self.photons.is_empty() {
+            return Vec3::ZERO;
+        }
         let radius_sq = radius * radius;
         let mut result = Vec3::ZERO;
         let mut count = 0u32;
-        kd_gather(&KdQuery { indices: &self.kd_indices, photons: &self.photons, pos, normal, radius_sq }, &mut result, &mut count, 0);
+        kd_gather(
+            &KdQuery {
+                indices: &self.kd_indices,
+                photons: &self.photons,
+                pos,
+                normal,
+                radius_sq,
+            },
+            &mut result,
+            &mut count,
+            0,
+        );
         if count > 0 {
             result * (1.0 / (std::f64::consts::PI * radius_sq))
         } else {
@@ -107,11 +125,15 @@ impl PhotonMap {
 }
 
 impl Default for PhotonMap {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 fn kd_sort(indices: &mut [usize], photons: &[Photon], start: usize, end: usize, depth: usize) {
-    if end - start <= 1 { return; }
+    if end - start <= 1 {
+        return;
+    }
     let axis = depth % 3;
     let mid = (start + end) / 2;
     let range = &mut indices[start..end];
@@ -133,7 +155,9 @@ struct KdQuery<'a> {
 }
 
 fn kd_gather(q: &KdQuery<'_>, result: &mut Vec3, count: &mut u32, depth: usize) {
-    if q.indices.is_empty() { return; }
+    if q.indices.is_empty() {
+        return;
+    }
     let mid = q.indices.len() / 2;
     let photon = &q.photons[q.indices[mid]];
     let diff = photon.position - q.pos;
@@ -152,19 +176,45 @@ fn kd_gather(q: &KdQuery<'_>, result: &mut Vec3, count: &mut u32, depth: usize) 
     let split = axis_val(photon.position, axis);
     let query = axis_val(q.pos, axis);
     let (near, far) = if query < split {
-        (&q.indices[..mid], &q.indices[mid+1..])
+        (&q.indices[..mid], &q.indices[mid + 1..])
     } else {
-        (&q.indices[mid+1..], &q.indices[..mid])
+        (&q.indices[mid + 1..], &q.indices[..mid])
     };
-    kd_gather(&KdQuery { indices: near, photons: q.photons, pos: q.pos, normal: q.normal, radius_sq: q.radius_sq }, result, count, depth + 1);
+    kd_gather(
+        &KdQuery {
+            indices: near,
+            photons: q.photons,
+            pos: q.pos,
+            normal: q.normal,
+            radius_sq: q.radius_sq,
+        },
+        result,
+        count,
+        depth + 1,
+    );
     let axial_dist = (query - split) * (query - split);
     if axial_dist < q.radius_sq {
-        kd_gather(&KdQuery { indices: far, photons: q.photons, pos: q.pos, normal: q.normal, radius_sq: q.radius_sq }, result, count, depth + 1);
+        kd_gather(
+            &KdQuery {
+                indices: far,
+                photons: q.photons,
+                pos: q.pos,
+                normal: q.normal,
+                radius_sq: q.radius_sq,
+            },
+            result,
+            count,
+            depth + 1,
+        );
     }
 }
 
 fn axis_val(v: Vec3, axis: usize) -> f64 {
-    match axis { 0 => v.x, 1 => v.y, _ => v.z }
+    match axis {
+        0 => v.x,
+        1 => v.y,
+        _ => v.z,
+    }
 }
 
 fn luminance(c: Vec3) -> f64 {
@@ -178,7 +228,11 @@ fn cosine_hemisphere(normal: Vec3, seed: u32) -> Vec3 {
     let r = u1.sqrt();
     let phi = TAU * u2;
     let local = Vec3::new(r * phi.cos(), (1.0 - u1).sqrt().max(0.0), r * phi.sin());
-    let up = if normal.y.abs() < 0.99 { Vec3::new(0.0, 1.0, 0.0) } else { Vec3::new(1.0, 0.0, 0.0) };
+    let up = if normal.y.abs() < 0.99 {
+        Vec3::new(0.0, 1.0, 0.0)
+    } else {
+        Vec3::new(1.0, 0.0, 0.0)
+    };
     let right = normal.cross(up).normalize();
     let fwd = right.cross(normal).normalize();
     (right * local.x + normal * local.y + fwd * local.z).normalize()
@@ -195,7 +249,10 @@ pub struct CausticPass {
 
 impl CausticPass {
     pub fn new(gather_radius: f64) -> Self {
-        Self { gather_radius, visualize_indirect: false }
+        Self {
+            gather_radius,
+            visualize_indirect: false,
+        }
     }
 
     pub fn render(
@@ -212,7 +269,9 @@ impl CausticPass {
                 let idx = y * w + x;
                 let pos = world_pos_fb[idx];
                 let normal = normal_fb[idx];
-                if normal.length_squared() < 0.01 { continue; }
+                if normal.length_squared() < 0.01 {
+                    continue;
+                }
                 let caustic = photon_map.gather(pos, normal.normalize(), self.gather_radius);
                 let scale = if self.visualize_indirect { 3.0 } else { 1.0 };
                 fb.color[idx] += caustic * scale;

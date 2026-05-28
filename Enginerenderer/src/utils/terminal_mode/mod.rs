@@ -1,4 +1,3 @@
-
 mod animation;
 mod cli;
 mod docs;

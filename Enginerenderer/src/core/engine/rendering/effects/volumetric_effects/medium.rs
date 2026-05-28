@@ -1,4 +1,3 @@
-
 use crate::core::engine::rendering::raytracing::{DirectionalLight, Ray, Scene, Vec3};
 use crate::core::engine::rendering::utils::fbm_3d;
 
@@ -112,14 +111,10 @@ impl VolumetricMedium {
         }
         let height_term = (-point.y.abs() * self.height_falloff).exp();
         let noise = 0.72
-            + ((point.x * self.noise_scale).sin()
-                * (point.z * self.noise_scale * 0.61).cos())
-            .abs()
-                * 0.58
-            + ((point.x + point.y) * self.noise_scale * 0.33)
-                .sin()
+            + ((point.x * self.noise_scale).sin() * (point.z * self.noise_scale * 0.61).cos())
                 .abs()
-                * 0.15;
+                * 0.58
+            + ((point.x + point.y) * self.noise_scale * 0.33).sin().abs() * 0.15;
         (self.density * height_term * noise.max(0.0)).clamp(0.0, 1.5)
     }
 
@@ -132,18 +127,12 @@ impl VolumetricMedium {
         let height_term = (-animated.y.abs() * self.height_falloff).exp();
 
         let noise = if self.noise_octaves > 1 {
-            fbm_3d(
-                animated * self.noise_scale,
-                self.noise_octaves,
-                2.0,
-                0.5,
-            )
+            fbm_3d(animated * self.noise_scale, self.noise_octaves, 2.0, 0.5)
         } else {
-            0.72
-                + ((animated.x * self.noise_scale).sin()
-                    * (animated.z * self.noise_scale * 0.61).cos())
-                .abs()
-                    * 0.58
+            0.72 + ((animated.x * self.noise_scale).sin()
+                * (animated.z * self.noise_scale * 0.61).cos())
+            .abs()
+                * 0.58
                 + ((animated.x + animated.y) * self.noise_scale * 0.33)
                     .sin()
                     .abs()
@@ -162,13 +151,7 @@ impl VolumetricMedium {
         (-sigma * distance * 0.18).exp().clamp(0.0, 1.0)
     }
 
-    pub fn transmittance_ray_march(
-        &self,
-        ray: Ray,
-        t_start: f64,
-        t_end: f64,
-        steps: u32,
-    ) -> f64 {
+    pub fn transmittance_ray_march(&self, ray: Ray, t_start: f64, t_end: f64, steps: u32) -> f64 {
         let step_size = (t_end - t_start) / steps.max(1) as f64;
         let mut optical_depth = 0.0;
 
@@ -178,7 +161,9 @@ impl VolumetricMedium {
             optical_depth += self.local_density(sample) * step_size;
         }
 
-        (-optical_depth * (1.0 + self.absorption)).exp().clamp(0.0, 1.0)
+        (-optical_depth * (1.0 + self.absorption))
+            .exp()
+            .clamp(0.0, 1.0)
     }
 }
 
@@ -259,8 +244,7 @@ impl VolumetricMedium {
             };
 
             let phase = self.dual_lobe_phase(ray.direction.dot(sun_dir));
-            let in_scatter =
-                self.color * density * sun.intensity * sun.color * phase * shadow_vis;
+            let in_scatter = self.color * density * sun.intensity * sun.color * phase * shadow_vis;
             let emit = self.emission * density;
 
             accumulated_light += (in_scatter + emit) * transmittance * step_size;

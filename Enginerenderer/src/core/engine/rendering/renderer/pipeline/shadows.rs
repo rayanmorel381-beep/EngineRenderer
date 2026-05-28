@@ -1,4 +1,3 @@
-
 use crate::core::engine::rendering::{
     culling::frustum::Frustum,
     effects::shadow_map::cascade::ShadowCascade,
@@ -43,8 +42,11 @@ impl Renderer {
             total_cascade_bias += cascade_cfg.bias + cascade_cfg.normal_bias;
             crate::runtime_log!(
                 "cascade[{}]: near={:.2} far={:.2} res={} bias={:.4}",
-                i, cascade_cfg.split_near, cascade_cfg.split_far,
-                cascade_cfg.resolution, cascade_cfg.bias
+                i,
+                cascade_cfg.split_near,
+                cascade_cfg.split_far,
+                cascade_cfg.resolution,
+                cascade_cfg.bias
             );
             if i < shadow_cascade.light_matrices.len() {
                 let lm = &shadow_cascade.light_matrices[i];
@@ -52,11 +54,23 @@ impl Renderer {
                 let in_bounds = lm.is_in_bounds(projected);
                 crate::runtime_log!(
                     "  light_matrix[{}]: origin=({:.2},{:.2},{:.2}) half={:.2} in_bounds={} r=({:.2},{:.2},{:.2}) u=({:.2},{:.2},{:.2}) f=({:.2},{:.2},{:.2}) near={:.2} far={:.2}",
-                    i, lm.origin.x, lm.origin.y, lm.origin.z, lm.half_extent, in_bounds,
-                    lm.right.x, lm.right.y, lm.right.z,
-                    lm.up.x, lm.up.y, lm.up.z,
-                    lm.forward.x, lm.forward.y, lm.forward.z,
-                    lm.near_z, lm.far_z
+                    i,
+                    lm.origin.x,
+                    lm.origin.y,
+                    lm.origin.z,
+                    lm.half_extent,
+                    in_bounds,
+                    lm.right.x,
+                    lm.right.y,
+                    lm.right.z,
+                    lm.up.x,
+                    lm.up.y,
+                    lm.up.z,
+                    lm.forward.x,
+                    lm.forward.y,
+                    lm.forward.z,
+                    lm.near_z,
+                    lm.far_z
                 );
             }
         }
@@ -64,8 +78,8 @@ impl Renderer {
         let cascade_idx = shadow_cascade.cascade_index_for_depth(cam_far * 0.3);
         let blend = shadow_cascade.cascade_blend_factor(cam_far * 0.3, cascade_idx);
 
-        render_scene.sun.intensity *= 1.0
-            - shadow_cascade.occlusion_estimate * shadow_cascade.shadow_strength * 0.26;
+        render_scene.sun.intensity *=
+            1.0 - shadow_cascade.occlusion_estimate * shadow_cascade.shadow_strength * 0.26;
         render_scene.exposure *= 1.0 + shadow_cascade.occlusion_estimate * 0.06;
         render_scene.exposure *= 1.0 + blend * shadow_cascade.cascade_blend_width * 0.001;
 
@@ -79,8 +93,10 @@ impl Renderer {
     ) {
         let cloud = CloudLayer::cirrus();
         let cumulus = CloudLayer::cumulus();
-        let cloud_density = cloud.sample_density(camera.origin + Vec3::new(0.0, cloud.altitude, 0.0));
-        let cumulus_density = cumulus.sample_density(camera.origin + Vec3::new(0.0, cumulus.altitude, 0.0));
+        let cloud_density =
+            cloud.sample_density(camera.origin + Vec3::new(0.0, cloud.altitude, 0.0));
+        let cumulus_density =
+            cumulus.sample_density(camera.origin + Vec3::new(0.0, cumulus.altitude, 0.0));
         let cloud_tint = cloud.cloud_color(
             camera.origin + Vec3::new(0.0, cloud.altitude, 0.0),
             -render_scene.sun.direction.normalize(),

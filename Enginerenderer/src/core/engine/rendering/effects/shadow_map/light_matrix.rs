@@ -1,4 +1,3 @@
-
 use crate::core::engine::rendering::raytracing::Vec3;
 
 use super::frustum_corners::FrustumCorners;

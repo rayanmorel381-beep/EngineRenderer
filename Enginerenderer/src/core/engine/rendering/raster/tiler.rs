@@ -1,5 +1,5 @@
-use crate::core::engine::rendering::raytracing::Vec3;
 use super::pipeline::{GBuffer, RasterVertex};
+use crate::core::engine::rendering::raytracing::Vec3;
 
 pub struct TileRasterizer {
     pub tile_size: usize,
@@ -27,7 +27,9 @@ struct ScreenTri {
 
 impl TileRasterizer {
     pub fn new(tile_size: usize) -> Self {
-        Self { tile_size: tile_size.max(4) }
+        Self {
+            tile_size: tile_size.max(4),
+        }
     }
 
     pub fn tile_count(&self, width: usize, height: usize) -> usize {

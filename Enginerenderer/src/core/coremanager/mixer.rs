@@ -8,7 +8,11 @@ pub struct AudioChannel {
 
 impl AudioChannel {
     pub fn new(buffer: Vec<f32>, gain: f64, pan: f64) -> Self {
-        Self { buffer, gain, pan: pan.clamp(-1.0, 1.0) }
+        Self {
+            buffer,
+            gain,
+            pan: pan.clamp(-1.0, 1.0),
+        }
     }
 }
 
@@ -19,7 +23,10 @@ pub struct AudioMixer {
 
 impl AudioMixer {
     pub fn new(sample_rate: u32) -> Self {
-        Self { channels: Vec::new(), sample_rate }
+        Self {
+            channels: Vec::new(),
+            sample_rate,
+        }
     }
 
     pub fn add_channel(&mut self, channel: AudioChannel) {
@@ -27,7 +34,12 @@ impl AudioMixer {
     }
 
     pub fn mix_to_stereo(&self) -> Vec<[f32; 2]> {
-        let max_len = self.channels.iter().map(|c| c.buffer.len()).max().unwrap_or(0);
+        let max_len = self
+            .channels
+            .iter()
+            .map(|c| c.buffer.len())
+            .max()
+            .unwrap_or(0);
         let mut out = vec![[0.0_f32; 2]; max_len];
         for ch in &self.channels {
             let gain = ch.gain as f32;

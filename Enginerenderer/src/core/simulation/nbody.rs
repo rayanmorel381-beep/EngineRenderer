@@ -1,8 +1,8 @@
 use crate::core::engine::rendering::{
+    effects::volumetric_effects::medium::VolumetricMedium,
     environment::procedural::ProceduralEnvironment,
     materials::material::MaterialLibrary,
     raytracing::{DirectionalLight, Material, Scene, Sphere, Vec3},
-    effects::volumetric_effects::medium::VolumetricMedium,
 };
 
 /// Gravitational constant used by the simplified n-body simulation.

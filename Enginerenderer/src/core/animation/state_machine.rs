@@ -37,7 +37,11 @@ impl SkeletalClip {
         for i in 0..track.len() - 1 {
             if time >= track[i].0 && time <= track[i + 1].0 {
                 let span = track[i + 1].0 - track[i].0;
-                let t = if span > f64::EPSILON { (time - track[i].0) / span } else { 0.0 };
+                let t = if span > f64::EPSILON {
+                    (time - track[i].0) / span
+                } else {
+                    0.0
+                };
                 return lerp_mat4(track[i].1, track[i + 1].1, t);
             }
         }
@@ -62,7 +66,10 @@ fn lerp_mat4(a: Mat4, b: Mat4, t: f64) -> Mat4 {
 }
 
 pub fn blend_poses(a: &[Mat4], b: &[Mat4], t: f64) -> Vec<Mat4> {
-    a.iter().zip(b.iter()).map(|(&ma, &mb)| lerp_mat4(ma, mb, t)).collect()
+    a.iter()
+        .zip(b.iter())
+        .map(|(&ma, &mb)| lerp_mat4(ma, mb, t))
+        .collect()
 }
 
 #[derive(Debug, Clone)]
@@ -73,11 +80,17 @@ pub struct BlendTree {
 
 impl BlendTree {
     pub fn single(clip_idx: usize) -> Self {
-        Self { clips: vec![clip_idx], weights: vec![1.0] }
+        Self {
+            clips: vec![clip_idx],
+            weights: vec![1.0],
+        }
     }
 
     pub fn blend2(clip_a: usize, clip_b: usize, t: f64) -> Self {
-        Self { clips: vec![clip_a, clip_b], weights: vec![1.0 - t, t] }
+        Self {
+            clips: vec![clip_a, clip_b],
+            weights: vec![1.0 - t, t],
+        }
     }
 
     pub fn evaluate(&self, clips: &[SkeletalClip], time: f64) -> Vec<Mat4> {
@@ -89,9 +102,18 @@ impl BlendTree {
             return Vec::new();
         }
         let bone_count = clips[first_idx].bone_tracks.len();
-        let mut result: Vec<Mat4> = vec![Mat4 { cols: [[0.0; 4]; 4] }; bone_count];
+        let mut result: Vec<Mat4> = vec![
+            Mat4 {
+                cols: [[0.0; 4]; 4]
+            };
+            bone_count
+        ];
         let total_weight: f64 = self.weights.iter().sum();
-        let norm = if total_weight > f64::EPSILON { 1.0 / total_weight } else { 1.0 };
+        let norm = if total_weight > f64::EPSILON {
+            1.0 / total_weight
+        } else {
+            1.0
+        };
         for (i, &clip_idx) in self.clips.iter().enumerate() {
             if clip_idx >= clips.len() {
                 continue;
@@ -213,9 +235,7 @@ impl AnimStateMachine {
             let pose_a = self.states[self.current_state]
                 .blend_tree
                 .evaluate(&self.clips, self.local_time);
-            let pose_b = self.states[next_idx]
-                .blend_tree
-                .evaluate(&self.clips, 0.0);
+            let pose_b = self.states[next_idx].blend_tree.evaluate(&self.clips, 0.0);
             if t >= 1.0 {
                 self.current_state = next_idx;
                 self.local_time = self.blend_accum;

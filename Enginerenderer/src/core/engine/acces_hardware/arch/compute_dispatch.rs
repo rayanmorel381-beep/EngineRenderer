@@ -347,45 +347,45 @@ pub(crate) fn clamp_display_workers(requested: usize) -> usize {
     requested.clamp(1, max)
 }
 
-    pub(crate) fn build_ram_schedule(work_items: usize) -> Schedule {
-        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            let s = super::x86::os::build_ram_schedule(work_items);
-            return Schedule {
-                chunks: s.chunks,
-                chunk_size: s.chunk_size,
-                frame_budget_us: s.frame_budget_us,
-            };
-        }
-        #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
-        {
-            let s = super::arm::os::build_ram_schedule(work_items);
-            return Schedule {
-                chunks: s.chunks,
-                chunk_size: s.chunk_size,
-                frame_budget_us: s.frame_budget_us,
-            };
-        }
-        #[allow(unreachable_code)]
-        Schedule {
-            chunks: 1,
-            chunk_size: 1,
-            frame_budget_us: 8_333,
-        }
+pub(crate) fn build_ram_schedule(work_items: usize) -> Schedule {
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    {
+        let s = super::x86::os::build_ram_schedule(work_items);
+        return Schedule {
+            chunks: s.chunks,
+            chunk_size: s.chunk_size,
+            frame_budget_us: s.frame_budget_us,
+        };
     }
+    #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
+    {
+        let s = super::arm::os::build_ram_schedule(work_items);
+        return Schedule {
+            chunks: s.chunks,
+            chunk_size: s.chunk_size,
+            frame_budget_us: s.frame_budget_us,
+        };
+    }
+    #[allow(unreachable_code)]
+    Schedule {
+        chunks: 1,
+        chunk_size: 1,
+        frame_budget_us: 8_333,
+    }
+}
 
-    pub(crate) fn clamp_ram_workers(requested: usize) -> usize {
-        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            return super::x86::os::clamp_ram_workers(requested);
-        }
-        #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
-        {
-            return super::arm::os::clamp_ram_workers(requested);
-        }
-        #[allow(unreachable_code)]
-        requested.max(1)
+pub(crate) fn clamp_ram_workers(requested: usize) -> usize {
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    {
+        return super::x86::os::clamp_ram_workers(requested);
     }
+    #[cfg(any(target_arch = "arm", target_arch = "aarch64"))]
+    {
+        return super::arm::os::clamp_ram_workers(requested);
+    }
+    #[allow(unreachable_code)]
+    requested.max(1)
+}
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 fn map_os_x86(v: super::x86::os::Os) -> Os {
@@ -455,7 +455,12 @@ impl ComputeCapabilities {
         let lanes = 4;
         #[cfg(target_arch = "arm")]
         let lanes = 2;
-        #[cfg(not(any(target_arch = "x86", target_arch = "x86_64", target_arch = "aarch64", target_arch = "arm")))]
+        #[cfg(not(any(
+            target_arch = "x86",
+            target_arch = "x86_64",
+            target_arch = "aarch64",
+            target_arch = "arm"
+        )))]
         let lanes = 1;
 
         Self {
@@ -581,7 +586,13 @@ impl ComputeJobBatch {
         if self.jobs.len() >= self.capacity {
             return false;
         }
-        self.jobs.push(ComputeJob { job_id, grid_x, grid_y, grid_z, config });
+        self.jobs.push(ComputeJob {
+            job_id,
+            grid_x,
+            grid_y,
+            grid_z,
+            config,
+        });
         true
     }
 
@@ -607,8 +618,8 @@ impl ComputeJobBatch {
     }
 }
 
-use std::sync::{Condvar, Mutex};
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{Condvar, Mutex};
 
 pub struct ComputeQueue {
     submitted_count: AtomicU32,
@@ -632,18 +643,21 @@ impl ComputeQueue {
     }
 
     pub fn submit_batch(&self, batch_size: u32) {
-        self.submitted_count.fetch_add(batch_size, Ordering::Release);
+        self.submitted_count
+            .fetch_add(batch_size, Ordering::Release);
     }
 
     pub fn mark_batch_complete(&self, batch_size: u32) {
-        self.completed_count.fetch_add(batch_size, Ordering::Release);
+        self.completed_count
+            .fetch_add(batch_size, Ordering::Release);
         if self.is_idle() {
             self.idle_signal.1.notify_all();
         }
     }
 
     pub fn pending_jobs(&self) -> u32 {
-        self.submitted_count.load(Ordering::Acquire)
+        self.submitted_count
+            .load(Ordering::Acquire)
             .saturating_sub(self.completed_count.load(Ordering::Acquire))
     }
 

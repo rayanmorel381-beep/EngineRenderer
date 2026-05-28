@@ -1,6 +1,6 @@
+use super::entity::Entity;
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
-use super::entity::Entity;
 
 pub trait AnyStorage: Any + Send + Sync {
     fn remove_entity(&mut self, entity_index: u32);
@@ -94,7 +94,9 @@ pub struct ComponentRegistry {
 
 impl ComponentRegistry {
     pub fn new() -> Self {
-        Self { storages: HashMap::new() }
+        Self {
+            storages: HashMap::new(),
+        }
     }
 
     fn get_or_create_typed<T: Any + Send + Sync>(&mut self) -> &mut TypedStorage<T> {

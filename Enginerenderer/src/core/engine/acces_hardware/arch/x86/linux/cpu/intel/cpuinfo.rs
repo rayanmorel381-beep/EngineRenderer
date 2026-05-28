@@ -20,10 +20,16 @@ pub(super) fn parse_proc_cpuinfo() -> ProcCpuInfo {
             vendor_id = line.split(':').nth(1).map(|v| v.trim().to_string());
         }
         if cpu_family.is_none() && line.starts_with("cpu family") {
-            cpu_family = line.split(':').nth(1).and_then(|v| v.trim().parse::<u32>().ok());
+            cpu_family = line
+                .split(':')
+                .nth(1)
+                .and_then(|v| v.trim().parse::<u32>().ok());
         }
         if model.is_none() && line.starts_with("model") && !line.starts_with("model name") {
-            model = line.split(':').nth(1).and_then(|v| v.trim().parse::<u32>().ok());
+            model = line
+                .split(':')
+                .nth(1)
+                .and_then(|v| v.trim().parse::<u32>().ok());
         }
         if vendor_id.is_some() && cpu_family.is_some() && model.is_some() {
             break;
@@ -51,7 +57,5 @@ pub(super) fn read_sysfs_u64(path: &str) -> Option<u64> {
 }
 
 pub(super) fn read_sysfs_string(path: &str) -> Option<String> {
-    fs::read_to_string(path)
-        .ok()
-        .map(|v| v.trim().to_string())
+    fs::read_to_string(path).ok().map(|v| v.trim().to_string())
 }

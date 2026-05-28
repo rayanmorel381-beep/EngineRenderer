@@ -1,6 +1,5 @@
-
 use crate::core::engine::acces_hardware::cpu::CpuProfile;
-use crate::core::engine::acces_hardware::gpu::{gpu_dispatch_tiles, GpuRenderBackend};
+use crate::core::engine::acces_hardware::gpu::{GpuRenderBackend, gpu_dispatch_tiles};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct HostSimdFeatures {
@@ -124,7 +123,10 @@ pub fn host_detect_core_frequencies() -> Vec<HostCoreFrequency> {
     {
         let mut result = Vec::new();
         for cpu in 0u32..512 {
-            let path = format!("/sys/devices/system/cpu/cpu{}/cpufreq/cpuinfo_max_freq", cpu);
+            let path = format!(
+                "/sys/devices/system/cpu/cpu{}/cpufreq/cpuinfo_max_freq",
+                cpu
+            );
             match std::fs::read_to_string(&path) {
                 Ok(s) => {
                     let khz: u64 = s.trim().parse().unwrap_or(0);
@@ -166,7 +168,10 @@ pub fn host_detect_core_frequencies() -> Vec<HostCoreFrequency> {
 }
 
 pub fn host_thread_affinity_mask() -> usize {
-    #[cfg(all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64")))]
+    #[cfg(all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ))]
     {
         let mut set = [0u8; 128];
         let ret = raw_sched_getaffinity(0, 128, set.as_mut_ptr());
@@ -182,7 +187,10 @@ pub fn host_thread_affinity_mask() -> usize {
 }
 
 pub fn host_pin_thread_to_core(core_id: usize) {
-    #[cfg(all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64")))]
+    #[cfg(all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ))]
     {
         let mut set = [0u8; 128];
         let byte = core_id / 8;
@@ -192,7 +200,10 @@ pub fn host_pin_thread_to_core(core_id: usize) {
             raw_sched_setaffinity(0, 128, set.as_ptr());
         }
     }
-    #[cfg(not(all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64"))))]
+    #[cfg(not(all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    )))]
     {
         if core_id == usize::MAX {}
     }

@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
-use crate::core::engine::rendering::mesh::asset::MeshAsset;
 use super::glb_loader::GlbLoader;
 use super::obj_loader::ObjLoader;
+use crate::core::engine::rendering::mesh::asset::MeshAsset;
 
 #[derive(Debug, Clone)]
 pub struct ContentBundle {

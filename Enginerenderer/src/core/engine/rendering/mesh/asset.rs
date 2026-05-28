@@ -1,6 +1,5 @@
-
-use crate::core::engine::rendering::raytracing::{Material, Triangle, Vec3};
 use crate::core::engine::rendering::raytracing::primitives::TrianglePatch;
+use crate::core::engine::rendering::raytracing::{Material, Triangle, Vec3};
 
 use super::vertex::{MeshDescriptor, Vertex};
 
@@ -41,10 +40,7 @@ impl MeshAsset {
         if self.vertices.is_empty() {
             return Vec3::ZERO;
         }
-        let sum = self
-            .vertices
-            .iter()
-            .fold(Vec3::ZERO, |a, v| a + v.position);
+        let sum = self.vertices.iter().fold(Vec3::ZERO, |a, v| a + v.position);
         sum * (1.0 / self.vertices.len() as f64)
     }
 
@@ -62,12 +58,7 @@ impl MeshAsset {
     }
 
     /// Converts indexed mesh geometry to a triangle list.
-    pub fn to_triangles(
-        &self,
-        translation: Vec3,
-        scale: f64,
-        material: Material,
-    ) -> Vec<Triangle> {
+    pub fn to_triangles(&self, translation: Vec3, scale: f64, material: Material) -> Vec<Triangle> {
         self.indices
             .chunks_exact(3)
             .map(|tri| {
@@ -100,7 +91,12 @@ impl MeshAsset {
     }
 
     /// Sets base transform and returns updated asset.
-    pub fn with_transform(mut self, translation: Vec3, scale: Vec3, rotation: Option<[f64; 4]>) -> Self {
+    pub fn with_transform(
+        mut self,
+        translation: Vec3,
+        scale: Vec3,
+        rotation: Option<[f64; 4]>,
+    ) -> Self {
         self.base_translation = translation;
         self.base_scale = scale;
         if let Some(rot) = rotation {

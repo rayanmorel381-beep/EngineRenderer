@@ -13,7 +13,9 @@ pub(crate) struct AmdWinInfo {
 }
 
 fn physical_cores_from_api() -> u32 {
-    let logical = std::thread::available_parallelism().map(|v| v.get() as u32).unwrap_or(1);
+    let logical = std::thread::available_parallelism()
+        .map(|v| v.get() as u32)
+        .unwrap_or(1);
     (logical / 2).max(1)
 }
 
@@ -25,7 +27,9 @@ pub(crate) fn detect_amd() -> Option<AmdWinInfo> {
 
     let base_mhz = registry_dword(CPU_KEY, "~MHz").unwrap_or(0);
 
-    let logical = std::thread::available_parallelism().map(|v| v.get()).unwrap_or(1);
+    let logical = std::thread::available_parallelism()
+        .map(|v| v.get())
+        .unwrap_or(1);
     let physical = physical_cores_from_api() as usize;
     let smt_enabled = physical > 0 && logical > physical;
 

@@ -10,7 +10,10 @@ impl WatchedAsset {
     pub fn new(path: impl Into<PathBuf>) -> Option<Self> {
         let path = path.into();
         let last_modified = std::fs::metadata(&path).ok()?.modified().ok()?;
-        Some(Self { path, last_modified })
+        Some(Self {
+            path,
+            last_modified,
+        })
     }
 
     pub fn has_changed(&self) -> bool {
@@ -22,7 +25,10 @@ impl WatchedAsset {
     }
 
     pub fn update_timestamp(&mut self) {
-        if let Some(t) = std::fs::metadata(&self.path).ok().and_then(|m| m.modified().ok()) {
+        if let Some(t) = std::fs::metadata(&self.path)
+            .ok()
+            .and_then(|m| m.modified().ok())
+        {
             self.last_modified = t;
         }
     }
@@ -34,7 +40,9 @@ pub struct HotReloader {
 
 impl HotReloader {
     pub fn new() -> Self {
-        Self { watched: Vec::new() }
+        Self {
+            watched: Vec::new(),
+        }
     }
 
     pub fn watch(&mut self, path: impl Into<PathBuf>) {

@@ -101,7 +101,10 @@ impl EventBus {
 
         for event in &self.history {
             match event {
-                EngineEvent::FrameStarted { frame_index, target_ms } => {
+                EngineEvent::FrameStarted {
+                    frame_index,
+                    target_ms,
+                } => {
                     summary.last_frame_index = *frame_index;
                     summary.target_ms = *target_ms;
                 }
@@ -118,7 +121,10 @@ impl EventBus {
                     summary.checksum = *checksum;
                     summary.clients = *clients;
                 }
-                EngineEvent::FrameRendered { pixels, output_path } => {
+                EngineEvent::FrameRendered {
+                    pixels,
+                    output_path,
+                } => {
                     summary.pixels = *pixels;
                     summary.output_path = output_path.clone();
                 }

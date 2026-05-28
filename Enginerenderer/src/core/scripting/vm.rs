@@ -15,7 +15,13 @@ impl Value {
         match self {
             Value::Int(i) => *i as f64,
             Value::Float(f) => *f,
-            Value::Bool(b) => if *b { 1.0 } else { 0.0 },
+            Value::Bool(b) => {
+                if *b {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
             Value::Nil => 0.0,
         }
     }
@@ -24,7 +30,13 @@ impl Value {
         match self {
             Value::Int(i) => *i,
             Value::Float(f) => *f as i64,
-            Value::Bool(b) => if *b { 1 } else { 0 },
+            Value::Bool(b) => {
+                if *b {
+                    1
+                } else {
+                    0
+                }
+            }
             Value::Nil => 0,
         }
     }
@@ -145,7 +157,9 @@ impl Vm {
                     let b = self.stack.pop()?;
                     let a = self.stack.pop()?;
                     let result = match (&a, &b) {
-                        (Value::Float(_), _) | (_, Value::Float(_)) => Value::Float(a.to_float() + b.to_float()),
+                        (Value::Float(_), _) | (_, Value::Float(_)) => {
+                            Value::Float(a.to_float() + b.to_float())
+                        }
                         _ => Value::Int(a.to_int().wrapping_add(b.to_int())),
                     };
                     self.stack.push(result);
@@ -154,7 +168,9 @@ impl Vm {
                     let b = self.stack.pop()?;
                     let a = self.stack.pop()?;
                     let result = match (&a, &b) {
-                        (Value::Float(_), _) | (_, Value::Float(_)) => Value::Float(a.to_float() - b.to_float()),
+                        (Value::Float(_), _) | (_, Value::Float(_)) => {
+                            Value::Float(a.to_float() - b.to_float())
+                        }
                         _ => Value::Int(a.to_int().wrapping_sub(b.to_int())),
                     };
                     self.stack.push(result);
@@ -163,7 +179,9 @@ impl Vm {
                     let b = self.stack.pop()?;
                     let a = self.stack.pop()?;
                     let result = match (&a, &b) {
-                        (Value::Float(_), _) | (_, Value::Float(_)) => Value::Float(a.to_float() * b.to_float()),
+                        (Value::Float(_), _) | (_, Value::Float(_)) => {
+                            Value::Float(a.to_float() * b.to_float())
+                        }
                         _ => Value::Int(a.to_int().wrapping_mul(b.to_int())),
                     };
                     self.stack.push(result);
@@ -177,7 +195,9 @@ impl Vm {
                         _ => {}
                     }
                     let result = match (&a, &b) {
-                        (Value::Float(_), _) | (_, Value::Float(_)) => Value::Float(a.to_float() / b.to_float()),
+                        (Value::Float(_), _) | (_, Value::Float(_)) => {
+                            Value::Float(a.to_float() / b.to_float())
+                        }
                         _ => Value::Int(a.to_int().wrapping_div(b.to_int())),
                     };
                     self.stack.push(result);

@@ -30,7 +30,9 @@ impl HierarchicalZBuffer {
                             let px = (sx + dx).min(cur_w - 1);
                             let py = (sy + dy).min(cur_h - 1);
                             let d = prev[py * cur_w + px];
-                            if d > max_d { max_d = d; }
+                            if d > max_d {
+                                max_d = d;
+                            }
                         }
                     }
                     next[y * next_w + x] = max_d;
@@ -41,7 +43,12 @@ impl HierarchicalZBuffer {
             cur_h = next_h;
         }
 
-        Self { mips, width, height, levels }
+        Self {
+            mips,
+            width,
+            height,
+            levels,
+        }
     }
 
     pub fn is_occluded(&self, aabb_min: Vec3, aabb_max: Vec3, mvp: &Mat4) -> bool {
@@ -64,22 +71,30 @@ impl HierarchicalZBuffer {
 
         for c in &corners {
             let clip = mat4_transform(mvp, *c);
-            if clip.w <= 0.0 { return false; }
+            if clip.w <= 0.0 {
+                return false;
+            }
             let nx = clip.x / clip.w;
             let ny = clip.y / clip.w;
             let nz = clip.z / clip.w;
-            if nz < 0.0 { return false; }
+            if nz < 0.0 {
+                return false;
+            }
             let sx = (nx + 1.0) * 0.5 * self.width as f32;
             let sy = (1.0 - ny) * 0.5 * self.height as f32;
             screen_min_x = screen_min_x.min(sx);
             screen_min_y = screen_min_y.min(sy);
             screen_max_x = screen_max_x.max(sx);
             screen_max_y = screen_max_y.max(sy);
-            if nz < closest_depth { closest_depth = nz; }
+            if nz < closest_depth {
+                closest_depth = nz;
+            }
         }
 
-        if screen_max_x < 0.0 || screen_max_y < 0.0
-            || screen_min_x >= self.width as f32 || screen_min_y >= self.height as f32
+        if screen_max_x < 0.0
+            || screen_max_y < 0.0
+            || screen_min_x >= self.width as f32
+            || screen_min_y >= self.height as f32
         {
             return true;
         }
@@ -89,10 +104,14 @@ impl HierarchicalZBuffer {
         let level = (screen_w.max(screen_h).log2().floor() as usize).min(self.levels - 1);
 
         let scale = 1.0 / (1 << level) as f32;
-        let lx0 = ((screen_min_x * scale).floor() as usize).min((self.width >> level).saturating_sub(1));
-        let ly0 = ((screen_min_y * scale).floor() as usize).min((self.height >> level).saturating_sub(1));
-        let lx1 = ((screen_max_x * scale).ceil() as usize).min((self.width >> level).saturating_sub(1));
-        let ly1 = ((screen_max_y * scale).ceil() as usize).min((self.height >> level).saturating_sub(1));
+        let lx0 =
+            ((screen_min_x * scale).floor() as usize).min((self.width >> level).saturating_sub(1));
+        let ly0 =
+            ((screen_min_y * scale).floor() as usize).min((self.height >> level).saturating_sub(1));
+        let lx1 =
+            ((screen_max_x * scale).ceil() as usize).min((self.width >> level).saturating_sub(1));
+        let ly1 =
+            ((screen_max_y * scale).ceil() as usize).min((self.height >> level).saturating_sub(1));
 
         let mip_w = (self.width >> level).max(1);
         let mip = &self.mips[level];
@@ -122,9 +141,9 @@ impl HierarchicalZBuffer {
 
 fn mat4_transform(m: &Mat4, p: Vec3) -> Vec4 {
     Vec4::new(
-        m.m[0][0]*p.x + m.m[0][1]*p.y + m.m[0][2]*p.z + m.m[0][3],
-        m.m[1][0]*p.x + m.m[1][1]*p.y + m.m[1][2]*p.z + m.m[1][3],
-        m.m[2][0]*p.x + m.m[2][1]*p.y + m.m[2][2]*p.z + m.m[2][3],
-        m.m[3][0]*p.x + m.m[3][1]*p.y + m.m[3][2]*p.z + m.m[3][3],
+        m.m[0][0] * p.x + m.m[0][1] * p.y + m.m[0][2] * p.z + m.m[0][3],
+        m.m[1][0] * p.x + m.m[1][1] * p.y + m.m[1][2] * p.z + m.m[1][3],
+        m.m[2][0] * p.x + m.m[2][1] * p.y + m.m[2][2] * p.z + m.m[2][3],
+        m.m[3][0] * p.x + m.m[3][1] * p.y + m.m[3][2] * p.z + m.m[3][3],
     )
 }

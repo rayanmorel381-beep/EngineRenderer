@@ -72,8 +72,16 @@ impl SceneObject {
 
     fn collect(self, spheres: &mut Vec<Sphere>, triangles: &mut Vec<Triangle>) {
         match self {
-            Self::Sphere { center, radius, material } => {
-                spheres.push(Sphere { center, radius, material });
+            Self::Sphere {
+                center,
+                radius,
+                material,
+            } => {
+                spheres.push(Sphere {
+                    center,
+                    radius,
+                    material,
+                });
             }
             Self::Triangle { a, b, c, material } => {
                 triangles.push(Triangle::flat(a, b, c, material));

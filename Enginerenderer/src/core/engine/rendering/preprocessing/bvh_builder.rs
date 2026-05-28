@@ -207,7 +207,10 @@ impl SahBvhBuilder {
                     traverse_cost + (ls * lc as f64 + rs * rc as f64) * intersect_cost / parent_sa;
                 if cost < best_cost {
                     best_cost = cost;
-                    best_split = Some(SahSplit { axis, split_count: lc });
+                    best_split = Some(SahSplit {
+                        axis,
+                        split_count: lc,
+                    });
                 }
             }
         }

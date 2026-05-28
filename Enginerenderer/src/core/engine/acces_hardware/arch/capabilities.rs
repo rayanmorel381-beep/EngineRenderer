@@ -20,7 +20,11 @@ impl HardwareCapabilities {
             .unwrap_or(1);
         let total_ram_bytes = config.ram.total_bytes;
         let vram_bytes = detect_vram_bytes();
-        Self { logical_cores, vram_bytes, total_ram_bytes }
+        Self {
+            logical_cores,
+            vram_bytes,
+            total_ram_bytes,
+        }
     }
 
     pub fn optimal_render_threads(&self) -> usize {

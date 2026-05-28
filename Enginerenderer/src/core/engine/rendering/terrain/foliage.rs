@@ -42,7 +42,8 @@ impl FoliageLayer {
 
     pub fn density_at(&self, u: f64, v: f64) -> f64 {
         let px = (u * (self.map_width - 1) as f64).clamp(0.0, (self.map_width - 1) as f64) as usize;
-        let pz = (v * (self.map_height - 1) as f64).clamp(0.0, (self.map_height - 1) as f64) as usize;
+        let pz =
+            (v * (self.map_height - 1) as f64).clamp(0.0, (self.map_height - 1) as f64) as usize;
         self.density_map[pz * self.map_width + px]
     }
 }
@@ -78,13 +79,18 @@ impl FoliageSystem {
                 let u = world_x / world_w;
                 let v = world_z / world_d;
                 let density = layer.density_at(u, v);
-                if lcg_f64(&mut rng) > density { continue; }
+                if lcg_f64(&mut rng) > density {
+                    continue;
+                }
 
                 let normal = terrain.normal_at(world_x, world_z);
-                if normal.y < layer.max_slope { continue; }
+                if normal.y < layer.max_slope {
+                    continue;
+                }
 
                 let world_y = terrain.sample(world_x, world_z);
-                let scale = layer.scale_min + (layer.scale_max - layer.scale_min) * lcg_f64(&mut rng);
+                let scale =
+                    layer.scale_min + (layer.scale_max - layer.scale_min) * lcg_f64(&mut rng);
                 let rotation_y = lcg_f64(&mut rng) * std::f64::consts::TAU;
                 let wind_phase = lcg_f64(&mut rng) * std::f64::consts::TAU;
 
@@ -116,13 +122,16 @@ impl FoliageSystem {
         layer: &FoliageLayer,
         time: f64,
     ) -> Vec<Vec3> {
-        instances.iter().map(|inst| {
-            let phase = inst.wind_phase + time * layer.wind_frequency;
-            let sin_val = (phase).sin();
-            let gust = (phase * 0.37 + 1.0).sin() * 0.3;
-            let amplitude = layer.wind_strength * (1.0 + gust) * inst.scale;
-            layer.wind_direction * (sin_val * amplitude)
-        }).collect()
+        instances
+            .iter()
+            .map(|inst| {
+                let phase = inst.wind_phase + time * layer.wind_frequency;
+                let sin_val = (phase).sin();
+                let gust = (phase * 0.37 + 1.0).sin() * 0.3;
+                let amplitude = layer.wind_strength * (1.0 + gust) * inst.scale;
+                layer.wind_direction * (sin_val * amplitude)
+            })
+            .collect()
     }
 }
 

@@ -3,7 +3,10 @@ use std::io::{self, Write};
 use std::thread;
 use std::time::Duration;
 
-pub fn play_animation(topic: Option<&str>, current_module: Option<&str>) -> Result<(), Box<dyn Error>> {
+pub fn play_animation(
+    topic: Option<&str>,
+    current_module: Option<&str>,
+) -> Result<(), Box<dyn Error>> {
     let selected = topic.or(current_module).unwrap_or("pipeline");
     match selected {
         "pipeline" | "engine" => {

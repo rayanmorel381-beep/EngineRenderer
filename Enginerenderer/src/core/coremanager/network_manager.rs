@@ -69,7 +69,10 @@ impl NetworkManager {
             rotation: [0.0, 0.0, 0.0, 1.0],
         };
         self.lag_compensator.record(frame_index, snapshot_state);
-        let rewound = self.lag_compensator.rewind(frame_index, (timestamp - self.status.latency_ms * 0.001).max(0.0));
+        let rewound = self.lag_compensator.rewind(
+            frame_index,
+            (timestamp - self.status.latency_ms * 0.001).max(0.0),
+        );
         if let Some(s) = rewound {
             let _ = s.position;
         }
@@ -114,7 +117,9 @@ impl RenderSyncServer {
     pub fn publish(&self, frame_index: u64, snapshot: &NetworkSnapshot) -> usize {
         let scene_scale = snapshot.node_count.max(1).saturating_div(128).max(1);
         let frame_scale = ((frame_index ^ snapshot.frame_index) as usize & 0x3).saturating_add(1);
-        self.capacity.min(scene_scale.saturating_mul(frame_scale)).max(1)
+        self.capacity
+            .min(scene_scale.saturating_mul(frame_scale))
+            .max(1)
     }
 
     /// Returns maximum supported client count.

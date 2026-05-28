@@ -1,10 +1,13 @@
-
 /// AI-facing scene generation and capability APIs.
 pub mod ai;
 /// Camera controllers and presets.
 pub mod camera;
+/// Native window + GPU context (X11/GLX on Linux).
+pub mod display;
 /// Main rendering engine entry points.
 pub mod engine;
+/// Strict asset loaders (OBJ, GLB).
+pub mod loaders;
 /// Material builders, presets and lookup catalog.
 pub mod materials;
 /// High-level scene objects and composites.
@@ -13,12 +16,8 @@ pub mod objects;
 pub mod rendering;
 /// Scene descriptors, builders and presets.
 pub mod scenes;
-/// Strict asset loaders (OBJ, GLB).
-pub mod loaders;
 /// Shared API-level data types.
 pub mod types;
-/// Native window + GPU context (X11/GLX on Linux).
-pub mod display;
 
 /// Public engine facade.
 pub use self::engine::EngineApi;
@@ -27,7 +26,6 @@ pub mod animation;
 
 /// Prints the current compute environment diagnostics using default options.
 pub fn diagnose_compute_environment() {
-	let api = self::engine::EngineApi::new();
-	api.diagnose_compute_environment(&self::engine::diagnostics::DiagnosticsOptions::default());
+    let api = self::engine::EngineApi::new();
+    api.diagnose_compute_environment(&self::engine::diagnostics::DiagnosticsOptions::default());
 }
-

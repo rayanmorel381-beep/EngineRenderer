@@ -2,15 +2,18 @@
 
 use crate::core::engine::acces_hardware::{self, DrmDriver, KernelConfig};
 use crate::core::engine::rendering::{
-    framebuffer::FrameBuffer,
-    raytracing::Scene,
-    shader_dispatcher::TileComputeDescriptor,
+    framebuffer::FrameBuffer, raytracing::Scene, shader_dispatcher::TileComputeDescriptor,
 };
 
 use super::state::Renderer;
 
 impl Renderer {
-    pub(super) fn submit_compute_workload(&self, scene: &Scene, width: usize, height: usize) -> bool {
+    pub(super) fn submit_compute_workload(
+        &self,
+        scene: &Scene,
+        width: usize,
+        height: usize,
+    ) -> bool {
         let mut dispatcher = Self::lock_unpoisoned(&self.compute_dispatcher);
         if dispatcher.device_count() == 0 {
             return false;
@@ -76,14 +79,23 @@ impl Renderer {
 
     pub(super) fn simd_tag(&self) -> &'static str {
         let s = &self.cpu_profile.simd_features;
-        if s.avx512f { "AVX-512" }
-        else if s.avx2 { "AVX2" }
-        else if s.avx { "AVX" }
-        else if s.fma { "FMA" }
-        else if s.sse4_2 { "SSE4.2" }
-        else if s.sse2 { "SSE2" }
-        else if s.neon { "NEON" }
-        else { "scalar" }
+        if s.avx512f {
+            "AVX-512"
+        } else if s.avx2 {
+            "AVX2"
+        } else if s.avx {
+            "AVX"
+        } else if s.fma {
+            "FMA"
+        } else if s.sse4_2 {
+            "SSE4.2"
+        } else if s.sse2 {
+            "SSE2"
+        } else if s.neon {
+            "NEON"
+        } else {
+            "scalar"
+        }
     }
 
     pub(super) fn gpu_fence_and_sync(&self) -> Option<f64> {
@@ -91,16 +103,12 @@ impl Renderer {
             let t0 = acces_hardware::precise_timestamp_ns();
 
             if g.has_active_framebuffer() && !matches!(g.driver(), DrmDriver::Radeon) {
-                let nop_ib: [u32; 4] = [
-                    0xC0021000,
-                    0x00000000,
-                    0x00000000,
-                    0x00000000,
-                ];
+                let nop_ib: [u32; 4] = [0xC0021000, 0x00000000, 0x00000000, 0x00000000];
                 match g.submit_ib(&nop_ib) {
                     Ok(cs_id) => {
                         g.sync_framebuffer();
-                        let elapsed = acces_hardware::elapsed_ms(t0, acces_hardware::precise_timestamp_ns());
+                        let elapsed =
+                            acces_hardware::elapsed_ms(t0, acces_hardware::precise_timestamp_ns());
                         crate::runtime_log!("gpu: fence cs_id={} sync={:.2}ms", cs_id, elapsed);
                         return Some(elapsed);
                     }

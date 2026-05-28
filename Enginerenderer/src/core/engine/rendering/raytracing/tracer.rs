@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::core::engine::acces_hardware::{
-    self, precise_timestamp_ns, elapsed_ms as hw_elapsed_ms,
+    self, elapsed_ms as hw_elapsed_ms, precise_timestamp_ns,
 };
 use crate::core::engine::rendering::lod::manager::LodManager;
 use crate::core::engine::rendering::lod::selection::LodSelection;
@@ -14,11 +14,9 @@ use crate::core::scheduler::adaptive::{SchedulerTuning, TileScheduler};
 
 use super::acceleration::BvhNode;
 use super::math::Vec3;
-use super::primitives::{Ray, EPSILON};
+use super::primitives::{EPSILON, Ray};
 use super::scene::Scene;
-use super::shading::{
-    luminance_estimate, make_seed, random_scalar, trace_ray, TraceContext,
-};
+use super::shading::{TraceContext, luminance_estimate, make_seed, random_scalar, trace_ray};
 
 #[derive(Debug, Clone, Copy)]
 pub struct RenderConfig {
@@ -353,7 +351,11 @@ impl CpuRayTracer {
         let total_ms = hw_elapsed_ms(t_start, precise_timestamp_ns());
         crate::runtime_log!(
             "tracer: total={:.1}ms (dispatch={:.1} assemble={:.1} denoise={:.1} dma_flush={})",
-            total_ms, dispatch_ms, assemble_ms, denoise_ms, dma_flushed,
+            total_ms,
+            dispatch_ms,
+            assemble_ms,
+            denoise_ms,
+            dma_flushed,
         );
 
         (denoised, bvh_stats)
@@ -431,7 +433,11 @@ impl CpuRayTracer {
         let total_ms = hw_elapsed_ms(t_start, precise_timestamp_ns());
         crate::runtime_log!(
             "tracer: total={:.1}ms (dispatch={:.1} assemble={:.1} denoise={:.1} dma_flush={})",
-            total_ms, dispatch_ms, assemble_ms, denoise_ms, dma_flushed,
+            total_ms,
+            dispatch_ms,
+            assemble_ms,
+            denoise_ms,
+            dma_flushed,
         );
 
         (denoised, bvh_stats)
@@ -440,11 +446,14 @@ impl CpuRayTracer {
     fn render_pixel(&self, context: PixelSampleContext<'_>, x: usize, y: usize) -> Vec3 {
         let center_u = (x as f64 + 0.5) / context.config.width as f64;
         let center_v = 1.0 - (y as f64 + 0.5) / context.config.height as f64;
-        let center_bias = (1.0 - (((center_u - 0.5).abs() + (center_v - 0.5).abs()) * 1.35)).clamp(0.0, 1.0);
+        let center_bias =
+            (1.0 - (((center_u - 0.5).abs() + (center_v - 0.5).abs()) * 1.35)).clamp(0.0, 1.0);
         let distance_hint = context.camera.focus_distance() * (1.25 - center_bias * 0.35);
         let radius_hint = 0.40 + center_bias * 1.40;
         let lod = if context.config.adaptive_sampling {
-            context.lod_manager.select(distance_hint.max(0.001), radius_hint)
+            context
+                .lod_manager
+                .select(distance_hint.max(0.001), radius_hint)
         } else {
             LodSelection::background()
         };
@@ -484,16 +493,22 @@ impl CpuRayTracer {
             let lens_u = random_scalar(seed ^ 0x91E1_0DA5);
             let lens_v = random_scalar(seed ^ 0xC2B3_A13F);
             let shutter_t = (phase + random_scalar(seed ^ 0x27D4_EB2D) * 0.25).fract();
-            let ray = context.camera.ray_with_lens(u, v, lens_u, lens_v, shutter_t);
+            let ray = context
+                .camera
+                .ray_with_lens(u, v, lens_u, lens_v, shutter_t);
             let sample = self.limit_fireflies(
-                trace_ray(ray, 0, TraceContext {
-                    scene: context.scene,
-                    lod_manager: context.lod_manager,
-                    global_bounce_limit: context.config.max_bounces,
-                    seed,
-                    bvh: context.bvh,
-                    sdf: None,
-                }),
+                trace_ray(
+                    ray,
+                    0,
+                    TraceContext {
+                        scene: context.scene,
+                        lod_manager: context.lod_manager,
+                        global_bounce_limit: context.config.max_bounces,
+                        seed,
+                        bvh: context.bvh,
+                        sdf: None,
+                    },
+                ),
                 context.config.firefly_threshold,
             );
             color += sample;
@@ -505,7 +520,10 @@ impl CpuRayTracer {
             let delta2 = luma - mean_luma;
             m2 += delta * delta2;
 
-            if context.config.adaptive_sampling && used_samples >= min_samples && used_samples % 4 == 0 {
+            if context.config.adaptive_sampling
+                && used_samples >= min_samples
+                && used_samples % 4 == 0
+            {
                 let variance = if used_samples > 1 {
                     m2 / (used_samples - 1) as f64
                 } else {
@@ -541,17 +559,17 @@ impl CpuRayTracer {
             return base_samples.max(1);
         }
 
-        let material_complexity = BvhNode::hit_scene(scene, &probe_ray, EPSILON, config.max_distance, bvh)
-            .map(|hit| {
-                0.12
-                    + hit.material.reflectivity * 0.45
-                    + hit.material.transmission * 0.55
-                    + hit.material.clearcoat * 0.20
-                    + hit.material.iridescence * 0.25
-                    + hit.material.anisotropy * 0.22
-                    + hit.material.subsurface * 0.18
-            })
-            .unwrap_or(0.08);
+        let material_complexity =
+            BvhNode::hit_scene(scene, &probe_ray, EPSILON, config.max_distance, bvh)
+                .map(|hit| {
+                    0.12 + hit.material.reflectivity * 0.45
+                        + hit.material.transmission * 0.55
+                        + hit.material.clearcoat * 0.20
+                        + hit.material.iridescence * 0.25
+                        + hit.material.anisotropy * 0.22
+                        + hit.material.subsurface * 0.18
+                })
+                .unwrap_or(0.08);
 
         let lod_boost = (lod.reflection_boost - 1.0).max(0.0) * 0.22
             + (lod.texture_frequency - 1.0).max(0.0) * 0.04;
@@ -602,7 +620,9 @@ impl CpuRayTracer {
                 for (worker_id, out_band) in out_chunks.enumerate() {
                     let y_start = worker_id * band_h;
                     let y_end = (y_start + band_h).min(h);
-                    if y_start >= y_end { continue; }
+                    if y_start >= y_end {
+                        continue;
+                    }
 
                     scope.spawn(move || {
                         acces_hardware::pin_thread_to_core(worker_id);
@@ -617,10 +637,15 @@ impl CpuRayTracer {
 
                                 for oy in -1isize..=1 {
                                     for ox in -1isize..=1 {
-                                        if ox == 0 && oy == 0 { continue; }
+                                        if ox == 0 && oy == 0 {
+                                            continue;
+                                        }
                                         let sx = x as isize + ox;
                                         let sy = y as isize + oy;
-                                        if sx < 0 || sy < 0 || sx >= w as isize || sy >= h as isize { continue; }
+                                        if sx < 0 || sy < 0 || sx >= w as isize || sy >= h as isize
+                                        {
+                                            continue;
+                                        }
                                         neighborhood += source[sy as usize * w + sx as usize];
                                         count += 1.0;
                                     }
@@ -630,7 +655,8 @@ impl CpuRayTracer {
                                     let mean = neighborhood / count;
                                     let mean_luma = luminance_estimate(mean).max(0.001);
                                     if center_luma > mean_luma * firefly_threshold {
-                                        let f = (mean_luma * firefly_threshold / center_luma).clamp(0.0, 1.0);
+                                        let f = (mean_luma * firefly_threshold / center_luma)
+                                            .clamp(0.0, 1.0);
                                         center * f + mean * (1.0 - f)
                                     } else {
                                         center
@@ -660,7 +686,9 @@ impl CpuRayTracer {
                 for (worker_id, out_band) in out_chunks.enumerate() {
                     let y_start = worker_id * band_h;
                     let y_end = (y_start + band_h).min(h);
-                    if y_start >= y_end { continue; }
+                    if y_start >= y_end {
+                        continue;
+                    }
 
                     scope.spawn(move || {
                         acces_hardware::pin_thread_to_core(worker_id);
@@ -675,19 +703,31 @@ impl CpuRayTracer {
 
                                 for oy in -radius..=radius {
                                     for ox in -radius..=radius {
-                                        if ox == 0 && oy == 0 { continue; }
+                                        if ox == 0 && oy == 0 {
+                                            continue;
+                                        }
                                         let sx = x as isize + ox;
                                         let sy = y as isize + oy;
-                                        if sx < 0 || sy < 0 || sx >= w as isize || sy >= h as isize { continue; }
+                                        if sx < 0 || sy < 0 || sx >= w as isize || sy >= h as isize
+                                        {
+                                            continue;
+                                        }
 
                                         let sample = source[sy as usize * w + sx as usize];
                                         let sample_luma = luminance_estimate(sample);
                                         let luma_delta = (sample_luma - center_luma).abs();
                                         let color_delta = (sample - center).length();
                                         let dist2 = (ox * ox + oy * oy) as f64;
-                                        let spatial = 1.0 / (1.0 + dist2 * (0.65 + pass_index as f64 * 0.20));
-                                        let edge = 1.0 / (1.0 + luma_delta * 11.0 + color_delta * 4.5);
-                                        let highlight = if sample_luma > center_luma * firefly_threshold { 0.22 } else { 1.0 };
+                                        let spatial =
+                                            1.0 / (1.0 + dist2 * (0.65 + pass_index as f64 * 0.20));
+                                        let edge =
+                                            1.0 / (1.0 + luma_delta * 11.0 + color_delta * 4.5);
+                                        let highlight =
+                                            if sample_luma > center_luma * firefly_threshold {
+                                                0.22
+                                            } else {
+                                                1.0
+                                            };
                                         let weight = strength * spatial * edge * highlight;
                                         accumulated += sample * weight;
                                         total_weight += weight;
@@ -738,5 +778,7 @@ fn scheduler_tuning_for_config(config: &RenderConfig) -> SchedulerTuning {
     let bounce_pressure = config.max_bounces as f64 * 0.12;
     let adaptive_pressure = if config.adaptive_sampling { 0.18 } else { 0.0 };
     let denoise_pressure = (config.denoise_radius as f64) * 0.05;
-    SchedulerTuning::new(0.85 + sample_pressure + bounce_pressure + adaptive_pressure + denoise_pressure)
+    SchedulerTuning::new(
+        0.85 + sample_pressure + bounce_pressure + adaptive_pressure + denoise_pressure,
+    )
 }

@@ -1,4 +1,3 @@
-
 //! Shadow mapping: cascaded shadow maps, PCF filtering, contact shadows.
 //!
 //! * [`frustum_corners`] — camera frustum corner extraction for cascade fitting.

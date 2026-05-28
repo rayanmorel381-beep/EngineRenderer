@@ -45,18 +45,43 @@ pub(crate) fn default_config() -> RamConfig {
     let (page_size, total_bytes, available_bytes, frame_budget_us, low_power) = match vendor {
         Vendor::Amd => {
             let c = amd::backend::default_backend_config();
-            (c.page_size, c.total_bytes, c.available_bytes, c.frame_budget_us, c.low_power)
+            (
+                c.page_size,
+                c.total_bytes,
+                c.available_bytes,
+                c.frame_budget_us,
+                c.low_power,
+            )
         }
         Vendor::Intel => {
             let c = intel::backend::default_backend_config();
-            (c.page_size, c.total_bytes, c.available_bytes, c.frame_budget_us, c.low_power)
+            (
+                c.page_size,
+                c.total_bytes,
+                c.available_bytes,
+                c.frame_budget_us,
+                c.low_power,
+            )
         }
         Vendor::Apple => {
             let c = apple::backend::default_backend_config();
-            (c.page_size, c.total_bytes, c.available_bytes, c.frame_budget_us, c.low_power)
+            (
+                c.page_size,
+                c.total_bytes,
+                c.available_bytes,
+                c.frame_budget_us,
+                c.low_power,
+            )
         }
     };
-    RamConfig { vendor, page_size, total_bytes, available_bytes, frame_budget_us, low_power }
+    RamConfig {
+        vendor,
+        page_size,
+        total_bytes,
+        available_bytes,
+        frame_budget_us,
+        low_power,
+    }
 }
 
 pub(crate) fn clamp_workers(requested: usize) -> usize {
@@ -83,5 +108,9 @@ pub(crate) fn build_schedule(work_items: usize) -> RamSchedule {
             (s.chunks, s.chunk_size, s.frame_budget_us)
         }
     };
-    RamSchedule { chunks, chunk_size, frame_budget_us }
+    RamSchedule {
+        chunks,
+        chunk_size,
+        frame_budget_us,
+    }
 }

@@ -26,7 +26,10 @@ impl fmt::Display for RenderError {
             Self::Io(err) => write!(f, "io error: {err}"),
             Self::SceneEmpty => write!(f, "scene contains no renderable objects"),
             Self::CameraDegenerate => {
-                write!(f, "camera eye and target are coincident or produce a degenerate view")
+                write!(
+                    f,
+                    "camera eye and target are coincident or produce a degenerate view"
+                )
             }
         }
     }

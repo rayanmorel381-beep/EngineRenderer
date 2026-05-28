@@ -1,9 +1,8 @@
 use std::{collections::HashMap, path::PathBuf, sync::Mutex};
 
 use crate::core::engine::acces_hardware::{
-    arch::compute_dispatch, ComputeCapabilities, ComputeDispatchMetadata, ComputeDeviceKind,
-    ComputeJobBatch, ComputeQueue, CpuProfile, GpuRenderBackend, GpuSubmitter,
-    HardwareCapabilities,
+    ComputeCapabilities, ComputeDeviceKind, ComputeDispatchMetadata, ComputeJobBatch, ComputeQueue,
+    CpuProfile, GpuRenderBackend, GpuSubmitter, HardwareCapabilities, arch::compute_dispatch,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -94,7 +93,11 @@ impl NativeHardwareBackend {
                         ComputeDeviceKind::Gpu,
                         lanes,
                         gpu.drm_fd(),
-                        Some(GpuSubmitter::new(gpu.drm_fd(), gpu.driver(), gpu.gem_handle())),
+                        Some(GpuSubmitter::new(
+                            gpu.drm_fd(),
+                            gpu.driver(),
+                            gpu.gem_handle(),
+                        )),
                     )
                 } else {
                     self.create_compute_backend(ComputeDeviceKind::CpuSimd)
@@ -219,7 +222,11 @@ impl NativeComputeBackend {
         if let Some(ref submitter_lock) = self.submitter {
             let mut submitter = lock_unpoisoned(submitter_lock);
             let total_tiles = batch.jobs.len() as u32;
-            let workgroup_size = batch.jobs.first().map(|job| job.config.thread_count()).unwrap_or(256);
+            let workgroup_size = batch
+                .jobs
+                .first()
+                .map(|job| job.config.thread_count())
+                .unwrap_or(256);
             let pixel_count = total_threads as u32;
 
             submitter.build_compute_dispatch_with_metadata(

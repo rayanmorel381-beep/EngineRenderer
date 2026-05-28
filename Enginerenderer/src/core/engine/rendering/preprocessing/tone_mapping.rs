@@ -85,7 +85,8 @@ impl ColorGrading {
             gained.z.max(0.0).powf(1.0 / self.gamma.z.max(0.01)),
         );
 
-        let luma = 0.2126 * gamma_corrected.x + 0.7152 * gamma_corrected.y + 0.0722 * gamma_corrected.z;
+        let luma =
+            0.2126 * gamma_corrected.x + 0.7152 * gamma_corrected.y + 0.0722 * gamma_corrected.z;
         let gray = Vec3::splat(luma);
         let saturated = gray.lerp(gamma_corrected, self.saturation);
 
@@ -203,5 +204,3 @@ fn agx_curve(x: f64) -> f64 {
     let shaped = compressed * compressed * (3.0 - 2.0 * compressed);
     shaped.clamp(0.0, 1.0)
 }
-
-

@@ -1,6 +1,6 @@
-use crate::core::engine::rendering::raytracing::{Ray, Scene, Vec3};
-use crate::core::engine::rendering::raytracing::shading::{make_seed, trace_ray, TraceContext};
 use crate::core::engine::rendering::lod::manager::LodManager;
+use crate::core::engine::rendering::raytracing::shading::{TraceContext, make_seed, trace_ray};
+use crate::core::engine::rendering::raytracing::{Ray, Scene, Vec3};
 
 pub const DDGI_IRRADIANCE_TEXELS: usize = 8;
 pub const DDGI_VISIBILITY_TEXELS: usize = 16;
@@ -15,7 +15,11 @@ pub struct ProbeGrid {
 
 impl ProbeGrid {
     pub fn new(origin: Vec3, spacing: Vec3, counts: [u32; 3]) -> Self {
-        Self { origin, spacing, counts }
+        Self {
+            origin,
+            spacing,
+            counts,
+        }
     }
 
     pub fn probe_count(&self) -> usize {
@@ -28,11 +32,12 @@ impl ProbeGrid {
         let x = index % nx;
         let y = (index / nx) % ny;
         let z = index / (nx * ny);
-        self.origin + Vec3::new(
-            x as f64 * self.spacing.x,
-            y as f64 * self.spacing.y,
-            z as f64 * self.spacing.z,
-        )
+        self.origin
+            + Vec3::new(
+                x as f64 * self.spacing.x,
+                y as f64 * self.spacing.y,
+                z as f64 * self.spacing.z,
+            )
     }
 
     pub fn find_enclosing_probes(&self, pos: Vec3) -> [usize; 8] {
@@ -47,13 +52,13 @@ impl ProbeGrid {
         let ny = self.counts[1] as usize;
         [
             ix + iy * nx + iz * nx * ny,
-            (ix+1) + iy * nx + iz * nx * ny,
-            ix + (iy+1) * nx + iz * nx * ny,
-            (ix+1) + (iy+1) * nx + iz * nx * ny,
-            ix + iy * nx + (iz+1) * nx * ny,
-            (ix+1) + iy * nx + (iz+1) * nx * ny,
-            ix + (iy+1) * nx + (iz+1) * nx * ny,
-            (ix+1) + (iy+1) * nx + (iz+1) * nx * ny,
+            (ix + 1) + iy * nx + iz * nx * ny,
+            ix + (iy + 1) * nx + iz * nx * ny,
+            (ix + 1) + (iy + 1) * nx + iz * nx * ny,
+            ix + iy * nx + (iz + 1) * nx * ny,
+            (ix + 1) + iy * nx + (iz + 1) * nx * ny,
+            ix + (iy + 1) * nx + (iz + 1) * nx * ny,
+            (ix + 1) + (iy + 1) * nx + (iz + 1) * nx * ny,
         ]
     }
 
@@ -63,14 +68,14 @@ impl ProbeGrid {
         let ty = (local.y / self.spacing.y).fract().clamp(0.0, 1.0);
         let tz = (local.z / self.spacing.z).fract().clamp(0.0, 1.0);
         [
-            (1.0-tx)*(1.0-ty)*(1.0-tz),
-            tx*(1.0-ty)*(1.0-tz),
-            (1.0-tx)*ty*(1.0-tz),
-            tx*ty*(1.0-tz),
-            (1.0-tx)*(1.0-ty)*tz,
-            tx*(1.0-ty)*tz,
-            (1.0-tx)*ty*tz,
-            tx*ty*tz,
+            (1.0 - tx) * (1.0 - ty) * (1.0 - tz),
+            tx * (1.0 - ty) * (1.0 - tz),
+            (1.0 - tx) * ty * (1.0 - tz),
+            tx * ty * (1.0 - tz),
+            (1.0 - tx) * (1.0 - ty) * tz,
+            tx * (1.0 - ty) * tz,
+            (1.0 - tx) * ty * tz,
+            tx * ty * tz,
         ]
     }
 }
@@ -95,12 +100,16 @@ impl Default for IrradianceProbe {
 impl IrradianceProbe {
     pub fn sample_irradiance(&self, direction: Vec3) -> Vec3 {
         let (u, v) = oct_encode(direction.normalize());
-        let tx = ((u * 0.5 + 0.5) * (DDGI_IRRADIANCE_TEXELS - 1) as f64).clamp(0.0, (DDGI_IRRADIANCE_TEXELS - 1) as f64);
-        let ty = ((v * 0.5 + 0.5) * (DDGI_IRRADIANCE_TEXELS - 1) as f64).clamp(0.0, (DDGI_IRRADIANCE_TEXELS - 1) as f64);
+        let tx = ((u * 0.5 + 0.5) * (DDGI_IRRADIANCE_TEXELS - 1) as f64)
+            .clamp(0.0, (DDGI_IRRADIANCE_TEXELS - 1) as f64);
+        let ty = ((v * 0.5 + 0.5) * (DDGI_IRRADIANCE_TEXELS - 1) as f64)
+            .clamp(0.0, (DDGI_IRRADIANCE_TEXELS - 1) as f64);
         let base = bilinear_irradiance(&self.irradiance, tx, ty);
-        let vx = (tx * (DDGI_VISIBILITY_TEXELS - 1) as f64 / (DDGI_IRRADIANCE_TEXELS - 1).max(1) as f64)
+        let vx = (tx * (DDGI_VISIBILITY_TEXELS - 1) as f64
+            / (DDGI_IRRADIANCE_TEXELS - 1).max(1) as f64)
             .clamp(0.0, (DDGI_VISIBILITY_TEXELS - 1) as f64) as usize;
-        let vy = (ty * (DDGI_VISIBILITY_TEXELS - 1) as f64 / (DDGI_IRRADIANCE_TEXELS - 1).max(1) as f64)
+        let vy = (ty * (DDGI_VISIBILITY_TEXELS - 1) as f64
+            / (DDGI_IRRADIANCE_TEXELS - 1).max(1) as f64)
             .clamp(0.0, (DDGI_VISIBILITY_TEXELS - 1) as f64) as usize;
         let mean_d = self.mean_distance[vy][vx];
         let mean_d_sq = self.mean_distance_sq[vy][vx];
@@ -122,15 +131,19 @@ impl IrradianceProbe {
 
         for ray in rays {
             let (u, v) = oct_encode(ray.direction);
-            let tx = ((u * 0.5 + 0.5) * (DDGI_IRRADIANCE_TEXELS - 1) as f64).clamp(0.0, (DDGI_IRRADIANCE_TEXELS - 1) as f64);
-            let ty = ((v * 0.5 + 0.5) * (DDGI_IRRADIANCE_TEXELS - 1) as f64).clamp(0.0, (DDGI_IRRADIANCE_TEXELS - 1) as f64);
+            let tx = ((u * 0.5 + 0.5) * (DDGI_IRRADIANCE_TEXELS - 1) as f64)
+                .clamp(0.0, (DDGI_IRRADIANCE_TEXELS - 1) as f64);
+            let ty = ((v * 0.5 + 0.5) * (DDGI_IRRADIANCE_TEXELS - 1) as f64)
+                .clamp(0.0, (DDGI_IRRADIANCE_TEXELS - 1) as f64);
             let ix = tx as usize;
             let iy = ty as usize;
             let w = ray.direction.dot(ray.direction).max(0.0001);
             acc[iy][ix] += ray.radiance * w;
             weights[iy][ix] += w;
-            let vx = (tx * (DDGI_VISIBILITY_TEXELS - 1) as f64 / (DDGI_IRRADIANCE_TEXELS - 1) as f64) as usize;
-            let vy = (ty * (DDGI_VISIBILITY_TEXELS - 1) as f64 / (DDGI_IRRADIANCE_TEXELS - 1) as f64) as usize;
+            let vx = (tx * (DDGI_VISIBILITY_TEXELS - 1) as f64
+                / (DDGI_IRRADIANCE_TEXELS - 1) as f64) as usize;
+            let vy = (ty * (DDGI_VISIBILITY_TEXELS - 1) as f64
+                / (DDGI_IRRADIANCE_TEXELS - 1) as f64) as usize;
             let vx = vx.min(DDGI_VISIBILITY_TEXELS - 1);
             let vy = vy.min(DDGI_VISIBILITY_TEXELS - 1);
             acc_dist[vy][vx] += ray.hit_distance;
@@ -142,7 +155,8 @@ impl IrradianceProbe {
             for x in 0..DDGI_IRRADIANCE_TEXELS {
                 if weights[y][x] > 1e-6 {
                     let new_val = acc[y][x] * (1.0 / weights[y][x]);
-                    self.irradiance[y][x] = self.irradiance[y][x] * hysteresis + new_val * (1.0 - hysteresis);
+                    self.irradiance[y][x] =
+                        self.irradiance[y][x] * hysteresis + new_val * (1.0 - hysteresis);
                 }
             }
         }
@@ -152,8 +166,10 @@ impl IrradianceProbe {
                 if vis_counts[y][x] > 0.0 {
                     let mean = acc_dist[y][x] / vis_counts[y][x];
                     let mean_sq = acc_dist_sq[y][x] / vis_counts[y][x];
-                    self.mean_distance[y][x] = self.mean_distance[y][x] * hysteresis + mean * (1.0 - hysteresis);
-                    self.mean_distance_sq[y][x] = self.mean_distance_sq[y][x] * hysteresis + mean_sq * (1.0 - hysteresis);
+                    self.mean_distance[y][x] =
+                        self.mean_distance[y][x] * hysteresis + mean * (1.0 - hysteresis);
+                    self.mean_distance_sq[y][x] =
+                        self.mean_distance_sq[y][x] * hysteresis + mean_sq * (1.0 - hysteresis);
                 }
             }
         }
@@ -189,7 +205,13 @@ impl DdgiVolume {
         }
     }
 
-    pub fn update(&mut self, scene: &Scene, lod: &LodManager, max_bounces: u32, sdf: Option<&crate::core::engine::rendering::sdf::world_sdf::WorldSdf>) {
+    pub fn update(
+        &mut self,
+        scene: &Scene,
+        lod: &LodManager,
+        max_bounces: u32,
+        sdf: Option<&crate::core::engine::rendering::sdf::world_sdf::WorldSdf>,
+    ) {
         let probe_count = self.grid.probe_count();
         for probe_idx in 0..probe_count {
             let probe_pos = self.grid.probe_position(probe_idx);
@@ -208,7 +230,11 @@ impl DdgiVolume {
                     sdf,
                 };
                 let radiance = trace_ray(ray, 0, ctx);
-                ray_samples.push(ProbeRaySample { direction: dir, radiance, hit_distance: 0.0 });
+                ray_samples.push(ProbeRaySample {
+                    direction: dir,
+                    radiance,
+                    hit_distance: 0.0,
+                });
             }
 
             self.probes[probe_idx].update_from_rays(&ray_samples, self.hysteresis);
@@ -231,7 +257,9 @@ impl DdgiVolume {
         let mut total_weight = 0.0_f64;
 
         for (i, &probe_idx) in indices.iter().enumerate() {
-            if probe_idx >= self.probes.len() { continue; }
+            if probe_idx >= self.probes.len() {
+                continue;
+            }
             let probe_pos = self.grid.probe_position(probe_idx);
             let to_probe = (probe_pos - pos).normalize();
             let crush = to_probe.dot(normal).max(0.0001);
@@ -287,8 +315,8 @@ fn bilinear_irradiance(
     let y0 = (ty as usize).min(DDGI_IRRADIANCE_TEXELS - 2);
     let fx = tx - x0 as f64;
     let fy = ty - y0 as f64;
-    tex[y0][x0] * ((1.0-fx)*(1.0-fy))
-        + tex[y0][x0+1] * (fx*(1.0-fy))
-        + tex[y0+1][x0] * ((1.0-fx)*fy)
-        + tex[y0+1][x0+1] * (fx*fy)
+    tex[y0][x0] * ((1.0 - fx) * (1.0 - fy))
+        + tex[y0][x0 + 1] * (fx * (1.0 - fy))
+        + tex[y0 + 1][x0] * ((1.0 - fx) * fy)
+        + tex[y0 + 1][x0 + 1] * (fx * fy)
 }

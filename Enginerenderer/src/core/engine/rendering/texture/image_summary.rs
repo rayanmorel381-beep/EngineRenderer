@@ -46,12 +46,7 @@ impl TextureImageSummary {
         }
     }
 
-    fn summarize_binary_rgb(
-        data: &[u8],
-        width: u32,
-        height: u32,
-        max_value: u32,
-    ) -> Option<Self> {
+    fn summarize_binary_rgb(data: &[u8], width: u32, height: u32, max_value: u32) -> Option<Self> {
         let pixel_count = width as usize * height as usize;
         if pixel_count == 0 || data.len() < 3 {
             return None;
@@ -86,12 +81,7 @@ impl TextureImageSummary {
         Self::finalize(sum, count, detail, width, height)
     }
 
-    fn summarize_binary_gray(
-        data: &[u8],
-        width: u32,
-        height: u32,
-        max_value: u32,
-    ) -> Option<Self> {
+    fn summarize_binary_gray(data: &[u8], width: u32, height: u32, max_value: u32) -> Option<Self> {
         let pixel_count = width as usize * height as usize;
         if pixel_count == 0 || data.is_empty() {
             return None;
@@ -142,18 +132,9 @@ impl TextureImageSummary {
         let mut previous: Option<Vec3> = None;
 
         for pixel_index in 0..pixel_count {
-            let r = Self::read_token(bytes, &mut cursor)?
-                .parse::<u32>()
-                .ok()? as f64
-                / scale;
-            let g = Self::read_token(bytes, &mut cursor)?
-                .parse::<u32>()
-                .ok()? as f64
-                / scale;
-            let b = Self::read_token(bytes, &mut cursor)?
-                .parse::<u32>()
-                .ok()? as f64
-                / scale;
+            let r = Self::read_token(bytes, &mut cursor)?.parse::<u32>().ok()? as f64 / scale;
+            let g = Self::read_token(bytes, &mut cursor)?.parse::<u32>().ok()? as f64 / scale;
+            let b = Self::read_token(bytes, &mut cursor)?.parse::<u32>().ok()? as f64 / scale;
 
             if pixel_index % step != 0 {
                 continue;

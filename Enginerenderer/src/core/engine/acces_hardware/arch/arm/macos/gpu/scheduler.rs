@@ -36,7 +36,13 @@ pub(crate) fn recommended_chunk_size(work_items: usize) -> usize {
     }
     let gpu_cores = sysctl_u64(b"hw.gpu.core_count\0").unwrap_or(8) as usize;
     let tile = if gpu_cores >= 30 { 64 } else { 32 };
-    let queues = if gpu_cores >= 30 { 5 } else if gpu_cores >= 16 { 4 } else { 3 };
+    let queues = if gpu_cores >= 30 {
+        5
+    } else if gpu_cores >= 16 {
+        4
+    } else {
+        3
+    };
     let raw = work_items.div_ceil(queues * gpu_cores);
     let aligned = ((raw.max(1) + tile - 1) / tile) * tile;
     aligned.max(tile)
@@ -44,6 +50,14 @@ pub(crate) fn recommended_chunk_size(work_items: usize) -> usize {
 
 pub(crate) fn build_schedule(work_items: usize) -> VendorSchedule {
     let chunk_size = recommended_chunk_size(work_items);
-    let chunks = if work_items == 0 { 1 } else { work_items.div_ceil(chunk_size) };
-    VendorSchedule { chunks, chunk_size, frame_budget_us: 8_333 }
+    let chunks = if work_items == 0 {
+        1
+    } else {
+        work_items.div_ceil(chunk_size)
+    };
+    VendorSchedule {
+        chunks,
+        chunk_size,
+        frame_budget_us: 8_333,
+    }
 }

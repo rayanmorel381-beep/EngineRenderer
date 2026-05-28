@@ -1,31 +1,26 @@
 use crate::core::engine::rendering::{
-    loader::content_loader::ContentLoader,
+    effects::volumetric_effects::medium::VolumetricMedium,
     environment::procedural::ProceduralEnvironment,
+    loader::content_loader::ContentLoader,
     loader::glb_loader::GlbLoader,
+    loader::obj_loader::ObjLoader,
     materials::material::MaterialLibrary,
     mesh::asset::MeshAsset,
     mesh::operations::{compute_tangents, recalculate_normals, subdivide},
     mesh::vertex::geometric_density,
-    loader::obj_loader::ObjLoader,
-    raytracing::{
-        AreaLight, Camera, DirectionalLight, Material, Scene, Sphere, Triangle, Vec3,
-    },
-    effects::volumetric_effects::medium::VolumetricMedium,
+    raytracing::{AreaLight, Camera, DirectionalLight, Material, Scene, Sphere, Triangle, Vec3},
 };
 
 pub fn build_realistic_scene(aspect_ratio: f64) -> (Scene, Camera) {
-    let polished_ceramic =
-        Material::new(Vec3::new(0.92, 0.94, 0.98), 0.16, 0.02, 0.22, Vec3::ZERO)
-            .with_layers(0.98, 0.18, Vec3::new(0.06, 0.08, 0.10))
-            .with_optics(0.10, 0.06, 0.22);
-    let brushed_copper =
-        Material::new(Vec3::new(0.82, 0.45, 0.20), 0.22, 0.88, 0.72, Vec3::ZERO)
-            .with_layers(0.90, 0.24, Vec3::new(0.12, 0.05, 0.02))
-            .with_optics(0.03, 0.76, 0.18);
-    let cobalt_lacquer =
-        Material::new(Vec3::new(0.19, 0.33, 0.69), 0.09, 0.12, 0.54, Vec3::ZERO)
-            .with_layers(0.96, 0.36, Vec3::new(0.04, 0.06, 0.12))
-            .with_optics(0.14, 0.12, 0.44);
+    let polished_ceramic = Material::new(Vec3::new(0.92, 0.94, 0.98), 0.16, 0.02, 0.22, Vec3::ZERO)
+        .with_layers(0.98, 0.18, Vec3::new(0.06, 0.08, 0.10))
+        .with_optics(0.10, 0.06, 0.22);
+    let brushed_copper = Material::new(Vec3::new(0.82, 0.45, 0.20), 0.22, 0.88, 0.72, Vec3::ZERO)
+        .with_layers(0.90, 0.24, Vec3::new(0.12, 0.05, 0.02))
+        .with_optics(0.03, 0.76, 0.18);
+    let cobalt_lacquer = Material::new(Vec3::new(0.19, 0.33, 0.69), 0.09, 0.12, 0.54, Vec3::ZERO)
+        .with_layers(0.96, 0.36, Vec3::new(0.04, 0.06, 0.12))
+        .with_optics(0.14, 0.12, 0.44);
     let obsidian = Material::new(Vec3::new(0.06, 0.07, 0.10), 0.04, 0.72, 0.86, Vec3::ZERO)
         .with_layers(0.88, 0.28, Vec3::new(0.05, 0.05, 0.08))
         .with_optics(0.02, 0.64, 0.26);
@@ -206,7 +201,14 @@ pub fn asset_meshes_to_spheres(
                         3.5 + orbit_offset * 0.55,
                     ),
                 radius: mesh.effective_radius()
-                    * (0.38 + geometric_density(&mesh.descriptor, mesh.effective_radius().powi(2) * std::f64::consts::PI * 4.0).ln().max(0.2) * 0.015),
+                    * (0.38
+                        + geometric_density(
+                            &mesh.descriptor,
+                            mesh.effective_radius().powi(2) * std::f64::consts::PI * 4.0,
+                        )
+                        .ln()
+                        .max(0.2)
+                            * 0.015),
                 material,
             }
         })

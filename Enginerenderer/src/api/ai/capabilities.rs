@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone)]
 /// Declarative capabilities exposed for AI clients.
 pub struct Capabilities {
@@ -31,12 +30,7 @@ pub struct Capabilities {
 /// Discovers the current AI-facing feature set.
 pub fn discover() -> Capabilities {
     Capabilities {
-        object_types: vec![
-            "sphere",
-            "triangle",
-            "celestial_body",
-            "mesh_flat_triangle",
-        ],
+        object_types: vec!["sphere", "triangle", "celestial_body", "mesh_flat_triangle"],
         material_presets: vec![
             "stellar_surface",
             "rocky_world",

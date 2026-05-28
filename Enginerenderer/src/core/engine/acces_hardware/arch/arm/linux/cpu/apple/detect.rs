@@ -43,12 +43,10 @@ fn detect_neon(cpuinfo: &str) -> bool {
 fn parse_hex_field(cpuinfo: &str, field: &str) -> Option<u64> {
     cpuinfo.lines().find_map(|line| {
         if line.starts_with(field) {
-            line.split(':')
-                .nth(1)
-                .and_then(|v| {
-                    let v = v.trim().trim_start_matches("0x");
-                    u64::from_str_radix(v, 16).ok()
-                })
+            line.split(':').nth(1).and_then(|v| {
+                let v = v.trim().trim_start_matches("0x");
+                u64::from_str_radix(v, 16).ok()
+            })
         } else {
             None
         }
@@ -58,7 +56,9 @@ fn parse_hex_field(cpuinfo: &str, field: &str) -> Option<u64> {
 fn detect_big_little() -> bool {
     let mut unique_parts = [0u16; 8];
     let mut count = 0usize;
-    let Ok(cpuinfo) = fs::read_to_string("/proc/cpuinfo") else { return false };
+    let Ok(cpuinfo) = fs::read_to_string("/proc/cpuinfo") else {
+        return false;
+    };
     for line in cpuinfo.lines() {
         if line.starts_with("CPU part")
             && let Some(val) = line.split(':').nth(1).and_then(|v| {

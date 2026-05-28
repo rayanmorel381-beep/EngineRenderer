@@ -4,13 +4,13 @@
 use core::ffi::{c_uint, c_void};
 
 use super::camera::Camera;
-use super::gpu_gl::{
-    read_cstring, GlFns, GL_DYNAMIC_DRAW, GL_RENDERER, GL_SHADER_STORAGE_BARRIER_BIT,
-    GL_SHADER_STORAGE_BUFFER, GL_STATIC_DRAW, GL_VENDOR, GL_VERSION,
-};
 use super::gpu_bvh::{build as build_bvh, pack_nodes as pack_bvh_nodes, pack_prim_refs};
+use super::gpu_gl::{
+    GL_DYNAMIC_DRAW, GL_RENDERER, GL_SHADER_STORAGE_BARRIER_BIT, GL_SHADER_STORAGE_BUFFER,
+    GL_STATIC_DRAW, GL_VENDOR, GL_VERSION, GlFns, read_cstring,
+};
 use super::gpu_scene_pack::{
-    pack_area_lights, pack_frame, pack_spheres, pack_triangles, GpuFrameConfig,
+    GpuFrameConfig, pack_area_lights, pack_frame, pack_spheres, pack_triangles,
 };
 use super::gpu_shader::{assemble, bindings};
 use super::math::Vec3;
@@ -71,10 +71,7 @@ pub struct GpuRaytracer {
 
 impl GpuRaytracer {
     /// Builds a path tracer on top of a current GL 4.3 / GLES 3.1 context.
-    pub fn new(
-        proc_loader: &dyn Fn(&[u8]) -> *mut c_void,
-        is_es: bool,
-    ) -> Result<Self, String> {
+    pub fn new(proc_loader: &dyn Fn(&[u8]) -> *mut c_void, is_es: bool) -> Result<Self, String> {
         let gl = GlFns::load(&proc_loader)?;
         let source = assemble(is_es);
         let shader = unsafe { gl.compile_compute(&source) }?;
@@ -191,9 +188,8 @@ impl GpuRaytracer {
         }
 
         let f32_count = pixel_count * 4;
-        let floats: &[f32] = unsafe {
-            core::slice::from_raw_parts(raw.as_ptr() as *const f32, f32_count)
-        };
+        let floats: &[f32] =
+            unsafe { core::slice::from_raw_parts(raw.as_ptr() as *const f32, f32_count) };
 
         let mut color: Vec<Vec3> = Vec::with_capacity(pixel_count);
         let mut alpha: Vec<f64> = Vec::with_capacity(pixel_count);
@@ -223,13 +219,37 @@ impl GpuRaytracer {
 
     unsafe fn bind_all(&self) {
         unsafe {
-            (self.gl.bind_buffer_base)(GL_SHADER_STORAGE_BUFFER, bindings::OUTPUT, self.output_ssbo);
+            (self.gl.bind_buffer_base)(
+                GL_SHADER_STORAGE_BUFFER,
+                bindings::OUTPUT,
+                self.output_ssbo,
+            );
             (self.gl.bind_buffer_base)(GL_SHADER_STORAGE_BUFFER, bindings::FRAME, self.frame_ssbo);
-            (self.gl.bind_buffer_base)(GL_SHADER_STORAGE_BUFFER, bindings::SPHERES, self.sphere_ssbo);
-            (self.gl.bind_buffer_base)(GL_SHADER_STORAGE_BUFFER, bindings::TRIANGLES, self.triangle_ssbo);
-            (self.gl.bind_buffer_base)(GL_SHADER_STORAGE_BUFFER, bindings::AREA_LIGHTS, self.area_light_ssbo);
-            (self.gl.bind_buffer_base)(GL_SHADER_STORAGE_BUFFER, bindings::BVH_NODES, self.bvh_nodes_ssbo);
-            (self.gl.bind_buffer_base)(GL_SHADER_STORAGE_BUFFER, bindings::BVH_PRIMS, self.bvh_prims_ssbo);
+            (self.gl.bind_buffer_base)(
+                GL_SHADER_STORAGE_BUFFER,
+                bindings::SPHERES,
+                self.sphere_ssbo,
+            );
+            (self.gl.bind_buffer_base)(
+                GL_SHADER_STORAGE_BUFFER,
+                bindings::TRIANGLES,
+                self.triangle_ssbo,
+            );
+            (self.gl.bind_buffer_base)(
+                GL_SHADER_STORAGE_BUFFER,
+                bindings::AREA_LIGHTS,
+                self.area_light_ssbo,
+            );
+            (self.gl.bind_buffer_base)(
+                GL_SHADER_STORAGE_BUFFER,
+                bindings::BVH_NODES,
+                self.bvh_nodes_ssbo,
+            );
+            (self.gl.bind_buffer_base)(
+                GL_SHADER_STORAGE_BUFFER,
+                bindings::BVH_PRIMS,
+                self.bvh_prims_ssbo,
+            );
         }
     }
 
@@ -324,10 +344,13 @@ fn denoise_bilateral(color: &mut [Vec3], width: usize, height: usize) {
 #[cfg(target_os = "linux")]
 mod desktop_factory {
     use super::{GpuRaytracer, c_void};
-    use crate::api::display::{desktop_offscreen_context, DesktopOffscreenContext};
+    use crate::api::display::{DesktopOffscreenContext, desktop_offscreen_context};
 
     /// Builds a GPU path tracer on a fresh hidden GLX 4.3 Pbuffer context.
-    pub fn try_new_desktop(width: u32, height: u32) -> Result<(GpuRaytracer, DesktopOffscreenContext), String> {
+    pub fn try_new_desktop(
+        width: u32,
+        height: u32,
+    ) -> Result<(GpuRaytracer, DesktopOffscreenContext), String> {
         let ctx = desktop_offscreen_context(width.max(1), height.max(1), 4, 3)
             .ok_or_else(|| "no GLX 4.3+ offscreen context available".to_string())?;
         if !ctx.make_current() {

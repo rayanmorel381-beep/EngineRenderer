@@ -39,7 +39,13 @@ pub(crate) fn default_backend_config() -> VendorBackendConfig {
     let gpu_cores = sysctl_u64(b"hw.gpu.core_count\0").unwrap_or(8) as usize;
     let unified_memory_bytes = sysctl_u64(b"hw.memsize\0").unwrap_or(0);
     let unified_mb = unified_memory_bytes / (1024 * 1024);
-    let metal_queues = if gpu_cores >= 30 { 5 } else if gpu_cores >= 16 { 4 } else { 3 };
+    let metal_queues = if gpu_cores >= 30 {
+        5
+    } else if gpu_cores >= 16 {
+        4
+    } else {
+        3
+    };
     let tile_size = if gpu_cores >= 30 { 64 } else { 32 };
     VendorBackendConfig {
         gpu_cores,

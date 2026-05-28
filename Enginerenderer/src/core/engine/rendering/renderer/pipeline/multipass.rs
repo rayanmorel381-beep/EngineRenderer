@@ -1,5 +1,5 @@
-use crate::core::engine::rendering::raytracing::Vec3;
 use crate::core::engine::rendering::framebuffer::FrameBuffer;
+use crate::core::engine::rendering::raytracing::Vec3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PassKind {
@@ -72,7 +72,9 @@ impl Default for MultiPassPipeline {
 impl MultiPassPipeline {
     pub fn with_pass_enabled(mut self, kind: PassKind, enabled: bool) -> Self {
         for (i, pass) in self.passes.iter().enumerate() {
-            if *pass == kind { self.enabled_passes[i] = enabled; }
+            if *pass == kind {
+                self.enabled_passes[i] = enabled;
+            }
         }
         self
     }
@@ -88,21 +90,21 @@ impl MultiPassPipeline {
         Self::default()
     }
 
-    pub fn execute_passes(
-        &mut self,
-        framebuffer: &mut FrameBuffer,
-        start_ns: u64,
-    ) {
+    pub fn execute_passes(&mut self, framebuffer: &mut FrameBuffer, start_ns: u64) {
         self.pass_stats.clear();
         let width = framebuffer.width;
         let height = framebuffer.height;
 
         for (i, &kind) in self.passes.iter().enumerate() {
-            if !self.enabled_passes[i] { continue; }
+            if !self.enabled_passes[i] {
+                continue;
+            }
             let t0 = start_ns + i as u64 * 1000;
             let pixels_written = match kind {
                 PassKind::Depth => {
-                    for d in &mut framebuffer.depth { *d = d.min(1e6); }
+                    for d in &mut framebuffer.depth {
+                        *d = d.min(1e6);
+                    }
                     width * height
                 }
                 PassKind::GBuffer => width * height,
@@ -118,9 +120,7 @@ impl MultiPassPipeline {
                     apply_volumetric_fog(framebuffer);
                     width * height
                 }
-                PassKind::Bloom => {
-                    width * height
-                }
+                PassKind::Bloom => width * height,
                 PassKind::ToneMapping => {
                     apply_aces(framebuffer);
                     width * height
@@ -128,7 +128,11 @@ impl MultiPassPipeline {
                 PassKind::Taa => width * height,
                 PassKind::Lighting | PassKind::Present => width * height,
             };
-            self.pass_stats.push(PassStats { kind, duration_ns: t0, pixels_written });
+            self.pass_stats.push(PassStats {
+                kind,
+                duration_ns: t0,
+                pixels_written,
+            });
         }
     }
 
@@ -137,7 +141,9 @@ impl MultiPassPipeline {
     }
 
     pub fn is_pass_enabled(&self, kind: PassKind) -> bool {
-        self.passes.iter().zip(self.enabled_passes.iter())
+        self.passes
+            .iter()
+            .zip(self.enabled_passes.iter())
             .any(|(p, &e)| *p == kind && e)
     }
 }
@@ -149,7 +155,9 @@ fn apply_ssao(fb: &mut FrameBuffer) {
         for x in 1..(w.saturating_sub(1)) {
             let idx = y * w + x;
             let d = fb.depth[idx];
-            if !d.is_finite() || d > 1e5 { continue; }
+            if !d.is_finite() || d > 1e5 {
+                continue;
+            }
             let occlusion = sample_neighborhood_occlusion(&fb.depth, x, y, w, h);
             fb.color[idx] = fb.color[idx] * (1.0 - occlusion * 0.35);
         }
@@ -158,7 +166,9 @@ fn apply_ssao(fb: &mut FrameBuffer) {
 
 fn sample_neighborhood_occlusion(depth: &[f64], x: usize, y: usize, w: usize, h: usize) -> f64 {
     let center_d = depth[y * w + x];
-    if !center_d.is_finite() { return 0.0; }
+    if !center_d.is_finite() {
+        return 0.0;
+    }
     let mut occlusion = 0.0_f64;
     let mut count = 0usize;
     for dy in 0..3usize {
@@ -174,7 +184,11 @@ fn sample_neighborhood_occlusion(depth: &[f64], x: usize, y: usize, w: usize, h:
             }
         }
     }
-    if count > 0 { (occlusion / count as f64).min(1.0) } else { 0.0 }
+    if count > 0 {
+        (occlusion / count as f64).min(1.0)
+    } else {
+        0.0
+    }
 }
 
 fn apply_ssr(fb: &mut FrameBuffer) {
@@ -186,7 +200,9 @@ fn apply_ssr(fb: &mut FrameBuffer) {
             let idx = y * w + x;
             let pixel = snapshot[idx];
             let lum = pixel.x * 0.299 + pixel.y * 0.587 + pixel.z * 0.114;
-            if lum < 0.6 { continue; }
+            if lum < 0.6 {
+                continue;
+            }
             let rx = (x + 3).min(w - 1);
             let ry = (y + 2).min(h - 1);
             let reflect_sample = snapshot[ry * w + rx];
@@ -199,7 +215,9 @@ fn apply_volumetric_fog(fb: &mut FrameBuffer) {
     let fog_color = Vec3::new(0.7, 0.75, 0.85);
     for (i, color) in fb.color.iter_mut().enumerate() {
         let d = fb.depth[i];
-        if !d.is_finite() { continue; }
+        if !d.is_finite() {
+            continue;
+        }
         let fog_density = 0.015_f64;
         let transmittance = (-fog_density * d.min(200.0)).exp();
         *color = *color * transmittance + fog_color * (1.0 - transmittance) * 0.8;

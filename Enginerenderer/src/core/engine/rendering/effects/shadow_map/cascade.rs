@@ -1,4 +1,3 @@
-
 use crate::core::engine::rendering::raytracing::{Camera, Scene};
 use crate::core::engine::rendering::utils::{lerp, saturate};
 

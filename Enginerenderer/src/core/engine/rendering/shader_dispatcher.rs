@@ -1,18 +1,13 @@
-
-use crate::core::engine::acces_hardware::{
-    ComputeCapabilities, ComputeDeviceKind, ComputeJobBatch, ComputeQueue, GpuRenderBackend, KernelConfig,
-    NativeComputeBackend, NativeHardwareBackend,
-};
 use crate::core::engine::acces_hardware::arch::native_calls;
+use crate::core::engine::acces_hardware::{
+    ComputeCapabilities, ComputeDeviceKind, ComputeJobBatch, ComputeQueue, GpuRenderBackend,
+    KernelConfig, NativeComputeBackend, NativeHardwareBackend,
+};
 
 pub trait ComputeDevice: Send + Sync {
     fn capabilities(&self) -> ComputeCapabilities;
 
-    fn compile_kernel(
-        &self,
-        name: &str,
-        kernel_source: &[u8],
-    ) -> Result<Vec<u8>, String>;
+    fn compile_kernel(&self, name: &str, kernel_source: &[u8]) -> Result<Vec<u8>, String>;
 
     fn submit_batch(&self, batch: &ComputeJobBatch) -> Result<u64, String>;
 
@@ -100,11 +95,7 @@ impl ComputeDevice for GenericComputeDevice {
         self.capabilities
     }
 
-    fn compile_kernel(
-        &self,
-        name: &str,
-        kernel_source: &[u8],
-    ) -> Result<Vec<u8>, String> {
+    fn compile_kernel(&self, name: &str, kernel_source: &[u8]) -> Result<Vec<u8>, String> {
         self.backend.compile_kernel(name, kernel_source)
     }
 
@@ -153,7 +144,11 @@ impl AdaptiveComputeDispatcher {
     }
 
     pub fn register_device(&mut self, device: Box<dyn ComputeDevice>) {
-        crate::runtime_log!("compute: registered device '{}' — {}", device.device_name(), self.device_count() + 1);
+        crate::runtime_log!(
+            "compute: registered device '{}' — {}",
+            device.device_name(),
+            self.device_count() + 1
+        );
         self.devices.push(device);
     }
 
@@ -202,8 +197,7 @@ impl AdaptiveComputeDispatcher {
             ComputeDeviceKind::CpuScalar
         };
         dispatcher.register_device(Box::new(GenericComputeDevice::from_native_backend(
-            native,
-            cpu_kind,
+            native, cpu_kind,
         )));
 
         dispatcher
@@ -297,7 +291,8 @@ impl AdaptiveComputeDispatcher {
                 let y_max = (y_min + descriptor.tile_size).min(descriptor.image_height);
 
                 let pixel_count = (x_max - x_min) * (y_max - y_min);
-                let workgroups_needed = pixel_count.div_ceil(descriptor.config.thread_count() as usize);
+                let workgroups_needed =
+                    pixel_count.div_ceil(descriptor.config.thread_count() as usize);
 
                 if !batch.push_job(tile_id, workgroups_needed as u32, 1, 1, descriptor.config) {
                     break;
@@ -393,43 +388,46 @@ impl SimdCapabilities {
 
 pub fn diagnose_compute_environment() {
     use crate::core::engine::acces_hardware::CommandBuffer;
-    
+
     crate::runtime_log!("\n╔══ Compute Environment Diagnosis ══════════════════════════════════╗");
-    
+
     let simd_caps = SimdCapabilities::detect();
     simd_caps.report();
-    
+
     let cpu_simd = GenericComputeDevice::new_cpu_simd();
     let cpu_scalar = GenericComputeDevice::new_cpu_scalar();
-    
+
     let cpu_simd_caps = cpu_simd.capabilities();
     let cpu_scalar_caps = cpu_scalar.capabilities();
-    
-    crate::runtime_log!("cpu-simd:   {} lanes, {} max workgroup={}, shared={} bytes", 
-        cpu_simd_caps.parallel_lanes, 
+
+    crate::runtime_log!(
+        "cpu-simd:   {} lanes, {} max workgroup={}, shared={} bytes",
+        cpu_simd_caps.parallel_lanes,
         cpu_simd_caps.max_workgroups,
         cpu_simd_caps.max_workgroup_size,
         cpu_simd_caps.shared_memory_bytes
     );
-    crate::runtime_log!("cpu-scalar: {} lanes, {} max workgroup={}, shared={} bytes", 
-        cpu_scalar_caps.parallel_lanes, 
+    crate::runtime_log!(
+        "cpu-scalar: {} lanes, {} max workgroup={}, shared={} bytes",
+        cpu_scalar_caps.parallel_lanes,
         cpu_scalar_caps.max_workgroups,
         cpu_scalar_caps.max_workgroup_size,
         cpu_scalar_caps.shared_memory_bytes
     );
-    
+
     let fake_gpu_caps = ComputeCapabilities::gpu(128, 512, 256, 65536);
-    crate::runtime_log!("gpu-capability: {} lanes, {} max workgroup={}, shared={} bytes",
+    crate::runtime_log!(
+        "gpu-capability: {} lanes, {} max workgroup={}, shared={} bytes",
         fake_gpu_caps.parallel_lanes,
         fake_gpu_caps.max_workgroups,
         fake_gpu_caps.max_workgroup_size,
         fake_gpu_caps.shared_memory_bytes
     );
-    
+
     let mut dispatcher = AdaptiveComputeDispatcher::new();
     dispatcher.register_device(Box::new(cpu_simd));
     dispatcher.register_device(Box::new(cpu_scalar));
-    
+
     let native_backend = NativeHardwareBackend::detect();
     if let Some(gpu_backend) = native_backend.gpu_backend() {
         let gpu_device = GenericComputeDevice::new_gpu_with_fd(
@@ -441,41 +439,52 @@ pub fn diagnose_compute_environment() {
         );
         dispatcher.register_device(Box::new(gpu_device));
 
-        crate::runtime_log!("gpu: mmap_active={} mmap_ptr={:?} mmap_len={} drm_fd={}",
+        crate::runtime_log!(
+            "gpu: mmap_active={} mmap_ptr={:?} mmap_len={} drm_fd={}",
             gpu_backend.is_mmap_active(),
             gpu_backend.mmap_framebuffer_ptr(),
             gpu_backend.mmap_framebuffer_len(),
             gpu_backend.drm_fd(),
         );
     }
-    
+
     let devices = dispatcher.list_devices();
     crate::runtime_log!("\nregistered devices:");
     for device_info in devices {
         crate::runtime_log!("  {}", device_info);
     }
-    
-    let autodispatched = AdaptiveComputeDispatcher::with_auto_detection(native_backend.gpu_backend());
-    crate::runtime_log!("\nauto-detected dispatcher: {} devices", autodispatched.device_count());
-    
+
+    let autodispatched =
+        AdaptiveComputeDispatcher::with_auto_detection(native_backend.gpu_backend());
+    crate::runtime_log!(
+        "\nauto-detected dispatcher: {} devices",
+        autodispatched.device_count()
+    );
+
     let mut d2 = AdaptiveComputeDispatcher::new();
     d2.register_device(Box::new(GenericComputeDevice::new_cpu_scalar()));
     let device = d2.active_device_mut();
     let caps = device.capabilities();
     crate::runtime_log!("active_device_mut accessed: {} lanes", caps.parallel_lanes);
-    
-    let kernel_config = KernelConfig::new(8, 8, 1)
-        .with_shared_memory(4096);
-    
+
+    let kernel_config = KernelConfig::new(8, 8, 1).with_shared_memory(4096);
+
     crate::runtime_log!("\nkernel config:");
-    crate::runtime_log!("  workgroup size: {}×{}×{}", 
+    crate::runtime_log!(
+        "  workgroup size: {}×{}×{}",
         kernel_config.workgroup_size_x,
         kernel_config.workgroup_size_y,
         kernel_config.workgroup_size_z
     );
-    crate::runtime_log!("  thread count per workgroup: {}", kernel_config.thread_count());
-    crate::runtime_log!("  shared memory: {} bytes", kernel_config.shared_memory_bytes);
-    
+    crate::runtime_log!(
+        "  thread count per workgroup: {}",
+        kernel_config.thread_count()
+    );
+    crate::runtime_log!(
+        "  shared memory: {} bytes",
+        kernel_config.shared_memory_bytes
+    );
+
     let mut batch = ComputeJobBatch::new(256);
     let mut submitted_jobs = 0usize;
     for tile_id in 0..16 {
@@ -485,53 +494,60 @@ pub fn diagnose_compute_environment() {
     }
     crate::runtime_log!("\njob batch:");
     crate::runtime_log!("  jobs submitted: {}", submitted_jobs);
-    crate::runtime_log!("  job IDs: {} to {}", batch.jobs[0].job_id, batch.jobs[batch.jobs.len()-1].job_id);
+    crate::runtime_log!(
+        "  job IDs: {} to {}",
+        batch.jobs[0].job_id,
+        batch.jobs[batch.jobs.len() - 1].job_id
+    );
     crate::runtime_log!("  total threads: {}", batch.total_threads());
-    
+
     let queue = ComputeQueue::new();
     queue.submit_batch(batch.jobs.len() as u32);
     crate::runtime_log!("\nqueue status (before):");
     crate::runtime_log!("  pending jobs: {}", queue.pending_jobs());
     crate::runtime_log!("  is idle: {}", queue.is_idle());
-    
+
     queue.mark_batch_complete(batch.jobs.len() as u32);
     crate::runtime_log!("queue status (after):");
     crate::runtime_log!("  pending jobs: {}", queue.pending_jobs());
     crate::runtime_log!("  is idle: {}", queue.is_idle());
     queue.wait_idle();
     crate::runtime_log!("  after wait_idle: still idle={}", queue.is_idle());
-    
+
     let mut temp_batch = ComputeJobBatch::new(256);
     temp_batch.push_job(99, 1, 1, 1, kernel_config);
     temp_batch.clear();
     crate::runtime_log!("\nbatch after clear: {} jobs", temp_batch.jobs.len());
-    
+
     let mut cmd_buf = CommandBuffer::new();
     cmd_buf.push_u32(0xdeadbeef);
     cmd_buf.push_u64(0x1234567890abcdef);
     cmd_buf.push_bytes(&[1, 2, 3, 4]);
     cmd_buf.align_to(8);
-    crate::runtime_log!("\ncommand buffer: {} bytes, slice_len={}", cmd_buf.len(), cmd_buf.as_slice().len());
+    crate::runtime_log!(
+        "\ncommand buffer: {} bytes, slice_len={}",
+        cmd_buf.len(),
+        cmd_buf.as_slice().len()
+    );
     cmd_buf.clear();
     crate::runtime_log!("command buffer after clear: {} bytes", cmd_buf.len());
-    
+
     let active = dispatcher.active_device();
     _ = active.compile_kernel("test", b"void main() {}");
     _ = active.submit_batch(&batch);
     active.wait_idle();
     crate::runtime_log!("\nactive device called wait_idle");
-    
+
     _ = dispatcher.set_active_device(if dispatcher.device_count() > 1 { 1 } else { 0 });
     _ = dispatcher.dispatch_tile_compute(640, 480, 16, kernel_config);
     dispatcher.wait_all_dispatched();
-    
+
     if dispatcher.device_count() > 0 {
         let device_name = dispatcher.active_device().device_name();
         crate::runtime_log!("\nactive device: {}", device_name);
         let cap = dispatcher.active_device().capabilities();
         crate::runtime_log!("  kind: {:?}", cap.kind);
     }
-    
+
     crate::runtime_log!("╚═══════════════════════════════════════════════════════════════════╝\n");
 }
-

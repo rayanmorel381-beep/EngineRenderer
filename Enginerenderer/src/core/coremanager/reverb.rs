@@ -25,23 +25,40 @@ impl ReverbProcessor {
             for iy in -max_order..=max_order {
                 for iz in -max_order..=max_order {
                     let image = [
-                        if ix % 2 == 0 { source[0] + ix as f64 * self.room.width } else { ix as f64 * self.room.width - source[0] },
-                        if iy % 2 == 0 { source[1] + iy as f64 * self.room.height } else { iy as f64 * self.room.height - source[1] },
-                        if iz % 2 == 0 { source[2] + iz as f64 * self.room.depth } else { iz as f64 * self.room.depth - source[2] },
+                        if ix % 2 == 0 {
+                            source[0] + ix as f64 * self.room.width
+                        } else {
+                            ix as f64 * self.room.width - source[0]
+                        },
+                        if iy % 2 == 0 {
+                            source[1] + iy as f64 * self.room.height
+                        } else {
+                            iy as f64 * self.room.height - source[1]
+                        },
+                        if iz % 2 == 0 {
+                            source[2] + iz as f64 * self.room.depth
+                        } else {
+                            iz as f64 * self.room.depth - source[2]
+                        },
                     ];
                     let dx = image[0] - listener[0];
                     let dy = image[1] - listener[1];
                     let dz = image[2] - listener[2];
-                    let dist = (dx*dx + dy*dy + dz*dz).sqrt().max(0.01);
+                    let dist = (dx * dx + dy * dy + dz * dz).sqrt().max(0.01);
                     let delay_s = dist / speed_of_sound;
                     let delay_samples = (delay_s * self.sample_rate as f64).round() as usize;
                     let reflections = (ix.abs() + iy.abs() + iz.abs()) as u32;
-                    let attenuation = ((1.0 - self.room.absorption).powi(reflections as i32) / dist) as f32;
+                    let attenuation =
+                        ((1.0 - self.room.absorption).powi(reflections as i32) / dist) as f32;
                     let az = dx.atan2(dz) as f32;
                     let pan_l = (0.5 - az * 0.15).clamp(0.0, 1.0);
                     let pan_r = (0.5 + az * 0.15).clamp(0.0, 1.0);
                     for (i, sample) in out.iter_mut().enumerate().take(n) {
-                        let src_idx = if i >= delay_samples { i - delay_samples } else { continue };
+                        let src_idx = if i >= delay_samples {
+                            i - delay_samples
+                        } else {
+                            continue;
+                        };
                         let s = mono[src_idx] * attenuation;
                         sample[0] += s * pan_l;
                         sample[1] += s * pan_r;

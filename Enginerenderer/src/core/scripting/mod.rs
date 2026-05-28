@@ -2,9 +2,9 @@ pub mod bytecode;
 pub mod compiler;
 pub mod vm;
 
+use bytecode::Instruction;
 use std::collections::HashMap;
 use std::path::Path;
-use bytecode::Instruction;
 
 #[derive(Debug)]
 pub struct ScriptRunner {
@@ -13,7 +13,9 @@ pub struct ScriptRunner {
 
 impl ScriptRunner {
     pub fn new() -> Self {
-        Self { scripts: HashMap::new() }
+        Self {
+            scripts: HashMap::new(),
+        }
     }
 
     pub fn load(&mut self, name: &str, src: &str) -> Result<(), String> {

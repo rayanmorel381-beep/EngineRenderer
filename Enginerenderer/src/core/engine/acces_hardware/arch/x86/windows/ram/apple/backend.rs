@@ -74,7 +74,11 @@ pub(crate) fn default_backend_config() -> VendorBackendConfig {
     VendorBackendConfig {
         page_size: sys_info.dw_page_size as usize,
         total_bytes: if ok { status.ull_total_phys } else { 0 },
-        available_bytes: if ok { Some(status.ull_avail_phys) } else { None },
+        available_bytes: if ok {
+            Some(status.ull_avail_phys)
+        } else {
+            None
+        },
         frame_budget_us: 8_333,
         low_power: false,
     }

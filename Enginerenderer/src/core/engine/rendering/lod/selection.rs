@@ -1,4 +1,3 @@
-
 use super::tier::LodTier;
 
 #[derive(Debug, Clone, Copy)]
@@ -13,7 +12,6 @@ pub struct LodSelection {
     pub tier: LodTier,
 
     // ── Rendering quality knobs ─────────────────────────────────────
-
     pub texture_frequency: f64,
     pub normal_intensity: f64,
     pub primary_samples: u32,
@@ -46,10 +44,10 @@ impl LodSelection {
 
     pub fn from_tier(tier: LodTier, distance: f64, screen_size: f64) -> Self {
         let (tex_freq, normal, primary, bounces, shadows, ao, refl) = match tier {
-            LodTier::Ultra      => (1.8, 1.0, 8, 3, 2, 4, 1.2),
-            LodTier::High       => (1.4, 0.9, 6, 3, 2, 3, 1.1),
-            LodTier::Medium     => (1.0, 0.75, 4, 2, 1, 2, 1.0),
-            LodTier::Low        => (0.8, 0.55, 2, 1, 1, 1, 0.85),
+            LodTier::Ultra => (1.8, 1.0, 8, 3, 2, 4, 1.2),
+            LodTier::High => (1.4, 0.9, 6, 3, 2, 3, 1.1),
+            LodTier::Medium => (1.0, 0.75, 4, 2, 1, 2, 1.0),
+            LodTier::Low => (0.8, 0.55, 2, 1, 1, 1, 0.85),
             LodTier::Background => (0.6, 0.30, 1, 1, 1, 0, 0.50),
         };
 

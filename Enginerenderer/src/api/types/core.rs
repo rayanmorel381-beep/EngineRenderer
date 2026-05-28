@@ -131,7 +131,10 @@ impl RenderRequest {
     pub fn validate(&self) -> Result<(), crate::api::types::error::RenderError> {
         use crate::api::types::error::RenderError;
         if self.width < 1 || self.height < 1 {
-            return Err(RenderError::InvalidDimensions { width: self.width, height: self.height });
+            return Err(RenderError::InvalidDimensions {
+                width: self.width,
+                height: self.height,
+            });
         }
         if !self.output_dir.as_os_str().is_empty() && self.file_name.is_empty() {
             return Err(RenderError::OutputPathInvalid(self.output_path()));

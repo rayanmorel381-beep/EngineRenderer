@@ -34,25 +34,68 @@ fn tokenize(src: &str) -> Result<Vec<Token>, String> {
     let mut i = 0;
     while i < chars.len() {
         match chars[i] {
-            ' ' | '\t' | '\n' => { i += 1; }
-            '+' => { tokens.push(Token::Plus); i += 1; }
-            '-' => { tokens.push(Token::Minus); i += 1; }
-            '*' => { tokens.push(Token::Star); i += 1; }
-            '/' => { tokens.push(Token::Slash); i += 1; }
-            '(' => { tokens.push(Token::LParen); i += 1; }
-            ')' => { tokens.push(Token::RParen); i += 1; }
-            '=' if chars.get(i + 1) == Some(&'=') => { tokens.push(Token::EqEq); i += 2; }
-            '!' if chars.get(i + 1) == Some(&'=') => { tokens.push(Token::BangEq); i += 2; }
-            '<' if chars.get(i + 1) == Some(&'=') => { tokens.push(Token::LtEq); i += 2; }
-            '>' if chars.get(i + 1) == Some(&'=') => { tokens.push(Token::GtEq); i += 2; }
-            '<' => { tokens.push(Token::Lt); i += 1; }
-            '>' => { tokens.push(Token::Gt); i += 1; }
-            '!' => { tokens.push(Token::Bang); i += 1; }
+            ' ' | '\t' | '\n' => {
+                i += 1;
+            }
+            '+' => {
+                tokens.push(Token::Plus);
+                i += 1;
+            }
+            '-' => {
+                tokens.push(Token::Minus);
+                i += 1;
+            }
+            '*' => {
+                tokens.push(Token::Star);
+                i += 1;
+            }
+            '/' => {
+                tokens.push(Token::Slash);
+                i += 1;
+            }
+            '(' => {
+                tokens.push(Token::LParen);
+                i += 1;
+            }
+            ')' => {
+                tokens.push(Token::RParen);
+                i += 1;
+            }
+            '=' if chars.get(i + 1) == Some(&'=') => {
+                tokens.push(Token::EqEq);
+                i += 2;
+            }
+            '!' if chars.get(i + 1) == Some(&'=') => {
+                tokens.push(Token::BangEq);
+                i += 2;
+            }
+            '<' if chars.get(i + 1) == Some(&'=') => {
+                tokens.push(Token::LtEq);
+                i += 2;
+            }
+            '>' if chars.get(i + 1) == Some(&'=') => {
+                tokens.push(Token::GtEq);
+                i += 2;
+            }
+            '<' => {
+                tokens.push(Token::Lt);
+                i += 1;
+            }
+            '>' => {
+                tokens.push(Token::Gt);
+                i += 1;
+            }
+            '!' => {
+                tokens.push(Token::Bang);
+                i += 1;
+            }
             '0'..='9' | '.' => {
                 let start = i;
                 let mut is_float = false;
                 while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.') {
-                    if chars[i] == '.' { is_float = true; }
+                    if chars[i] == '.' {
+                        is_float = true;
+                    }
                     i += 1;
                 }
                 let s: String = chars[start..i].iter().collect();
@@ -68,27 +111,63 @@ fn tokenize(src: &str) -> Result<Vec<Token>, String> {
     Ok(tokens)
 }
 
-fn parse_expr(tokens: &[Token], pos: &mut usize, instrs: &mut Vec<Instruction>) -> Result<(), String> {
+fn parse_expr(
+    tokens: &[Token],
+    pos: &mut usize,
+    instrs: &mut Vec<Instruction>,
+) -> Result<(), String> {
     parse_comparison(tokens, pos, instrs)
 }
 
-fn parse_comparison(tokens: &[Token], pos: &mut usize, instrs: &mut Vec<Instruction>) -> Result<(), String> {
+fn parse_comparison(
+    tokens: &[Token],
+    pos: &mut usize,
+    instrs: &mut Vec<Instruction>,
+) -> Result<(), String> {
     parse_additive(tokens, pos, instrs)?;
     while *pos < tokens.len() {
         match tokens[*pos] {
-            Token::EqEq  => { *pos += 1; parse_additive(tokens, pos, instrs)?; instrs.push(Instruction::new(Opcode::Eq, 0)); }
-            Token::BangEq => { *pos += 1; parse_additive(tokens, pos, instrs)?; instrs.push(Instruction::new(Opcode::Ne, 0)); }
-            Token::Lt    => { *pos += 1; parse_additive(tokens, pos, instrs)?; instrs.push(Instruction::new(Opcode::Lt, 0)); }
-            Token::Gt    => { *pos += 1; parse_additive(tokens, pos, instrs)?; instrs.push(Instruction::new(Opcode::Gt, 0)); }
-            Token::LtEq  => { *pos += 1; parse_additive(tokens, pos, instrs)?; instrs.push(Instruction::new(Opcode::Le, 0)); }
-            Token::GtEq  => { *pos += 1; parse_additive(tokens, pos, instrs)?; instrs.push(Instruction::new(Opcode::Ge, 0)); }
+            Token::EqEq => {
+                *pos += 1;
+                parse_additive(tokens, pos, instrs)?;
+                instrs.push(Instruction::new(Opcode::Eq, 0));
+            }
+            Token::BangEq => {
+                *pos += 1;
+                parse_additive(tokens, pos, instrs)?;
+                instrs.push(Instruction::new(Opcode::Ne, 0));
+            }
+            Token::Lt => {
+                *pos += 1;
+                parse_additive(tokens, pos, instrs)?;
+                instrs.push(Instruction::new(Opcode::Lt, 0));
+            }
+            Token::Gt => {
+                *pos += 1;
+                parse_additive(tokens, pos, instrs)?;
+                instrs.push(Instruction::new(Opcode::Gt, 0));
+            }
+            Token::LtEq => {
+                *pos += 1;
+                parse_additive(tokens, pos, instrs)?;
+                instrs.push(Instruction::new(Opcode::Le, 0));
+            }
+            Token::GtEq => {
+                *pos += 1;
+                parse_additive(tokens, pos, instrs)?;
+                instrs.push(Instruction::new(Opcode::Ge, 0));
+            }
             _ => break,
         }
     }
     Ok(())
 }
 
-fn parse_additive(tokens: &[Token], pos: &mut usize, instrs: &mut Vec<Instruction>) -> Result<(), String> {
+fn parse_additive(
+    tokens: &[Token],
+    pos: &mut usize,
+    instrs: &mut Vec<Instruction>,
+) -> Result<(), String> {
     parse_multiplicative(tokens, pos, instrs)?;
     while *pos < tokens.len() {
         match tokens[*pos] {
@@ -108,7 +187,11 @@ fn parse_additive(tokens: &[Token], pos: &mut usize, instrs: &mut Vec<Instructio
     Ok(())
 }
 
-fn parse_multiplicative(tokens: &[Token], pos: &mut usize, instrs: &mut Vec<Instruction>) -> Result<(), String> {
+fn parse_multiplicative(
+    tokens: &[Token],
+    pos: &mut usize,
+    instrs: &mut Vec<Instruction>,
+) -> Result<(), String> {
     parse_primary(tokens, pos, instrs)?;
     while *pos < tokens.len() {
         match tokens[*pos] {
@@ -128,7 +211,11 @@ fn parse_multiplicative(tokens: &[Token], pos: &mut usize, instrs: &mut Vec<Inst
     Ok(())
 }
 
-fn parse_primary(tokens: &[Token], pos: &mut usize, instrs: &mut Vec<Instruction>) -> Result<(), String> {
+fn parse_primary(
+    tokens: &[Token],
+    pos: &mut usize,
+    instrs: &mut Vec<Instruction>,
+) -> Result<(), String> {
     if *pos >= tokens.len() {
         return Err("unexpected end of expression".to_string());
     }

@@ -111,8 +111,7 @@ fn bench_obj_parsing() -> Sample {
     let source = make_obj_source(1000);
     let triangles = 1000u64;
     bench("obj_parse_1000_triangles", triangles, || {
-        let mesh =
-            ObjLoader::parse_str(black_box(&source), "bench".to_string()).expect("parse ok");
+        let mesh = ObjLoader::parse_str(black_box(&source), "bench".to_string()).expect("parse ok");
         black_box(mesh);
     })
 }
@@ -121,8 +120,7 @@ fn bench_obj_parsing_heavy() -> Sample {
     let source = make_obj_source(50_000);
     let triangles = 50_000u64;
     bench("obj_parse_50k_triangles", triangles, || {
-        let mesh =
-            ObjLoader::parse_str(black_box(&source), "bench".to_string()).expect("parse ok");
+        let mesh = ObjLoader::parse_str(black_box(&source), "bench".to_string()).expect("parse ok");
         black_box(mesh);
     })
 }

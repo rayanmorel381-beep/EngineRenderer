@@ -1,4 +1,3 @@
-
 use std::collections::HashMap;
 
 use crate::core::engine::rendering::raytracing::Vec3;
@@ -66,7 +65,11 @@ pub fn compute_tangents(asset: &mut MeshAsset) {
         // Gram–Schmidt orthogonalise against the normal.
         let t = v.tangent - v.normal * v.normal.dot(v.tangent);
         let len = t.length();
-        v.tangent = if len > 1e-10 { t * (1.0 / len) } else { Vec3::ZERO };
+        v.tangent = if len > 1e-10 {
+            t * (1.0 / len)
+        } else {
+            Vec3::ZERO
+        };
     }
 }
 /// Subdivides all mesh triangles using midpoint subdivision.

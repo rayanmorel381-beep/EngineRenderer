@@ -6,10 +6,7 @@ use crate::core::engine::acces_hardware::{
     CpuProfile, GpuRenderBackend, HardwareCapabilities, RamRuntimeConfig,
 };
 use crate::core::engine::rendering::{
-    effects::{
-        decals::decal_pass::Decal,
-        particles::gpu_particles::GpuParticleSystem,
-    },
+    effects::{decals::decal_pass::Decal, particles::gpu_particles::GpuParticleSystem},
     lod::manager::LodManager,
     materials::sss::{SssPass, SssProfile},
     mesh::skinning::{AnimationClip, Skeleton, SkinnedMesh},
@@ -19,7 +16,6 @@ use crate::core::engine::rendering::{
         svgf::SvgfDenoiser,
         taa::TaaAccumulator,
     },
-    sdf::WorldSdf,
     raytracing::{
         CpuRayTracer,
         acceleration::BvhNode,
@@ -27,6 +23,7 @@ use crate::core::engine::rendering::{
         ddgi::{DdgiVolume, ProbeGrid},
         rtao::RtaoConfig,
     },
+    sdf::WorldSdf,
     shader_dispatcher::AdaptiveComputeDispatcher,
     terrain::{
         cdlod::{CdlodTerrain, HeightMap},
@@ -70,13 +67,16 @@ pub struct Renderer {
     pub(super) skinned_meshes: Mutex<Vec<SkinnedMesh>>,
     pub(super) animation_clips: Vec<AnimationClip>,
     pub(super) anim_state_machine: Mutex<crate::core::animation::state_machine::AnimStateMachine>,
-    pub(super) texture_streamer: Mutex<crate::core::engine::rendering::texture::virtual_texture::TextureStreamer>,
+    pub(super) texture_streamer:
+        Mutex<crate::core::engine::rendering::texture::virtual_texture::TextureStreamer>,
     pub(super) terrain: Option<CdlodTerrain>,
     pub(super) foliage_layer: FoliageLayer,
     pub(super) foliage_instances: Mutex<Vec<FoliageInstance>>,
     pub(super) raster_pipeline: crate::core::engine::rendering::raster::pipeline::RasterPipeline,
-    pub(super) secondary_motion: Mutex<crate::core::animation::secondary_motion::SecondaryMotionSystem>,
-    pub(super) render_thread: Option<crate::core::engine::rendering::renderer::render_thread::RenderThread>,
+    pub(super) secondary_motion:
+        Mutex<crate::core::animation::secondary_motion::SecondaryMotionSystem>,
+    pub(super) render_thread:
+        Option<crate::core::engine::rendering::renderer::render_thread::RenderThread>,
     pub(super) job_system: crate::core::scheduler::job_system::JobSystem,
 }
 
@@ -102,9 +102,20 @@ impl Renderer {
         }
     }
 
-    pub fn build_ddgi_from_scene_bounds(min_x: f64, min_y: f64, min_z: f64, max_x: f64, max_y: f64, max_z: f64) -> DdgiVolume {
+    pub fn build_ddgi_from_scene_bounds(
+        min_x: f64,
+        min_y: f64,
+        min_z: f64,
+        max_x: f64,
+        max_y: f64,
+        max_z: f64,
+    ) -> DdgiVolume {
         let origin = crate::core::engine::rendering::raytracing::Vec3::new(min_x, min_y, min_z);
-        let extent = crate::core::engine::rendering::raytracing::Vec3::new(max_x - min_x, max_y - min_y, max_z - min_z);
+        let extent = crate::core::engine::rendering::raytracing::Vec3::new(
+            max_x - min_x,
+            max_y - min_y,
+            max_z - min_z,
+        );
         let grid = ProbeGrid::new(origin, extent * (1.0 / 5.0), [6, 4, 6]);
         DdgiVolume::new(grid)
     }
@@ -130,7 +141,12 @@ impl Renderer {
     }
 
     pub fn set_fsr(&mut self, out_width: usize, out_height: usize) {
-        self.fsr_config = Some(FsrConfig::new(self.width, self.height, out_width, out_height));
+        self.fsr_config = Some(FsrConfig::new(
+            self.width,
+            self.height,
+            out_width,
+            out_height,
+        ));
     }
 
     pub fn set_sss_profile(&mut self, profile: SssProfile, kernel_radius: usize, samples: u32) {

@@ -29,16 +29,16 @@ pub enum Opcode {
 impl Opcode {
     pub fn from_u8(val: u8) -> Option<Self> {
         match val {
-            0  => Some(Opcode::Push),
-            1  => Some(Opcode::Pop),
-            2  => Some(Opcode::Add),
-            3  => Some(Opcode::Sub),
-            4  => Some(Opcode::Mul),
-            5  => Some(Opcode::Div),
-            6  => Some(Opcode::Call),
-            7  => Some(Opcode::Ret),
-            8  => Some(Opcode::Jmp),
-            9  => Some(Opcode::JmpIf),
+            0 => Some(Opcode::Push),
+            1 => Some(Opcode::Pop),
+            2 => Some(Opcode::Add),
+            3 => Some(Opcode::Sub),
+            4 => Some(Opcode::Mul),
+            5 => Some(Opcode::Div),
+            6 => Some(Opcode::Call),
+            7 => Some(Opcode::Ret),
+            8 => Some(Opcode::Jmp),
+            9 => Some(Opcode::JmpIf),
             10 => Some(Opcode::Load),
             11 => Some(Opcode::Store),
             12 => Some(Opcode::Halt),
@@ -52,7 +52,7 @@ impl Opcode {
             20 => Some(Opcode::Neg),
             21 => Some(Opcode::Not),
             22 => Some(Opcode::CallNative),
-            _  => None,
+            _ => None,
         }
     }
 }

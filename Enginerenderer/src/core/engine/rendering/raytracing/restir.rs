@@ -20,19 +20,30 @@ pub struct Reservoir {
 }
 
 impl Reservoir {
-    pub const EMPTY: Self = Self { sample: None, w_sum: 0.0, m: 0, w: 0.0 };
+    pub const EMPTY: Self = Self {
+        sample: None,
+        w_sum: 0.0,
+        m: 0,
+        w: 0.0,
+    };
 
     pub fn update(&mut self, candidate: LightSample, weight: f64, seed: &mut u32) -> bool {
         self.w_sum += weight;
         self.m += 1;
         let accept = random_f64(seed) * self.w_sum < weight;
-        if accept { self.sample = Some(candidate); }
+        if accept {
+            self.sample = Some(candidate);
+        }
         accept
     }
 
     pub fn finalize(&mut self, target_pdf: f64) {
         let denom = target_pdf * self.m as f64;
-        self.w = if denom > 1e-12 { self.w_sum / denom } else { 0.0 };
+        self.w = if denom > 1e-12 {
+            self.w_sum / denom
+        } else {
+            0.0
+        };
     }
 
     pub fn merge(&mut self, other: &Reservoir, other_target_pdf: f64, seed: &mut u32) {
@@ -76,7 +87,9 @@ impl RestirDi {
         let mut reservoir = Reservoir::EMPTY;
 
         let n_lights = scene.area_lights.len();
-        if n_lights == 0 { return reservoir; }
+        if n_lights == 0 {
+            return reservoir;
+        }
 
         for _ in 0..self.candidate_count {
             let li = (random_f64(&mut rng) * n_lights as f64) as usize % n_lights;
@@ -93,7 +106,11 @@ impl RestirDi {
             let g = n_dot_l * cos_light / (dist * dist).max(1e-9);
             let target_pdf = (light.color * light.intensity).length() * g;
             let select_pdf = 1.0 / n_lights as f64;
-            let weight = if select_pdf > 1e-12 { target_pdf / select_pdf } else { 0.0 };
+            let weight = if select_pdf > 1e-12 {
+                target_pdf / select_pdf
+            } else {
+                0.0
+            };
             let candidate = LightSample {
                 position: lp,
                 normal: light.u.cross(light.v).normalize(),
@@ -174,8 +191,7 @@ impl RestirDi {
                 let g = n_dot_l * cos_light / (dist * dist).max(1e-9);
                 let target_pdf = s.emission.length() * g;
 
-                let jacobian = (neighbor.w.abs() * target_pdf)
-                    .min(self.jacobian_clamp);
+                let jacobian = (neighbor.w.abs() * target_pdf).min(self.jacobian_clamp);
                 combined.merge(neighbor, jacobian, &mut rng);
             }
         }
@@ -200,8 +216,12 @@ impl RestirDi {
         shading_normal: Vec3,
         base_color: Vec3,
     ) -> Vec3 {
-        let Some(s) = reservoir.sample else { return Vec3::ZERO };
-        if reservoir.w <= 0.0 { return Vec3::ZERO; }
+        let Some(s) = reservoir.sample else {
+            return Vec3::ZERO;
+        };
+        if reservoir.w <= 0.0 {
+            return Vec3::ZERO;
+        }
 
         let to_light = s.position - shading_point;
         let dist = to_light.length();

@@ -8,7 +8,9 @@ pub(crate) struct VendorBackendConfig {
 
 pub(crate) fn default_backend_config() -> VendorBackendConfig {
     let total = std::thread::available_parallelism()
-        .map(|v| v.get()).unwrap_or(1).max(1);
+        .map(|v| v.get())
+        .unwrap_or(1)
+        .max(1);
     let render_workers = total.saturating_sub(1).max(1);
     VendorBackendConfig {
         worker_hint: total,
@@ -20,6 +22,8 @@ pub(crate) fn default_backend_config() -> VendorBackendConfig {
 
 pub(crate) fn clamp_workers(requested: usize) -> usize {
     let max_workers = std::thread::available_parallelism()
-        .map(|v| v.get()).unwrap_or(1).max(1);
+        .map(|v| v.get())
+        .unwrap_or(1)
+        .max(1);
     requested.max(1).min(max_workers)
 }

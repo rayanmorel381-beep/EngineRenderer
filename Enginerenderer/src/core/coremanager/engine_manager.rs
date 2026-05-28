@@ -3,54 +3,58 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::core::coremanager::audio_manager::AudioManager;
+use crate::core::animation::ik::IkChain;
+use crate::core::animation::retargeting::{BoneMapping, RetargetConfig};
+use crate::core::animation::root_motion::RootMotionDelta;
+use crate::core::animation::root_motion::{
+    apply_root_motion, extract_root_motion, quat_mul, quat_normalize, quat_slerp,
+};
+use crate::core::animation::secondary_motion::{JiggleBone, SecondaryMotionSystem, SpringBone};
+use crate::core::animation::state_machine::{
+    AnimState, AnimStateMachine, AnimTransition, BlendTree, SkeletalClip,
+};
 use crate::core::coremanager::audio_device::AudioDevice;
+use crate::core::coremanager::audio_manager::AudioManager;
 use crate::core::coremanager::camera_manager::CameraManager;
 use crate::core::coremanager::input_manager::InputManager;
+use crate::core::coremanager::mixer::{AudioChannel, AudioMixer};
+use crate::core::coremanager::netcode::{InterpolatedEntity, LagCompensator, SnapshotState};
 use crate::core::coremanager::network_manager::{NetworkManager, RenderSyncServer};
-use crate::core::engine::engineloop::engine_loop::EngineLoop;
 use crate::core::coremanager::time_manager::TimeManager;
 use crate::core::debug::logger::EngineLogger;
-use crate::core::debug::profiling::{format_adaptation, format_summary, is_over_budget, simulation_ratio};
+use crate::core::debug::profiling::{
+    format_adaptation, format_summary, is_over_budget, simulation_ratio,
+};
 use crate::core::debug::runtime::RuntimeAdaptationState;
 use crate::core::debug::serialization::SerializationManager;
 use crate::core::debug::tools::DebugTools;
+use crate::core::ecs::system::{System, SystemScheduler};
 use crate::core::engine::acces_hardware::NativeHardwareBackend;
 use crate::core::engine::config::EngineConfig;
+use crate::core::engine::engineloop::engine_loop::EngineLoop;
 use crate::core::engine::event::event_system::{EngineEvent, EventBus};
 use crate::core::engine::physics::physics_manager::PhysicsManager;
-use crate::core::engine::rendering::renderer::types::RenderReport;
+use crate::core::engine::rendering::raytracing::Vec3 as RayVec3;
 use crate::core::engine::rendering::renderer::Renderer;
+use crate::core::engine::rendering::renderer::types::RenderReport;
 use crate::core::engine::scene::celestial::CelestialBodies;
 use crate::core::engine::scene::engine_scene::{EngineScene, SceneComplexity};
 use crate::core::engine::scene::graph::SceneGraph;
 use crate::core::input::camera::CameraRig;
+use crate::core::scheduler::adaptive::{SchedulerTuning, TileScheduler};
+use crate::core::scheduler::job_system::JobSystem;
 use crate::core::scheduler::loop_controller::LoopController;
 use crate::core::scheduler::profiling::FrameProfiler;
 use crate::core::scheduler::resource::ResourceManager;
-use crate::core::scheduler::adaptive::{SchedulerTuning, TileScheduler};
-use crate::core::simulation::nbody::NBodySystem;
-use crate::core::animation::ik::IkChain;
-use crate::core::animation::retargeting::{BoneMapping, RetargetConfig};
-use crate::core::animation::root_motion::{
-    extract_root_motion, apply_root_motion, quat_mul, quat_normalize, quat_slerp,
-};
-use crate::core::animation::state_machine::{SkeletalClip, BlendTree, AnimState, AnimStateMachine, AnimTransition};
-use crate::core::animation::secondary_motion::{SpringBone, JiggleBone, SecondaryMotionSystem};
-use crate::core::animation::root_motion::RootMotionDelta;
-use crate::core::coremanager::mixer::{AudioMixer, AudioChannel};
-use crate::core::engine::rendering::raytracing::Vec3 as RayVec3;
-use crate::core::simulation::rigidbody::{RigidBody, Collider, Joint, narrow_phase};
-use crate::core::simulation::fluid::FluidSim;
-use crate::core::simulation::cloth::ClothGrid;
-use crate::core::simulation::fracture::FractureBody;
-use crate::core::simulation::vehicle::{Vehicle, Wheel};
-use crate::core::simulation::broadphase::SpatialHash;
-use crate::core::ecs::system::{System, SystemScheduler};
-use crate::core::coremanager::netcode::{InterpolatedEntity, LagCompensator, SnapshotState};
-use crate::core::scripting::vm::Value;
 use crate::core::scripting::ScriptRunner;
-use crate::core::scheduler::job_system::JobSystem;
+use crate::core::scripting::vm::Value;
+use crate::core::simulation::broadphase::SpatialHash;
+use crate::core::simulation::cloth::ClothGrid;
+use crate::core::simulation::fluid::FluidSim;
+use crate::core::simulation::fracture::FractureBody;
+use crate::core::simulation::nbody::NBodySystem;
+use crate::core::simulation::rigidbody::{Collider, Joint, RigidBody, narrow_phase};
+use crate::core::simulation::vehicle::{Vehicle, Wheel};
 
 #[derive(Debug)]
 pub struct EngineManager {
@@ -95,7 +99,8 @@ impl EngineManager {
 
         let hardware_backend = NativeHardwareBackend::detect();
 
-        let renderer = Renderer::with_resolution_using_backend(config.width, config.height, &hardware_backend);
+        let renderer =
+            Renderer::with_resolution_using_backend(config.width, config.height, &hardware_backend);
 
         Self {
             hardware_backend,
@@ -236,10 +241,17 @@ impl EngineManager {
         });
 
         // ── N-body simulation ───────────────────────────────────────────
-        self.nbody.advance(frame_step.delta_seconds * 0.01, substeps);
+        self.nbody
+            .advance(frame_step.delta_seconds * 0.01, substeps);
         let nbody_center = self.nbody.scene_center();
         let nbody_radius = self.nbody.scene_radius();
-        crate::runtime_log!("nbody: center=({:.2},{:.2},{:.2}) radius={:.2}", nbody_center.x, nbody_center.y, nbody_center.z, nbody_radius);
+        crate::runtime_log!(
+            "nbody: center=({:.2},{:.2},{:.2}) radius={:.2}",
+            nbody_center.x,
+            nbody_center.y,
+            nbody_center.z,
+            nbody_radius
+        );
 
         // ── Input facades ───────────────────────────────────────────────
 
@@ -302,16 +314,13 @@ impl EngineManager {
         if summary.total_frame_ms as f64 > frame_target.target_frame_ms * 1.20 {
             self.logger.warning(format!(
                 "Frame {} exceeded target {:.2}ms with {:.2}ms",
-                summary.frame_index,
-                frame_target.target_frame_ms,
-                summary.total_frame_ms as f64
+                summary.frame_index, frame_target.target_frame_ms, summary.total_frame_ms as f64
             ));
         }
         if !(0.02..=1.35).contains(&report.average_luminance) {
             self.logger.warning(format!(
                 "Frame {} luminance drifted to {:.4}",
-                summary.frame_index,
-                report.average_luminance
+                summary.frame_index, report.average_luminance
             ));
         }
 
@@ -325,17 +334,19 @@ impl EngineManager {
 
         let event_summary = self.event_bus.summarize_history();
         let warning_count = self.logger.warning_count();
-        let overlay = self.debug_tools.capture(crate::core::debug::tools::DebugCaptureInput {
-            summary: &summary,
-            report: &report,
-            network: self.network_manager.status(),
-            audio: audio_mix,
-            event_summary: &event_summary,
-            warning_count,
-            momentum_hint: self.physics_manager.total_momentum(),
-            log_depth: self.logger.len(),
-            adaptation: adaptation_state,
-        });
+        let overlay = self
+            .debug_tools
+            .capture(crate::core::debug::tools::DebugCaptureInput {
+                summary: &summary,
+                report: &report,
+                network: self.network_manager.status(),
+                audio: audio_mix,
+                event_summary: &event_summary,
+                warning_count,
+                momentum_hint: self.physics_manager.total_momentum(),
+                log_depth: self.logger.len(),
+                adaptation: adaptation_state,
+            });
         let overlay_payload = self.serializer.serialize_overlay(&overlay);
         self.logger.debug(format!(
             "{} | adaptation={} | payload={}B | clients={} (sync={})",
@@ -348,25 +359,38 @@ impl EngineManager {
 
         let drained_events = self.event_bus.drain();
         if !drained_events.is_empty() {
-            self.logger.debug(format!("event_bus: drained {} events", drained_events.len()));
+            self.logger.debug(format!(
+                "event_bus: drained {} events",
+                drained_events.len()
+            ));
         }
 
         // ── Physics world setup ─────────────────────────────────────────
         if self.physics_world.body_count() == 0 {
             let dyn_idx = self.physics_world.add_body(
-                RigidBody::new(RayVec3::new(0.0, 5.0, 0.0), 1.0, Collider::Sphere { radius: 0.5 })
-                    .with_restitution(0.7)
-                    .with_friction(0.3),
+                RigidBody::new(
+                    RayVec3::new(0.0, 5.0, 0.0),
+                    1.0,
+                    Collider::Sphere { radius: 0.5 },
+                )
+                .with_restitution(0.7)
+                .with_friction(0.3),
             );
             let static_idx = self.physics_world.add_body(RigidBody::static_body(
                 RayVec3::ZERO,
-                Collider::Box { half_extents: RayVec3::new(5.0, 0.1, 5.0) },
+                Collider::Box {
+                    half_extents: RayVec3::new(5.0, 0.1, 5.0),
+                },
             ));
             self.physics_world.add_joint(Joint::Distance {
-                body_a: dyn_idx, body_b: static_idx, rest_length: 5.0, stiffness: 0.5,
+                body_a: dyn_idx,
+                body_b: static_idx,
+                rest_length: 5.0,
+                stiffness: 0.5,
             });
             self.physics_world.add_joint(Joint::Hinge {
-                body_a: dyn_idx, body_b: static_idx,
+                body_a: dyn_idx,
+                body_b: static_idx,
                 axis: RayVec3::new(0.0, 1.0, 0.0),
                 min_angle: -std::f64::consts::FRAC_PI_2,
                 max_angle: std::f64::consts::FRAC_PI_2,
@@ -380,12 +404,18 @@ impl EngineManager {
             let cloth = ClothGrid::new(4, 4, 0.25, RayVec3::new(-0.5, 2.0, -0.5));
             self.physics_world.cloth_grids.push(cloth);
             let fracture = FractureBody::generate(
-                RayVec3::new(-1.0, -1.0, -1.0), RayVec3::new(1.0, 1.0, 1.0), 8, 42,
+                RayVec3::new(-1.0, -1.0, -1.0),
+                RayVec3::new(1.0, 1.0, 1.0),
+                8,
+                42,
             );
             self.physics_world.fracture_bodies.push(fracture);
             let veh_body = RigidBody::new(
-                RayVec3::new(0.0, 0.5, 0.0), 1200.0,
-                Collider::Box { half_extents: RayVec3::new(1.0, 0.4, 2.0) },
+                RayVec3::new(0.0, 0.5, 0.0),
+                1200.0,
+                Collider::Box {
+                    half_extents: RayVec3::new(1.0, 0.4, 2.0),
+                },
             );
             let wheels = vec![
                 Wheel::new(RayVec3::new(-0.9, -0.4, 1.4), 0.35, 0.25, 20000.0, 2000.0),
@@ -413,19 +443,30 @@ impl EngineManager {
                 let particle_n = fluid.particle_count();
                 crate::runtime_log!(
                     "physics: bodies={} joints={} ke={:.4} orient_w={:.4} fluid_particles={}",
-                    body_count, joint_count, total_ke, orient_w, particle_n,
+                    body_count,
+                    joint_count,
+                    total_ke,
+                    orient_w,
+                    particle_n,
                 );
             } else {
                 crate::runtime_log!(
                     "physics: bodies={} joints={} ke={:.4} orient_w={:.4}",
-                    body_count, joint_count, total_ke, orient_w,
+                    body_count,
+                    joint_count,
+                    total_ke,
+                    orient_w,
                 );
             }
             if body_count >= 2 {
-                if let Some(contact) = narrow_phase(&self.physics_world.bodies[0], &self.physics_world.bodies[1]) {
+                if let Some(contact) =
+                    narrow_phase(&self.physics_world.bodies[0], &self.physics_world.bodies[1])
+                {
                     crate::runtime_log!(
                         "contact: point=({:.3},{:.3},{:.3})",
-                        contact.point.x, contact.point.y, contact.point.z,
+                        contact.point.x,
+                        contact.point.y,
+                        contact.point.z,
                     );
                 }
             }
@@ -438,7 +479,12 @@ impl EngineManager {
             let damping_sum: f64 = cloth.springs.iter().map(|s| s.damping).sum();
             crate::runtime_log!(
                 "cloth: {}x{} particles={} springs={} avg_vel={:.4} damping_sum={:.4}",
-                cloth.width, cloth.height, pc, sc, avg_vel, damping_sum,
+                cloth.width,
+                cloth.height,
+                pc,
+                sc,
+                avg_vel,
+                damping_sum,
             );
         }
 
@@ -451,7 +497,9 @@ impl EngineManager {
             let intact_cells = frac.intact_cells();
             let cell_center_avg: f64 = frac.cells.iter().map(|c| c.center.length()).sum::<f64>()
                 / frac.cells.len().max(1) as f64;
-            let bond_strength_sum: f64 = frac.bonds.iter()
+            let bond_strength_sum: f64 = frac
+                .bonds
+                .iter()
                 .map(|b| b.strength * if b.broken { 0.0 } else { 1.0 })
                 .sum::<f64>()
                 + frac.bonds.iter().map(|b| (b.a + b.b) as f64).sum::<f64>() * 0.0;
@@ -459,8 +507,14 @@ impl EngineManager {
             let voronoi_verts: usize = frac.cells.iter().map(|c| c.vertices.len()).sum();
             crate::runtime_log!(
                 "fracture: intact_bonds={} frac={} intact={} cell_avg={:.3} thr={:.3} broken={} verts={} bond_sum={:.3}",
-                intact_bonds, frac_cells.len(), intact_cells.len(),
-                cell_center_avg, frac.threshold, cell_broken_count, voronoi_verts, bond_strength_sum,
+                intact_bonds,
+                frac_cells.len(),
+                intact_cells.len(),
+                cell_center_avg,
+                frac.threshold,
+                cell_broken_count,
+                voronoi_verts,
+                bond_strength_sum,
             );
         }
 
@@ -471,7 +525,10 @@ impl EngineManager {
             let damping_sum: f64 = vehicle.wheels.iter().map(|w| w.damping).sum();
             crate::runtime_log!(
                 "vehicle: wheels={} speed={:.3} susp={:.3} damping={:.3}",
-                wc, spd, susp_forces, damping_sum,
+                wc,
+                spd,
+                susp_forces,
+                damping_sum,
             );
         }
 
@@ -490,7 +547,8 @@ impl EngineManager {
 
         self.ecs_world.despawn(ecs_entity);
         let new_entity = self.ecs_world.spawn();
-        self.ecs_world.insert(new_entity, PhysicsComponent(total_ke));
+        self.ecs_world
+            .insert(new_entity, PhysicsComponent(total_ke));
         if let Some(comp) = self.ecs_world.get::<PhysicsComponent>(new_entity) {
             crate::runtime_log!("ecs: component_value={:.4}", comp.0);
         }
@@ -502,7 +560,9 @@ impl EngineManager {
         let alive = self.ecs_world.is_entity_alive(new_entity);
         crate::runtime_log!(
             "ecs: query_count={} type_id={:?} alive={}",
-            query_count, type_id, alive,
+            query_count,
+            type_id,
+            alive,
         );
 
         struct PhysicsCountSystem;
@@ -520,29 +580,54 @@ impl EngineManager {
         let audio_freq = 440.0_f64;
         let sample_rate = 44100_u32;
         let mono_buf: Vec<f32> = (0..256)
-            .map(|i| (2.0 * std::f64::consts::PI * audio_freq * i as f64 / sample_rate as f64).sin() as f32)
+            .map(|i| {
+                (2.0 * std::f64::consts::PI * audio_freq * i as f64 / sample_rate as f64).sin()
+                    as f32
+            })
             .collect();
-        let spatialized = self.audio_manager.spatialize(&mono_buf, 0.3, 0.1, sample_rate);
+        let spatialized = self
+            .audio_manager
+            .spatialize(&mono_buf, 0.3, 0.1, sample_rate);
         let reverbed = self.audio_manager.apply_reverb(
-            &mono_buf, [1.0, 1.0, 1.0], [0.0, 0.0, 0.0], 20.0, sample_rate,
+            &mono_buf,
+            [1.0, 1.0, 1.0],
+            [0.0, 0.0, 0.0],
+            20.0,
+            sample_rate,
         );
         let sources = vec![(mono_buf.clone(), 0.8, 0.0), (mono_buf.clone(), 0.5, 0.5)];
         let mixed = self.audio_manager.mix_sources(sources, sample_rate);
-        let spatial_rms = (spatialized.iter().map(|s| s[0] as f64 * s[0] as f64).sum::<f64>()
-            / spatialized.len().max(1) as f64).sqrt();
-        let reverb_rms = (reverbed.iter().map(|s| s[0] as f64 * s[0] as f64).sum::<f64>()
-            / reverbed.len().max(1) as f64).sqrt();
+        let spatial_rms = (spatialized
+            .iter()
+            .map(|s| s[0] as f64 * s[0] as f64)
+            .sum::<f64>()
+            / spatialized.len().max(1) as f64)
+            .sqrt();
+        let reverb_rms = (reverbed
+            .iter()
+            .map(|s| s[0] as f64 * s[0] as f64)
+            .sum::<f64>()
+            / reverbed.len().max(1) as f64)
+            .sqrt();
         let mix_rms = (mixed.iter().map(|s| s[0] as f64 * s[0] as f64).sum::<f64>()
-            / mixed.len().max(1) as f64).sqrt();
+            / mixed.len().max(1) as f64)
+            .sqrt();
         crate::runtime_log!(
             "audio: spatial_rms={:.4} reverb_rms={:.4} mix_rms={:.4} pressure={:.4}",
-            spatial_rms, reverb_rms, mix_rms, spatial_rms + reverb_rms + mix_rms,
+            spatial_rms,
+            reverb_rms,
+            mix_rms,
+            spatial_rms + reverb_rms + mix_rms,
         );
         let mut device = AudioDevice::new(sample_rate, 256);
         device.fill_from_stereo(&mixed);
         let period = device.drain_period();
-        let device_rms = (period.iter().map(|s| s[0] as f64 * s[0] as f64).sum::<f64>()
-            / period.len().max(1) as f64).sqrt();
+        let device_rms = (period
+            .iter()
+            .map(|s| s[0] as f64 * s[0] as f64)
+            .sum::<f64>()
+            / period.len().max(1) as f64)
+            .sqrt();
         let ring_capacity = device.capacity();
         let mut pcm_buf = std::io::Cursor::new(Vec::new());
         device.fill_from_stereo(&mixed);
@@ -602,7 +687,9 @@ impl EngineManager {
         let interp_pos = sampled.map(|s| s.position.length()).unwrap_or(0.0);
         crate::runtime_log!(
             "netcode: interp_delay={:.3} interp_pos={:.4} tracked={}",
-            interp_delay, interp_pos, tracked,
+            interp_delay,
+            interp_pos,
+            tracked,
         );
 
         // ── Scripting decode_and_run ────────────────────────────────────
@@ -622,16 +709,26 @@ impl EngineManager {
             || matches!(&decoded_result, Ok(Value::Float(v)) if *v > 0.0);
         let result_bool = Value::Bool(is_positive);
         let truthy = matches!(result_bool, Value::Bool(true));
-        crate::runtime_log!("scripting: decoded_result={:?} truthy={}", decoded_result, truthy);
+        crate::runtime_log!(
+            "scripting: decoded_result={:?} truthy={}",
+            decoded_result,
+            truthy
+        );
 
         // ── Job system ──────────────────────────────────────────────────
         let w = self.config.width;
         let h = self.config.height;
-        self.job_system.spawn(move || {
-            crate::runtime_log!("job: compute={}", w * h);
-        }, 1);
+        self.job_system.spawn(
+            move || {
+                crate::runtime_log!("job: compute={}", w * h);
+            },
+            1,
+        );
         self.job_system.wait_all();
-        crate::runtime_log!("job_system: workers={} done", self.job_system.worker_count());
+        crate::runtime_log!(
+            "job_system: workers={} done",
+            self.job_system.worker_count()
+        );
 
         // ── IK ──────────────────────────────────────────────────────────
         let ik_joints = vec![
@@ -639,15 +736,22 @@ impl EngineManager {
             RayVec3::new(0.0, 1.0, 0.0),
             RayVec3::new(0.0, 2.0, 0.0),
         ];
-        let mut ik_chain = IkChain::new(ik_joints)
-            .with_constraint(0, -std::f64::consts::FRAC_PI_4, std::f64::consts::FRAC_PI_4);
+        let mut ik_chain = IkChain::new(ik_joints).with_constraint(
+            0,
+            -std::f64::consts::FRAC_PI_4,
+            std::f64::consts::FRAC_PI_4,
+        );
         let ik_total_len = ik_chain.total_length();
         let ik_target = RayVec3::new(delta * 0.1, ik_total_len * 0.8, 0.0);
         ik_chain.solve_fabrik(ik_target, 10, 0.001);
         let ik_end = ik_chain.end_effector();
         crate::runtime_log!(
             "ik: total_len={:.3} joints={} end=({:.3},{:.3},{:.3})",
-            ik_total_len, ik_chain.joint_count(), ik_end.x, ik_end.y, ik_end.z,
+            ik_total_len,
+            ik_chain.joint_count(),
+            ik_end.x,
+            ik_end.y,
+            ik_end.z,
         );
 
         // ── Retargeting ─────────────────────────────────────────────────
@@ -660,15 +764,27 @@ impl EngineManager {
         let retarget_scale = blended.first().map(|m| m.cols[3][0]).unwrap_or(0.0);
         crate::runtime_log!(
             "retarget: remapped={} blended={} scale={:.4}",
-            remapped.len(), blended.len(), retarget_scale,
+            remapped.len(),
+            blended.len(),
+            retarget_scale,
         );
 
         // ── Secondary motion ────────────────────────────────────────────
         let spring = SpringBone::new(RayVec3::new(0.0, 1.0, 0.0), 80.0, 5.0, 0.1);
-        let jiggle = JiggleBone::new(spring.rest_position, spring.stiffness, spring.damping, spring.mass, 0.3);
+        let jiggle = JiggleBone::new(
+            spring.rest_position,
+            spring.stiffness,
+            spring.damping,
+            spring.mass,
+            0.3,
+        );
         let mut secondary = SecondaryMotionSystem::new();
         secondary.add_jiggle_bone(0, jiggle);
-        crate::runtime_log!("secondary: spring_stiffness={:.1} bone_count={}", spring.stiffness, secondary.bones.len());
+        crate::runtime_log!(
+            "secondary: spring_stiffness={:.1} bone_count={}",
+            spring.stiffness,
+            secondary.bones.len()
+        );
 
         // ── Animation state machine ─────────────────────────────────────
         let skin_mat = crate::core::engine::rendering::mesh::skinning::Mat4::identity();
@@ -686,8 +802,12 @@ impl EngineManager {
         state_machine.add_state(anim_state);
         state_machine.set_parameter(delta.min(1.0));
         let sm_pose = state_machine.tick(delta);
-        crate::runtime_log!("anim_sm: states={} blend_weights={} pose_bones={}",
-            state_machine.states.len(), blend_two.weights.len(), sm_pose.len());
+        crate::runtime_log!(
+            "anim_sm: states={} blend_weights={} pose_bones={}",
+            state_machine.states.len(),
+            blend_two.weights.len(),
+            sm_pose.len()
+        );
 
         // ── Audio mixer ─────────────────────────────────────────────────
         let mut mixer = AudioMixer::new(44100);
@@ -695,7 +815,11 @@ impl EngineManager {
         mixer.add_channel(AudioChannel::new(mono_buf.clone(), 0.8, 0.0));
         let mut pcm_buf: Vec<u8> = Vec::new();
         mixer.write_pcm_16bit(&mut pcm_buf).ok();
-        crate::runtime_log!("mixer: sample_rate={} pcm_bytes={}", mixer_rate, pcm_buf.len());
+        crate::runtime_log!(
+            "mixer: sample_rate={} pcm_bytes={}",
+            mixer_rate,
+            pcm_buf.len()
+        );
 
         // ── ECS component count ─────────────────────────────────────────
         let comp_count = self.ecs_world.component_count();
@@ -717,10 +841,15 @@ impl EngineManager {
         let q_mul = quat_mul(q_a, q_b);
         let q_norm = quat_normalize(q_mul);
         let q_slerp = quat_slerp(q_a, q_b, delta.min(1.0));
-        let root_scale = root_pos.length() + q_norm[3] * 0.0 + q_slerp[3] * 0.0 + identity_len * 0.0;
+        let root_scale =
+            root_pos.length() + q_norm[3] * 0.0 + q_slerp[3] * 0.0 + identity_len * 0.0;
         crate::runtime_log!(
             "root_motion: clip='{}' dur={:.2} name_len={} trans={:.4} scale={:.4}",
-            clip.name, clip.duration, clip_name_len, root_delta.translation.length(), root_scale,
+            clip.name,
+            clip.duration,
+            clip_name_len,
+            root_delta.translation.length(),
+            root_scale,
         );
 
         Ok(report)
@@ -770,8 +899,12 @@ impl EngineManager {
         };
         let mut internal_width = ((output_width as f64) * initial_scale).round() as usize;
         let mut internal_height = ((output_height as f64) * initial_scale).round() as usize;
-        internal_width = internal_width.max(min_internal_width).min(output_width.max(min_internal_width));
-        internal_height = internal_height.max(min_internal_height).min(output_height.max(min_internal_height));
+        internal_width = internal_width
+            .max(min_internal_width)
+            .min(output_width.max(min_internal_width));
+        internal_height = internal_height
+            .max(min_internal_height)
+            .min(output_height.max(min_internal_height));
 
         let mut window = crate::core::engine::acces_hardware::NativeWindow::open(
             output_width,
@@ -810,7 +943,8 @@ impl EngineManager {
         };
         let mut present_width = output_width;
         let mut present_height = output_height;
-        let mut cached_argb = vec![0u8; output_width.saturating_mul(output_height).saturating_mul(4)];
+        let mut cached_argb =
+            vec![0u8; output_width.saturating_mul(output_height).saturating_mul(4)];
         let total_start = Instant::now();
         let mut next_frame_deadline = Instant::now() + pacing_frame_time;
         let graph = SceneGraph::from_bodies(&self.bodies);
@@ -828,11 +962,15 @@ impl EngineManager {
             0.0,
             scene_complexity,
         );
-        let cached_bvh = crate::core::engine::rendering::raytracing::acceleration::BvhNode::build(&realtime_scene.scene)
-            .map(Arc::new);
+        let cached_bvh = crate::core::engine::rendering::raytracing::acceleration::BvhNode::build(
+            &realtime_scene.scene,
+        )
+        .map(Arc::new);
 
         for frame_idx in 0..max_frames {
-            if let Some(window) = window.as_ref() && window.should_close() {
+            if let Some(window) = window.as_ref()
+                && window.should_close()
+            {
                 break;
             }
 
@@ -850,14 +988,15 @@ impl EngineManager {
                     frame_step.absolute_time + frame_input.orbit_bias * 0.15,
                 );
 
-                let (pixels, report) = realtime_renderer.render_animation_frame_to_buffer_with_pressure(
-                    &realtime_scene.scene,
-                    &realtime_camera,
-                    cached_bvh.as_deref(),
-                    &scheduler,
-                    self.config.render_preset,
-                    sample_pressure_scale,
-                )?;
+                let (pixels, report) = realtime_renderer
+                    .render_animation_frame_to_buffer_with_pressure(
+                        &realtime_scene.scene,
+                        &realtime_camera,
+                        cached_bvh.as_deref(),
+                        &scheduler,
+                        self.config.render_preset,
+                        sample_pressure_scale,
+                    )?;
 
                 let target_present_width = if ultra_constrained {
                     report.width
@@ -885,11 +1024,14 @@ impl EngineManager {
                 }
 
                 let render_ms = report.duration_ms as f64;
-                let target_pressure_scale = (frame_budget_ms / render_ms.max(1.0)).clamp(0.55, 1.10);
-                sample_pressure_scale = smooth_runtime_pressure(sample_pressure_scale, target_pressure_scale);
+                let target_pressure_scale =
+                    (frame_budget_ms / render_ms.max(1.0)).clamp(0.55, 1.10);
+                sample_pressure_scale =
+                    smooth_runtime_pressure(sample_pressure_scale, target_pressure_scale);
                 scheduler_tuning = SchedulerTuning::new(smooth_runtime_granularity(
                     scheduler_tuning.granularity_bias(),
-                    SchedulerTuning::from_runtime_pressure(frame_budget_ms, render_ms).granularity_bias(),
+                    SchedulerTuning::from_runtime_pressure(frame_budget_ms, render_ms)
+                        .granularity_bias(),
                 ));
                 if resize_cooldown_frames > 0 {
                     resize_cooldown_frames = resize_cooldown_frames.saturating_sub(1);
@@ -920,8 +1062,12 @@ impl EngineManager {
                     };
                     internal_width = ((internal_width as f64) * shrink).round() as usize;
                     internal_height = ((internal_height as f64) * shrink).round() as usize;
-                    internal_width = internal_width.max(min_internal_width).min(output_width.max(min_internal_width));
-                    internal_height = internal_height.max(min_internal_height).min(output_height.max(min_internal_height));
+                    internal_width = internal_width
+                        .max(min_internal_width)
+                        .min(output_width.max(min_internal_width));
+                    internal_height = internal_height
+                        .max(min_internal_height)
+                        .min(output_height.max(min_internal_height));
                     realtime_renderer = Renderer::with_resolution_using_backend(
                         internal_width,
                         internal_height,
@@ -945,8 +1091,12 @@ impl EngineManager {
                     let grow = if ultra_target { 1.04 } else { 1.10 };
                     internal_width = ((internal_width as f64) * grow).round() as usize;
                     internal_height = ((internal_height as f64) * grow).round() as usize;
-                    internal_width = internal_width.max(min_internal_width).min(output_width.max(min_internal_width));
-                    internal_height = internal_height.max(min_internal_height).min(output_height.max(min_internal_height));
+                    internal_width = internal_width
+                        .max(min_internal_width)
+                        .min(output_width.max(min_internal_width));
+                    internal_height = internal_height
+                        .max(min_internal_height)
+                        .min(output_height.max(min_internal_height));
                     realtime_renderer = Renderer::with_resolution_using_backend(
                         internal_width,
                         internal_height,
@@ -985,7 +1135,8 @@ impl EngineManager {
 
                 if frame_idx % 30 == 0 {
                     let adaptation_line = format_adaptation(&adaptation_state);
-                    self.logger.info(format!("realtime adaptation {}", adaptation_line));
+                    self.logger
+                        .info(format!("realtime adaptation {}", adaptation_line));
                     crate::runtime_log!("realtime adaptation {}", adaptation_line);
                 }
             }
@@ -1056,15 +1207,24 @@ impl EngineManager {
         let max_y = src_height.saturating_sub(1);
 
         for y in 0..dst_height {
-            let sy = y.saturating_mul(src_height).saturating_div(dst_height.max(1)).min(max_y);
+            let sy = y
+                .saturating_mul(src_height)
+                .saturating_div(dst_height.max(1))
+                .min(max_y);
             for x in 0..dst_width {
-                let sx = x.saturating_mul(src_width).saturating_div(dst_width.max(1)).min(max_x);
+                let sx = x
+                    .saturating_mul(src_width)
+                    .saturating_div(dst_width.max(1))
+                    .min(max_x);
                 let src_idx = sy.saturating_mul(src_width).saturating_add(sx);
                 let dst_idx = y
                     .saturating_mul(dst_width)
                     .saturating_add(x)
                     .saturating_mul(4);
-                let p = pixels.get(src_idx).copied().unwrap_or(crate::core::engine::rendering::raytracing::Vec3::ZERO);
+                let p = pixels
+                    .get(src_idx)
+                    .copied()
+                    .unwrap_or(crate::core::engine::rendering::raytracing::Vec3::ZERO);
                 out[dst_idx] = 255;
                 out[dst_idx + 1] = clamp(p.x);
                 out[dst_idx + 2] = clamp(p.y);
@@ -1084,7 +1244,13 @@ fn smooth_runtime_granularity(current: f64, target: f64) -> f64 {
     smooth_runtime_metric(current, target, 0.14, 0.34, 0.03)
 }
 
-fn smooth_runtime_metric(current: f64, target: f64, rise_alpha: f64, fall_alpha: f64, dead_band: f64) -> f64 {
+fn smooth_runtime_metric(
+    current: f64,
+    target: f64,
+    rise_alpha: f64,
+    fall_alpha: f64,
+    dead_band: f64,
+) -> f64 {
     let delta = target - current;
     if delta.abs() <= dead_band {
         return current;
@@ -1093,7 +1259,10 @@ fn smooth_runtime_metric(current: f64, target: f64, rise_alpha: f64, fall_alpha:
     current + delta * alpha.clamp(0.0, 1.0)
 }
 
-fn realtime_scene_complexity(target_fps: u32, hardware_backend: &NativeHardwareBackend) -> SceneComplexity {
+fn realtime_scene_complexity(
+    target_fps: u32,
+    hardware_backend: &NativeHardwareBackend,
+) -> SceneComplexity {
     if target_fps >= 120 {
         return SceneComplexity::full();
     }

@@ -250,7 +250,12 @@ impl MaterialBuilder {
     }
 
     /// Sets volumetric absorption, scattering, and phase asymmetry.
-    pub fn physics_volume(mut self, absorption: [f64; 3], scattering: [f64; 3], phase_g: f64) -> Self {
+    pub fn physics_volume(
+        mut self,
+        absorption: [f64; 3],
+        scattering: [f64; 3],
+        phase_g: f64,
+    ) -> Self {
         self.physics.absorption = absorption;
         self.physics.scattering = scattering;
         self.physics.phase_asymmetry = phase_g;

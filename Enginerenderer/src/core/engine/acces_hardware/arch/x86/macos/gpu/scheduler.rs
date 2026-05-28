@@ -12,7 +12,13 @@ fn sysctl_u64(name: &[u8]) -> Option<u64> {
     let mut out: u64 = 0;
     let mut len = core::mem::size_of::<u64>();
     let ret = unsafe {
-        sysctlbyname(name.as_ptr(), &mut out as *mut u64 as *mut u8, &mut len, core::ptr::null(), 0)
+        sysctlbyname(
+            name.as_ptr(),
+            &mut out as *mut u64 as *mut u8,
+            &mut len,
+            core::ptr::null(),
+            0,
+        )
     };
     if ret == 0 { Some(out) } else { None }
 }
@@ -29,7 +35,11 @@ pub(crate) fn recommended_chunk_size(work_items: usize) -> usize {
         return 64;
     }
     let mem_gb = sysctl_u64(b"hw.memsize\0").unwrap_or(0) / (1024 * 1024 * 1024);
-    let (threadgroup, queues) = if mem_gb >= 16 { (64usize, 4usize) } else { (32usize, 2usize) };
+    let (threadgroup, queues) = if mem_gb >= 16 {
+        (64usize, 4usize)
+    } else {
+        (32usize, 2usize)
+    };
     let raw = work_items.div_ceil(queues);
     let aligned = ((raw + threadgroup - 1) / threadgroup) * threadgroup;
     aligned.max(threadgroup)
@@ -37,6 +47,14 @@ pub(crate) fn recommended_chunk_size(work_items: usize) -> usize {
 
 pub(crate) fn build_schedule(work_items: usize) -> VendorSchedule {
     let chunk_size = recommended_chunk_size(work_items);
-    let chunks = if work_items == 0 { 1 } else { work_items.div_ceil(chunk_size) };
-    VendorSchedule { chunks, chunk_size, frame_budget_us: 8_333 }
+    let chunks = if work_items == 0 {
+        1
+    } else {
+        work_items.div_ceil(chunk_size)
+    };
+    VendorSchedule {
+        chunks,
+        chunk_size,
+        frame_budget_us: 8_333,
+    }
 }

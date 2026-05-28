@@ -48,8 +48,7 @@ const MAX_DEPTH: usize = 32;
 
 /// Builds a BVH over all spheres + triangles in the scene.
 pub fn build(scene: &Scene) -> GpuBvhBuild {
-    let mut prims: Vec<PrimAabb> =
-        Vec::with_capacity(scene.objects.len() + scene.triangles.len());
+    let mut prims: Vec<PrimAabb> = Vec::with_capacity(scene.objects.len() + scene.triangles.len());
     for (i, s) in scene.objects.iter().enumerate() {
         prims.push(sphere_aabb(s, i as u32));
     }

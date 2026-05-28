@@ -1,6 +1,6 @@
-use crate::core::engine::rendering::raytracing::Vec3;
-use crate::core::engine::rendering::mesh::skinning::Mat4;
 use super::state_machine::SkeletalClip;
+use crate::core::engine::rendering::mesh::skinning::Mat4;
+use crate::core::engine::rendering::raytracing::Vec3;
 
 #[derive(Debug, Clone, Copy)]
 pub struct RootMotionDelta {
@@ -10,15 +10,27 @@ pub struct RootMotionDelta {
 
 impl RootMotionDelta {
     pub fn identity() -> Self {
-        Self { translation: Vec3::ZERO, rotation: [0.0, 0.0, 0.0, 1.0] }
+        Self {
+            translation: Vec3::ZERO,
+            rotation: [0.0, 0.0, 0.0, 1.0],
+        }
     }
 }
 
-pub fn extract_root_motion(clip: &SkeletalClip, from_time: f64, to_time: f64, root_bone: usize) -> RootMotionDelta {
+pub fn extract_root_motion(
+    clip: &SkeletalClip,
+    from_time: f64,
+    to_time: f64,
+    root_bone: usize,
+) -> RootMotionDelta {
     let pose_from = clip.sample_bone(root_bone, from_time);
     let pose_to = clip.sample_bone(root_bone, to_time);
 
-    let trans_from = Vec3::new(pose_from.cols[3][0], pose_from.cols[3][1], pose_from.cols[3][2]);
+    let trans_from = Vec3::new(
+        pose_from.cols[3][0],
+        pose_from.cols[3][1],
+        pose_from.cols[3][2],
+    );
     let trans_to = Vec3::new(pose_to.cols[3][0], pose_to.cols[3][1], pose_to.cols[3][2]);
     let delta_translation = trans_to - trans_from;
 
@@ -26,7 +38,10 @@ pub fn extract_root_motion(clip: &SkeletalClip, from_time: f64, to_time: f64, ro
     let quat_to = mat4_to_quat(&pose_to);
     let delta_rotation = quat_relative(quat_from, quat_to);
 
-    RootMotionDelta { translation: delta_translation, rotation: delta_rotation }
+    RootMotionDelta {
+        translation: delta_translation,
+        rotation: delta_rotation,
+    }
 }
 
 pub fn apply_root_motion(delta: &RootMotionDelta, body_pos: &mut Vec3, body_rot: &mut [f64; 4]) {
@@ -74,22 +89,29 @@ fn mat4_to_quat(m: &Mat4) -> [f64; 4] {
 
 pub fn quat_mul(a: [f64; 4], b: [f64; 4]) -> [f64; 4] {
     [
-        a[3]*b[0] + a[0]*b[3] + a[1]*b[2] - a[2]*b[1],
-        a[3]*b[1] - a[0]*b[2] + a[1]*b[3] + a[2]*b[0],
-        a[3]*b[2] + a[0]*b[1] - a[1]*b[0] + a[2]*b[3],
-        a[3]*b[3] - a[0]*b[0] - a[1]*b[1] - a[2]*b[2],
+        a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
+        a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+        a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
+        a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2],
     ]
 }
 
 pub fn quat_normalize(q: [f64; 4]) -> [f64; 4] {
-    let len = (q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3]).sqrt();
-    if len < f64::EPSILON { return [0.0, 0.0, 0.0, 1.0]; }
-    [q[0]/len, q[1]/len, q[2]/len, q[3]/len]
+    let len = (q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]).sqrt();
+    if len < f64::EPSILON {
+        return [0.0, 0.0, 0.0, 1.0];
+    }
+    [q[0] / len, q[1] / len, q[2] / len, q[3] / len]
 }
 
 pub fn quat_slerp(a: [f64; 4], b: [f64; 4], t: f64) -> [f64; 4] {
-    let mut dot = a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3];
-    let b_adj = if dot < 0.0 { dot = -dot; [-b[0], -b[1], -b[2], -b[3]] } else { b };
+    let mut dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+    let b_adj = if dot < 0.0 {
+        dot = -dot;
+        [-b[0], -b[1], -b[2], -b[3]]
+    } else {
+        b
+    };
     if dot > 0.9995 {
         return quat_normalize([
             a[0] + (b_adj[0] - a[0]) * t,

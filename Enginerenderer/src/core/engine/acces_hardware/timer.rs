@@ -21,7 +21,9 @@ pub struct HwInstant {
 
 impl HwInstant {
     pub fn now() -> Self {
-        Self { ns: precise_timestamp_ns() }
+        Self {
+            ns: precise_timestamp_ns(),
+        }
     }
 
     pub fn elapsed_ms(&self) -> u128 {

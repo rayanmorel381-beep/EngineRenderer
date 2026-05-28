@@ -44,7 +44,7 @@ pub enum Interpolation {
 #[derive(Debug, Clone)]
 pub struct Keyframe<T> {
     /// Keyframe timestamp in seconds.
-    pub time:  f64,
+    pub time: f64,
     /// Keyframe value.
     pub value: T,
 }
@@ -85,13 +85,16 @@ impl Lerp for [f64; 2] {
 pub struct Timeline<T: Lerp> {
     /// Interpolation mode used between keyframes.
     pub interpolation: Interpolation,
-    keyframes:         Vec<Keyframe<T>>,
+    keyframes: Vec<Keyframe<T>>,
 }
 
 impl<T: Lerp> Timeline<T> {
     /// Creates an empty timeline with the requested interpolation mode.
     pub fn new(interpolation: Interpolation) -> Self {
-        Self { interpolation, keyframes: Vec::new() }
+        Self {
+            interpolation,
+            keyframes: Vec::new(),
+        }
     }
 
     /// Inserts a keyframe while keeping chronological order.
@@ -132,23 +135,29 @@ impl<T: Lerp> Timeline<T> {
 fn apply_interpolation(t: f64, mode: Interpolation) -> f64 {
     use super::easing;
     match mode {
-        Interpolation::Linear        => easing::linear(t),
-        Interpolation::Step          => if t < 1.0 { 0.0 } else { 1.0 },
-        Interpolation::SmoothStep    => t * t * (3.0 - 2.0 * t),
-        Interpolation::CubicHermite  => t * t * (3.0 - 2.0 * t),
-        Interpolation::EaseInQuad    => easing::ease_in_quad(t),
-        Interpolation::EaseOutQuad   => easing::ease_out_quad(t),
+        Interpolation::Linear => easing::linear(t),
+        Interpolation::Step => {
+            if t < 1.0 {
+                0.0
+            } else {
+                1.0
+            }
+        }
+        Interpolation::SmoothStep => t * t * (3.0 - 2.0 * t),
+        Interpolation::CubicHermite => t * t * (3.0 - 2.0 * t),
+        Interpolation::EaseInQuad => easing::ease_in_quad(t),
+        Interpolation::EaseOutQuad => easing::ease_out_quad(t),
         Interpolation::EaseInOutQuad => easing::ease_in_out_quad(t),
-        Interpolation::EaseInCubic   => easing::ease_in_cubic(t),
-        Interpolation::EaseOutCubic  => easing::ease_out_cubic(t),
+        Interpolation::EaseInCubic => easing::ease_in_cubic(t),
+        Interpolation::EaseOutCubic => easing::ease_out_cubic(t),
         Interpolation::EaseInOutCubic => easing::ease_in_out_cubic(t),
-        Interpolation::EaseInSine    => easing::ease_in_sine(t),
-        Interpolation::EaseOutSine   => easing::ease_out_sine(t),
+        Interpolation::EaseInSine => easing::ease_in_sine(t),
+        Interpolation::EaseOutSine => easing::ease_out_sine(t),
         Interpolation::EaseInOutSine => easing::ease_in_out_sine(t),
-        Interpolation::EaseInExpo    => easing::ease_in_expo(t),
-        Interpolation::EaseOutExpo   => easing::ease_out_expo(t),
-        Interpolation::EaseInBack    => easing::ease_in_back(t),
-        Interpolation::EaseOutBack   => easing::ease_out_back(t),
-        Interpolation::BounceOut     => easing::bounce_out(t),
+        Interpolation::EaseInExpo => easing::ease_in_expo(t),
+        Interpolation::EaseOutExpo => easing::ease_out_expo(t),
+        Interpolation::EaseInBack => easing::ease_in_back(t),
+        Interpolation::EaseOutBack => easing::ease_out_back(t),
+        Interpolation::BounceOut => easing::bounce_out(t),
     }
 }

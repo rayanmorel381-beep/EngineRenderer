@@ -1,8 +1,8 @@
 use super::math::Vec3;
-use super::primitives::{HitRecord, Ray, Sphere, Triangle, EPSILON};
+use super::primitives::{EPSILON, HitRecord, Ray, Sphere, Triangle};
 use crate::core::engine::rendering::{
-    environment::procedural::ProceduralEnvironment,
     effects::volumetric_effects::medium::VolumetricMedium,
+    environment::procedural::ProceduralEnvironment,
 };
 use std::hash::{Hash, Hasher};
 

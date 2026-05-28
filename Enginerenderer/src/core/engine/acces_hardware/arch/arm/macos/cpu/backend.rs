@@ -32,12 +32,20 @@ pub(crate) struct AppleSiliconCpuInfo {
 }
 
 pub(crate) fn detect() -> AppleSiliconCpuInfo {
-    let p_cores = sysctl_u64(b"hw.perflevel0.physicalcpu\0").unwrap_or(4).max(1) as u8;
+    let p_cores = sysctl_u64(b"hw.perflevel0.physicalcpu\0")
+        .unwrap_or(4)
+        .max(1) as u8;
     let e_cores = sysctl_u64(b"hw.perflevel1.physicalcpu\0").unwrap_or(4) as u8;
     let freq_p_max_hz = sysctl_u64(b"hw.perflevel0.cpufrequency_max\0").unwrap_or(0);
     let freq_e_max_hz = sysctl_u64(b"hw.perflevel1.cpufrequency_max\0").unwrap_or(0);
     let l2_cache_bytes = sysctl_u64(b"hw.l2cachesize\0").unwrap_or(0);
-    AppleSiliconCpuInfo { p_cores, e_cores, freq_p_max_hz, freq_e_max_hz, l2_cache_bytes }
+    AppleSiliconCpuInfo {
+        p_cores,
+        e_cores,
+        freq_p_max_hz,
+        freq_e_max_hz,
+        l2_cache_bytes,
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -71,6 +79,8 @@ pub(crate) fn default_backend_config() -> VendorBackendConfig {
 }
 
 pub(crate) fn clamp_workers(requested: usize) -> usize {
-    let p_cores = sysctl_u64(b"hw.perflevel0.physicalcpu\0").unwrap_or(1).max(1) as usize;
+    let p_cores = sysctl_u64(b"hw.perflevel0.physicalcpu\0")
+        .unwrap_or(1)
+        .max(1) as usize;
     requested.max(1).min(p_cores)
 }

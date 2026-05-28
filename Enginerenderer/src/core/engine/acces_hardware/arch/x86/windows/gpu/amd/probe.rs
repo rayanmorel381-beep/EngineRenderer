@@ -2,7 +2,7 @@
 //! enriches it with display-class registry telemetry (clock, temp, CU count).
 
 use super::registry::{
-    HKEY_LOCAL_MACHINE, KEY_READ, Hkey, RegCloseKey, RegOpenKeyExW, reg_read_u32,
+    HKEY_LOCAL_MACHINE, Hkey, KEY_READ, RegCloseKey, RegOpenKeyExW, reg_read_u32,
 };
 use super::types::GpuProbeResult;
 
@@ -20,10 +20,13 @@ pub(crate) fn probe(adapters: &[GpuProbeResult]) -> Option<GpuProbeResult> {
         compute_units: 0,
     };
 
-    let sub_key: Vec<u16> = "SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e968-e325-11ce-bfc1-08002be10318}\\0000\0"
-        .encode_utf16().collect();
+    let sub_key: Vec<u16> =
+        "SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e968-e325-11ce-bfc1-08002be10318}\\0000\0"
+            .encode_utf16()
+            .collect();
     let mut hkey: Hkey = core::ptr::null_mut();
-    let ret = unsafe { RegOpenKeyExW(HKEY_LOCAL_MACHINE, sub_key.as_ptr(), 0, KEY_READ, &mut hkey) };
+    let ret =
+        unsafe { RegOpenKeyExW(HKEY_LOCAL_MACHINE, sub_key.as_ptr(), 0, KEY_READ, &mut hkey) };
     if ret == 0 {
         let clock_name: Vec<u16> = "CoreClockMax\0".encode_utf16().collect();
         if let Some(mhz) = reg_read_u32(hkey, &clock_name) {

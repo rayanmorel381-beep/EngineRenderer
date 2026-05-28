@@ -1,5 +1,5 @@
-use crate::core::engine::rendering::raytracing::Vec3;
 use crate::core::engine::rendering::framebuffer::FrameBuffer;
+use crate::core::engine::rendering::raytracing::Vec3;
 
 #[derive(Debug, Clone, Copy)]
 pub struct FsrConfig {
@@ -11,12 +11,27 @@ pub struct FsrConfig {
 }
 
 impl FsrConfig {
-    pub fn new(input_width: usize, input_height: usize, output_width: usize, output_height: usize) -> Self {
-        Self { input_width, input_height, output_width, output_height, sharpness: 0.75 }
+    pub fn new(
+        input_width: usize,
+        input_height: usize,
+        output_width: usize,
+        output_height: usize,
+    ) -> Self {
+        Self {
+            input_width,
+            input_height,
+            output_width,
+            output_height,
+            sharpness: 0.75,
+        }
     }
 
-    pub fn scale_factor_x(&self) -> f64 { self.output_width as f64 / self.input_width as f64 }
-    pub fn scale_factor_y(&self) -> f64 { self.output_height as f64 / self.input_height as f64 }
+    pub fn scale_factor_x(&self) -> f64 {
+        self.output_width as f64 / self.input_width as f64
+    }
+    pub fn scale_factor_y(&self) -> f64 {
+        self.output_height as f64 / self.input_height as f64
+    }
 }
 
 pub struct FsrPass;
@@ -76,7 +91,11 @@ fn easu_sample(src: &FrameBuffer, fx: f64, fy: f64) -> Vec3 {
         }
     }
 
-    if weight_total > 1e-6 { sum * (1.0 / weight_total) } else { Vec3::ZERO }
+    if weight_total > 1e-6 {
+        sum * (1.0 / weight_total)
+    } else {
+        Vec3::ZERO
+    }
 }
 
 fn rcas_pass(src: &FrameBuffer, dst: &mut FrameBuffer, sharpness: f64) {
@@ -124,8 +143,12 @@ fn rcas_pass(src: &FrameBuffer, dst: &mut FrameBuffer, sharpness: f64) {
 
 fn lanczos2(x: f64) -> f64 {
     use std::f64::consts::PI;
-    if x.abs() < 1e-6 { return 1.0; }
-    if x.abs() >= 2.0 { return 0.0; }
+    if x.abs() < 1e-6 {
+        return 1.0;
+    }
+    if x.abs() >= 2.0 {
+        return 0.0;
+    }
     let px = PI * x;
     let px2 = PI * x * 0.5;
     px.sin() * px2.sin() / (px * px2)

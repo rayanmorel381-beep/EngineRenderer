@@ -10,16 +10,28 @@ pub struct HeightMap {
 
 impl HeightMap {
     pub fn new(data: Vec<f32>, width: usize, height: usize, world_scale: Vec3) -> Self {
-        Self { data, width, height, world_scale }
+        Self {
+            data,
+            width,
+            height,
+            world_scale,
+        }
     }
 
     pub fn flat(width: usize, height: usize, world_scale: Vec3) -> Self {
-        Self { data: vec![0.0; width * height], width, height, world_scale }
+        Self {
+            data: vec![0.0; width * height],
+            width,
+            height,
+            world_scale,
+        }
     }
 
     pub fn sample(&self, x: f64, z: f64) -> f64 {
-        let nx = (x / self.world_scale.x * (self.width - 1) as f64).clamp(0.0, (self.width - 1) as f64);
-        let nz = (z / self.world_scale.z * (self.height - 1) as f64).clamp(0.0, (self.height - 1) as f64);
+        let nx =
+            (x / self.world_scale.x * (self.width - 1) as f64).clamp(0.0, (self.width - 1) as f64);
+        let nz = (z / self.world_scale.z * (self.height - 1) as f64)
+            .clamp(0.0, (self.height - 1) as f64);
         let ix = nx as usize;
         let iz = nz as usize;
         let fx = nx - ix as f64;
@@ -33,17 +45,17 @@ impl HeightMap {
         let h01 = self.data[z2 * self.width + x1] as f64;
         let h11 = self.data[z2 * self.width + x2] as f64;
         let h = h00 * (1.0 - fx) * (1.0 - fz)
-              + h10 * fx * (1.0 - fz)
-              + h01 * (1.0 - fx) * fz
-              + h11 * fx * fz;
+            + h10 * fx * (1.0 - fz)
+            + h01 * (1.0 - fx) * fz
+            + h11 * fx * fz;
         h * self.world_scale.y
     }
 
     pub fn normal_at(&self, x: f64, z: f64) -> Vec3 {
         let eps = self.world_scale.x / self.width as f64;
-        let h_left  = self.sample(x - eps, z);
+        let h_left = self.sample(x - eps, z);
         let h_right = self.sample(x + eps, z);
-        let h_back  = self.sample(x, z - eps);
+        let h_back = self.sample(x, z - eps);
         let h_front = self.sample(x, z + eps);
         Vec3::new(h_left - h_right, 2.0 * eps, h_back - h_front).normalize()
     }
@@ -73,7 +85,12 @@ impl CdlodNode {
     pub fn build(heightmap: &HeightMap, min: Vec3, max: Vec3, level: u32, max_level: u32) -> Self {
         let level = level.min(max_level);
         if level == 0 {
-            return Self { bounds_min: min, bounds_max: max, lod_level: 0, children: None };
+            return Self {
+                bounds_min: min,
+                bounds_max: max,
+                lod_level: 0,
+                children: None,
+            };
         }
         let mid_x = (min.x + max.x) * 0.5;
         let mid_z = (min.z + max.z) * 0.5;
@@ -81,10 +98,34 @@ impl CdlodNode {
         let mid_y_max = heightmap.sample(mid_x, mid_z) + 1.0;
         let child_level = level - 1;
         let children = [
-            CdlodNode::build(heightmap, Vec3::new(min.x, mid_y_min, min.z), Vec3::new(mid_x, mid_y_max, mid_z), child_level, max_level),
-            CdlodNode::build(heightmap, Vec3::new(mid_x, mid_y_min, min.z), Vec3::new(max.x, mid_y_max, mid_z), child_level, max_level),
-            CdlodNode::build(heightmap, Vec3::new(min.x, mid_y_min, mid_z), Vec3::new(mid_x, mid_y_max, max.z), child_level, max_level),
-            CdlodNode::build(heightmap, Vec3::new(mid_x, mid_y_min, mid_z), max, child_level, max_level),
+            CdlodNode::build(
+                heightmap,
+                Vec3::new(min.x, mid_y_min, min.z),
+                Vec3::new(mid_x, mid_y_max, mid_z),
+                child_level,
+                max_level,
+            ),
+            CdlodNode::build(
+                heightmap,
+                Vec3::new(mid_x, mid_y_min, min.z),
+                Vec3::new(max.x, mid_y_max, mid_z),
+                child_level,
+                max_level,
+            ),
+            CdlodNode::build(
+                heightmap,
+                Vec3::new(min.x, mid_y_min, mid_z),
+                Vec3::new(mid_x, mid_y_max, max.z),
+                child_level,
+                max_level,
+            ),
+            CdlodNode::build(
+                heightmap,
+                Vec3::new(mid_x, mid_y_min, mid_z),
+                max,
+                child_level,
+                max_level,
+            ),
         ];
         Self {
             bounds_min: min,
@@ -103,7 +144,10 @@ impl CdlodNode {
         let center = (self.bounds_min + self.bounds_max) * 0.5;
         let half_size = (self.bounds_max - self.bounds_min).x * 0.5;
         let dist = (center - camera_pos).length();
-        let lod_range = lod_ranges.get(self.lod_level as usize).copied().unwrap_or(f64::MAX);
+        let lod_range = lod_ranges
+            .get(self.lod_level as usize)
+            .copied()
+            .unwrap_or(f64::MAX);
         let parent_range = if self.lod_level + 1 < lod_ranges.len() as u32 {
             lod_ranges[(self.lod_level + 1) as usize]
         } else {
@@ -115,7 +159,10 @@ impl CdlodNode {
         }
 
         if let Some(ref children) = self.children {
-            let child_range = lod_ranges.get(self.lod_level.saturating_sub(1) as usize).copied().unwrap_or(0.0);
+            let child_range = lod_ranges
+                .get(self.lod_level.saturating_sub(1) as usize)
+                .copied()
+                .unwrap_or(0.0);
             if dist < child_range {
                 for child in children.iter() {
                     child.select_patches(camera_pos, lod_ranges, result);
@@ -165,12 +212,17 @@ impl CdlodTerrain {
         let lod_ranges: Vec<f64> = (0..=max_lod as usize)
             .map(|i| base_lod_range * (1 << i) as f64)
             .collect();
-        Self { heightmap, root, lod_ranges }
+        Self {
+            heightmap,
+            root,
+            lod_ranges,
+        }
     }
 
     pub fn select_patches(&self, camera_pos: Vec3) -> Vec<TerrainPatch> {
         let mut result = Vec::new();
-        self.root.select_patches(camera_pos, &self.lod_ranges, &mut result);
+        self.root
+            .select_patches(camera_pos, &self.lod_ranges, &mut result);
         result
     }
 

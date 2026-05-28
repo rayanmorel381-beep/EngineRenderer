@@ -4,7 +4,11 @@
 use crate::core::engine::rendering::raytracing::Vec3;
 
 pub fn spherical_to_cartesian(theta: f64, phi: f64) -> Vec3 {
-    Vec3::new(phi.cos() * theta.sin(), theta.cos(), phi.sin() * theta.sin())
+    Vec3::new(
+        phi.cos() * theta.sin(),
+        theta.cos(),
+        phi.sin() * theta.sin(),
+    )
 }
 
 pub fn cartesian_to_spherical(dir: Vec3) -> (f64, f64) {

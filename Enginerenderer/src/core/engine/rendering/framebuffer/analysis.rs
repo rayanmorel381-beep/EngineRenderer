@@ -1,4 +1,3 @@
-
 use crate::core::engine::rendering::raytracing::Vec3;
 use crate::core::engine::rendering::utils::luminance;
 
@@ -12,7 +11,10 @@ impl FrameBuffer {
         if self.color.is_empty() {
             0.0
         } else {
-            self.color.iter().map(|pixel| luminance(*pixel)).sum::<f64>()
+            self.color
+                .iter()
+                .map(|pixel| luminance(*pixel))
+                .sum::<f64>()
                 / self.color.len() as f64
         }
     }

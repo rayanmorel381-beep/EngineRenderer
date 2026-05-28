@@ -73,9 +73,15 @@ pub fn append_car(scene: &mut Scene, base: Vec3, scale: f64, color: Vec3) {
     let glass = MaterialLibrary::window_glass();
     let tire = MaterialLibrary::rubber_tire();
     let rim = MaterialLibrary::metallic_moon();
-    let light = Material::new(Vec3::new(0.94, 0.92, 0.84), 0.06, 0.01, 0.04, Vec3::new(1.1, 1.0, 0.8))
-        .with_layers(1.0, 0.12, Vec3::new(0.04, 0.04, 0.02))
-        .with_optics(0.02, 0.02, 0.04);
+    let light = Material::new(
+        Vec3::new(0.94, 0.92, 0.84),
+        0.06,
+        0.01,
+        0.04,
+        Vec3::new(1.1, 1.0, 0.8),
+    )
+    .with_layers(1.0, 0.12, Vec3::new(0.04, 0.04, 0.02))
+    .with_optics(0.02, 0.02, 0.04);
 
     append_box(
         &mut scene.triangles,

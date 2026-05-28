@@ -1,4 +1,3 @@
-
 use crate::core::engine::rendering::raytracing::{Ray, Scene, Vec3};
 
 // ── PCF shadow sampling ─────────────────────────────────────────────────
@@ -25,7 +24,8 @@ pub fn pcf_shadow(
         };
     }
 
-    let (tangent, bitangent) = crate::core::engine::rendering::utils::build_tangent_frame(light_dir);
+    let (tangent, bitangent) =
+        crate::core::engine::rendering::utils::build_tangent_frame(light_dir);
     let spread = 0.008;
     let mut lit = 0.0;
     let total = samples * samples;

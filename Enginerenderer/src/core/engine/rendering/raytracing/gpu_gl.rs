@@ -23,8 +23,7 @@ pub const GL_MAP_READ_BIT: c_uint = 0x0001;
 pub type GlGetString = unsafe extern "C" fn(c_uint) -> *const c_char;
 pub type GlFinish = unsafe extern "C" fn();
 pub type GlCreateShader = unsafe extern "C" fn(c_uint) -> c_uint;
-pub type GlShaderSource =
-    unsafe extern "C" fn(c_uint, i32, *const *const c_char, *const i32);
+pub type GlShaderSource = unsafe extern "C" fn(c_uint, i32, *const *const c_char, *const i32);
 pub type GlCompileShader = unsafe extern "C" fn(c_uint);
 pub type GlGetShaderiv = unsafe extern "C" fn(c_uint, c_uint, *mut i32);
 pub type GlGetShaderInfoLog = unsafe extern "C" fn(c_uint, i32, *mut i32, *mut c_char);
@@ -44,8 +43,7 @@ pub type GlDeleteBuffers = unsafe extern "C" fn(i32, *const c_uint);
 pub type GlDeleteProgram = unsafe extern "C" fn(c_uint);
 pub type GlDeleteShader = unsafe extern "C" fn(c_uint);
 pub type GlGetBufferSubData = unsafe extern "C" fn(c_uint, isize, isize, *mut c_void);
-pub type GlMapBufferRange =
-    unsafe extern "C" fn(c_uint, isize, isize, c_uint) -> *mut c_void;
+pub type GlMapBufferRange = unsafe extern "C" fn(c_uint, isize, isize, c_uint) -> *mut c_void;
 pub type GlUnmapBuffer = unsafe extern "C" fn(c_uint) -> u8;
 
 /// Bag of resolved GL function pointers used by the GPU ray-tracer.
@@ -204,14 +202,17 @@ impl GlFns {
         let byte_len = dst.len() as isize;
         if let Some(get_sub) = self.get_buffer_sub_data {
             unsafe {
-                get_sub(GL_SHADER_STORAGE_BUFFER, 0, byte_len, dst.as_mut_ptr() as *mut c_void);
+                get_sub(
+                    GL_SHADER_STORAGE_BUFFER,
+                    0,
+                    byte_len,
+                    dst.as_mut_ptr() as *mut c_void,
+                );
             }
             return Ok(());
         }
         if let (Some(map), Some(unmap)) = (self.map_buffer_range, self.unmap_buffer) {
-            let ptr = unsafe {
-                map(GL_SHADER_STORAGE_BUFFER, 0, byte_len, GL_MAP_READ_BIT)
-            };
+            let ptr = unsafe { map(GL_SHADER_STORAGE_BUFFER, 0, byte_len, GL_MAP_READ_BIT) };
             if ptr.is_null() {
                 return Err("glMapBufferRange returned NULL");
             }
@@ -285,12 +286,7 @@ impl GlFns {
         let mut buf = vec![0u8; len as usize];
         let mut written: i32 = 0;
         unsafe {
-            (self.get_shader_info_log)(
-                shader,
-                len,
-                &mut written,
-                buf.as_mut_ptr() as *mut c_char,
-            );
+            (self.get_shader_info_log)(shader, len, &mut written, buf.as_mut_ptr() as *mut c_char);
         }
         String::from_utf8_lossy(&buf[..written.max(0) as usize]).into_owned()
     }

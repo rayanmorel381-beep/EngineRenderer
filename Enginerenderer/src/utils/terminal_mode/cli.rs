@@ -6,11 +6,7 @@ use std::path::PathBuf;
 use enginerenderer::api::engine::Engine;
 use enginerenderer::api::engine::EngineApi;
 use enginerenderer::api::engine::diagnostics::{
-    ComputeArch,
-    ComputeOs,
-    ComputeVendor,
-    DiagnosticComponent,
-    DiagnosticOverrides,
+    ComputeArch, ComputeOs, ComputeVendor, DiagnosticComponent, DiagnosticOverrides,
     DiagnosticsOptions,
 };
 
@@ -56,7 +52,9 @@ pub(crate) fn print_help() {
     eprintln!("  render [--out PATH]        standard CPU render");
     eprintln!("  gallery                    render the gallery showcase");
     eprintln!("  test                       fast smoke render");
-    eprintln!("  validate                   smoke render + (linux) GPU context probe; non-zero exit on failure");
+    eprintln!(
+        "  validate                   smoke render + (linux) GPU context probe; non-zero exit on failure"
+    );
     eprintln!("  run [--seconds N --fps N --width N --height N]");
     eprintln!("                             realtime preview; flags skip prompts (CI-friendly)");
     eprintln!("  gpu-render [options]       GPU path-traced single frame (linux only)");
@@ -305,8 +303,8 @@ fn gpu_render_into(
     out_path: &std::path::Path,
 ) -> Result<(), Box<dyn Error>> {
     use enginerenderer::api::engine::rendering::{
-        gpu_try_new_desktop, AreaLight, DirectionalLight, GpuRenderConfig, Image, Material,
-        RenderCamera, Scene, Sphere, Vec3, VolumetricMedium,
+        AreaLight, DirectionalLight, GpuRenderConfig, Image, Material, RenderCamera, Scene, Sphere,
+        Vec3, VolumetricMedium, gpu_try_new_desktop,
     };
     use std::time::Instant;
 
@@ -346,13 +344,41 @@ fn gpu_render_into(
 
     let scene = Scene {
         objects: vec![
-            Sphere { center: Vec3::new(-2.6, 0.0, -3.2), radius: 0.7, material: lambert },
-            Sphere { center: Vec3::new(-1.1, 0.0, -3.2), radius: 0.7, material: metal },
-            Sphere { center: Vec3::new(0.4, 0.0, -3.2), radius: 0.7, material: glass },
-            Sphere { center: Vec3::new(1.9, 0.0, -3.2), radius: 0.7, material: chrome },
-            Sphere { center: Vec3::new(3.4, 0.0, -3.2), radius: 0.7, material: emerald },
-            Sphere { center: Vec3::new(0.4, 2.4, -2.6), radius: 0.35, material: lamp },
-            Sphere { center: Vec3::new(0.0, -101.0, -3.2), radius: 100.3, material: ground },
+            Sphere {
+                center: Vec3::new(-2.6, 0.0, -3.2),
+                radius: 0.7,
+                material: lambert,
+            },
+            Sphere {
+                center: Vec3::new(-1.1, 0.0, -3.2),
+                radius: 0.7,
+                material: metal,
+            },
+            Sphere {
+                center: Vec3::new(0.4, 0.0, -3.2),
+                radius: 0.7,
+                material: glass,
+            },
+            Sphere {
+                center: Vec3::new(1.9, 0.0, -3.2),
+                radius: 0.7,
+                material: chrome,
+            },
+            Sphere {
+                center: Vec3::new(3.4, 0.0, -3.2),
+                radius: 0.7,
+                material: emerald,
+            },
+            Sphere {
+                center: Vec3::new(0.4, 2.4, -2.6),
+                radius: 0.35,
+                material: lamp,
+            },
+            Sphere {
+                center: Vec3::new(0.0, -101.0, -3.2),
+                radius: 100.3,
+                material: ground,
+            },
         ],
         triangles: vec![],
         sun: DirectionalLight {
@@ -608,8 +634,8 @@ fn parse_overrides(value: &str, overrides: &mut DiagnosticOverrides) -> Result<(
                 overrides.arch = Some(parsed);
             }
             "os" => {
-                let parsed = ComputeOs::parse(val)
-                    .ok_or_else(|| format!("invalid os override: {}", val))?;
+                let parsed =
+                    ComputeOs::parse(val).ok_or_else(|| format!("invalid os override: {}", val))?;
                 overrides.os = Some(parsed);
             }
             "vendor" => {

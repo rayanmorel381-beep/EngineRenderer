@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy)]
 pub struct FrameTarget {
     pub target_frame_ms: f64,

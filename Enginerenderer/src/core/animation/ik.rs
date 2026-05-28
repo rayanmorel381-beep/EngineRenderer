@@ -14,7 +14,11 @@ impl IkChain {
             .map(|i| (joints[i + 1] - joints[i]).length())
             .collect();
         let constraints = vec![(0.0_f64, std::f64::consts::PI); lengths.len()];
-        Self { joints, lengths, constraints }
+        Self {
+            joints,
+            lengths,
+            constraints,
+        }
     }
 
     pub fn with_constraint(mut self, segment_idx: usize, min_angle: f64, max_angle: f64) -> Self {
@@ -40,7 +44,11 @@ impl IkChain {
                 let dir = {
                     let d = target - self.joints[i];
                     let len = d.length();
-                    if len > f64::EPSILON { d * (1.0 / len) } else { Vec3::new(0.0, 1.0, 0.0) }
+                    if len > f64::EPSILON {
+                        d * (1.0 / len)
+                    } else {
+                        Vec3::new(0.0, 1.0, 0.0)
+                    }
                 };
                 self.joints[i + 1] = self.joints[i] + dir * self.lengths[i];
             }
@@ -52,7 +60,11 @@ impl IkChain {
                 let dir = {
                     let d = self.joints[i] - self.joints[i + 1];
                     let len = d.length();
-                    if len > f64::EPSILON { d * (1.0 / len) } else { Vec3::new(0.0, 1.0, 0.0) }
+                    if len > f64::EPSILON {
+                        d * (1.0 / len)
+                    } else {
+                        Vec3::new(0.0, 1.0, 0.0)
+                    }
                 };
                 self.joints[i] = self.joints[i + 1] + dir * self.lengths[i];
             }
@@ -61,7 +73,11 @@ impl IkChain {
                 let dir = {
                     let d = self.joints[i + 1] - self.joints[i];
                     let len = d.length();
-                    if len > f64::EPSILON { d * (1.0 / len) } else { Vec3::new(0.0, 1.0, 0.0) }
+                    if len > f64::EPSILON {
+                        d * (1.0 / len)
+                    } else {
+                        Vec3::new(0.0, 1.0, 0.0)
+                    }
                 };
                 self.joints[i + 1] = self.joints[i] + dir * self.lengths[i];
             }
@@ -73,7 +89,10 @@ impl IkChain {
     }
 
     pub fn end_effector(&self) -> Vec3 {
-        self.joints.last().copied().unwrap_or(Vec3::new(0.0, 0.0, 0.0))
+        self.joints
+            .last()
+            .copied()
+            .unwrap_or(Vec3::new(0.0, 0.0, 0.0))
     }
 
     pub fn joint_count(&self) -> usize {

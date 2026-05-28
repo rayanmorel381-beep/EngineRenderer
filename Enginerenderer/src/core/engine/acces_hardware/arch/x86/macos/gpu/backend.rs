@@ -17,7 +17,13 @@ fn sysctl_u64(name: &[u8]) -> Option<u64> {
     let mut out: u64 = 0;
     let mut len = core::mem::size_of::<u64>();
     let ret = unsafe {
-        sysctlbyname(name.as_ptr(), &mut out as *mut u64 as *mut u8, &mut len, core::ptr::null(), 0)
+        sysctlbyname(
+            name.as_ptr(),
+            &mut out as *mut u64 as *mut u8,
+            &mut len,
+            core::ptr::null(),
+            0,
+        )
     };
     if ret == 0 { Some(out) } else { None }
 }
@@ -34,7 +40,9 @@ fn release_probe(entry: IoRegistryEntry, props: CFMutableDictionaryRef) {
         return;
     }
 }
-fn enumerate_iokit_accelerators() -> Vec<(IoRegistryEntry, CFMutableDictionaryRef, String)> { Vec::new() }
+fn enumerate_iokit_accelerators() -> Vec<(IoRegistryEntry, CFMutableDictionaryRef, String)> {
+    Vec::new()
+}
 
 const AMD_VENDOR_ID: u16 = 0x1002;
 const INTEL_VENDOR_ID: u16 = 0x8086;
@@ -71,8 +79,14 @@ pub(crate) fn probe() -> Option<GpuProbeResult> {
         let is_discrete = vendor_id == AMD_VENDOR_ID;
         let candidate = GpuProbeResult {
             name: if name.is_empty() {
-                if is_discrete { "AMD Radeon Pro".to_string() } else { "Intel Iris Plus".to_string() }
-            } else { name },
+                if is_discrete {
+                    "AMD Radeon Pro".to_string()
+                } else {
+                    "Intel Iris Plus".to_string()
+                }
+            } else {
+                name
+            },
             vendor_id,
             device_id,
             vram_bytes,
@@ -80,8 +94,13 @@ pub(crate) fn probe() -> Option<GpuProbeResult> {
             compute_units,
             is_discrete,
         };
-        let replace = best.as_ref().map(|b| !b.is_discrete && candidate.is_discrete).unwrap_or(true);
-        if replace { best = Some(candidate); }
+        let replace = best
+            .as_ref()
+            .map(|b| !b.is_discrete && candidate.is_discrete)
+            .unwrap_or(true);
+        if replace {
+            best = Some(candidate);
+        }
         release_probe(entry, props);
     }
     best

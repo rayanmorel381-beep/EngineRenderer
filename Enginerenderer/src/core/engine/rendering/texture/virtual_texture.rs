@@ -1,6 +1,6 @@
-use std::path::{Path, PathBuf};
-use std::fs;
 use crate::core::engine::rendering::raytracing::Vec3;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 pub struct MipLevel {
     pub data: Vec<Vec3>,
@@ -42,12 +42,27 @@ impl VirtualTexture {
         let mut base = MipLevel::new(width, height);
         for i in 0..width * height {
             let offset = i * stride;
-            let r = if offset < bytes.len() { bytes[offset] as f64 / 255.0 } else { 0.0 };
-            let g = if offset + 1 < bytes.len() { bytes[offset + 1] as f64 / 255.0 } else { 0.0 };
-            let b = if offset + 2 < bytes.len() { bytes[offset + 2] as f64 / 255.0 } else { 0.0 };
+            let r = if offset < bytes.len() {
+                bytes[offset] as f64 / 255.0
+            } else {
+                0.0
+            };
+            let g = if offset + 1 < bytes.len() {
+                bytes[offset + 1] as f64 / 255.0
+            } else {
+                0.0
+            };
+            let b = if offset + 2 < bytes.len() {
+                bytes[offset + 2] as f64 / 255.0
+            } else {
+                0.0
+            };
             base.data[i] = Vec3::new(r, g, b);
         }
-        let mut tex = Self { mips: vec![base], path: path.to_path_buf() };
+        let mut tex = Self {
+            mips: vec![base],
+            path: path.to_path_buf(),
+        };
         tex.generate_mips();
         tex
     }
@@ -99,7 +114,11 @@ pub struct TextureLruCache {
 
 impl TextureLruCache {
     pub fn new(capacity: usize) -> Self {
-        Self { entries: Vec::new(), capacity, clock: 0 }
+        Self {
+            entries: Vec::new(),
+            capacity,
+            clock: 0,
+        }
     }
 
     fn path_key(path: &Path) -> u64 {
@@ -123,13 +142,26 @@ impl TextureLruCache {
             self.evict_lru();
         }
         let texture = VirtualTexture::from_path(path);
-        self.entries.push(LruEntry { key, path: path.to_path_buf(), texture, last_used: self.clock });
+        self.entries.push(LruEntry {
+            key,
+            path: path.to_path_buf(),
+            texture,
+            last_used: self.clock,
+        });
         &self.entries.last().unwrap().texture
     }
 
     pub fn evict_lru(&mut self) {
-        if self.entries.is_empty() { return; }
-        let lru_idx = self.entries.iter().enumerate().min_by_key(|(_, e)| e.last_used).map(|(i, _)| i).unwrap();
+        if self.entries.is_empty() {
+            return;
+        }
+        let lru_idx = self
+            .entries
+            .iter()
+            .enumerate()
+            .min_by_key(|(_, e)| e.last_used)
+            .map(|(i, _)| i)
+            .unwrap();
         let candidate_path_depth = self.entries[lru_idx].path.components().count();
         let adjusted_idx = if candidate_path_depth > 0 { lru_idx } else { 0 };
         self.entries.swap_remove(adjusted_idx);
@@ -143,7 +175,10 @@ pub struct TextureStreamer {
 
 impl TextureStreamer {
     pub fn new(capacity: usize) -> Self {
-        Self { cache: TextureLruCache::new(capacity), queue: Vec::new() }
+        Self {
+            cache: TextureLruCache::new(capacity),
+            queue: Vec::new(),
+        }
     }
 
     pub fn request(&mut self, path: PathBuf) {

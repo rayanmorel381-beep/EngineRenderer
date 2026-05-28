@@ -4,17 +4,26 @@
 //!
 //! Compiles to a stub on non-Linux targets.
 
-#[cfg(not(all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64"))))]
+#[cfg(not(all(
+    target_os = "linux",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+)))]
 fn main() {
     eprintln!("desktop_gpu bench is only available on linux/x86_64 or linux/aarch64");
 }
 
-#[cfg(all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64")))]
+#[cfg(all(
+    target_os = "linux",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 fn main() {
     desktop::run();
 }
 
-#[cfg(all(target_os = "linux", any(target_arch = "x86_64", target_arch = "aarch64")))]
+#[cfg(all(
+    target_os = "linux",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 mod desktop {
     use core::ffi::{c_char, c_uint, c_void};
     use std::hint::black_box;
@@ -44,12 +53,10 @@ mod desktop {
     type GlGetString = unsafe extern "C" fn(c_uint) -> *const c_char;
     type GlFinish = unsafe extern "C" fn();
     type GlCreateShader = unsafe extern "C" fn(c_uint) -> c_uint;
-    type GlShaderSource =
-        unsafe extern "C" fn(c_uint, i32, *const *const c_char, *const i32);
+    type GlShaderSource = unsafe extern "C" fn(c_uint, i32, *const *const c_char, *const i32);
     type GlCompileShader = unsafe extern "C" fn(c_uint);
     type GlGetShaderiv = unsafe extern "C" fn(c_uint, c_uint, *mut i32);
-    type GlGetShaderInfoLog =
-        unsafe extern "C" fn(c_uint, i32, *mut i32, *mut c_char);
+    type GlGetShaderInfoLog = unsafe extern "C" fn(c_uint, i32, *mut i32, *mut c_char);
     type GlCreateProgram = unsafe extern "C" fn() -> c_uint;
     type GlAttachShader = unsafe extern "C" fn(c_uint, c_uint);
     type GlLinkProgram = unsafe extern "C" fn(c_uint);
@@ -66,7 +73,10 @@ mod desktop {
     type GlDeleteShader = unsafe extern "C" fn(c_uint);
     type GlGetBufferSubData = unsafe extern "C" fn(c_uint, isize, isize, *mut c_void);
 
-    unsafe fn load<T: Copy>(ctx: &enginerenderer::api::display::DesktopOffscreenContext, name: &[u8]) -> T {
+    unsafe fn load<T: Copy>(
+        ctx: &enginerenderer::api::display::DesktopOffscreenContext,
+        name: &[u8],
+    ) -> T {
         let p = ctx.gl_get_proc(name);
         assert!(
             !p.is_null(),
@@ -171,13 +181,11 @@ mod desktop {
     ) -> Option<ComputeProgram> {
         let gl_create_shader: GlCreateShader = unsafe { load(ctx, b"glCreateShader\0") };
         let gl_shader_source: GlShaderSource = unsafe { load(ctx, b"glShaderSource\0") };
-        let gl_compile_shader: GlCompileShader =
-            unsafe { load(ctx, b"glCompileShader\0") };
+        let gl_compile_shader: GlCompileShader = unsafe { load(ctx, b"glCompileShader\0") };
         let gl_get_shader_iv: GlGetShaderiv = unsafe { load(ctx, b"glGetShaderiv\0") };
         let gl_get_shader_info_log: GlGetShaderInfoLog =
             unsafe { load(ctx, b"glGetShaderInfoLog\0") };
-        let gl_create_program: GlCreateProgram =
-            unsafe { load(ctx, b"glCreateProgram\0") };
+        let gl_create_program: GlCreateProgram = unsafe { load(ctx, b"glCreateProgram\0") };
         let gl_attach_shader: GlAttachShader = unsafe { load(ctx, b"glAttachShader\0") };
         let gl_link_program: GlLinkProgram = unsafe { load(ctx, b"glLinkProgram\0") };
         let gl_get_program_iv: GlGetProgramiv = unsafe { load(ctx, b"glGetProgramiv\0") };
@@ -186,8 +194,7 @@ mod desktop {
         let gl_bind_buffer: GlBindBuffer = unsafe { load(ctx, b"glBindBuffer\0") };
         let gl_buffer_data: GlBufferData = unsafe { load(ctx, b"glBufferData\0") };
         let gl_bind_buffer_base: GlBindBufferBase = unsafe { load(ctx, b"glBindBufferBase\0") };
-        let gl_dispatch_compute: GlDispatchCompute =
-            unsafe { load(ctx, b"glDispatchCompute\0") };
+        let gl_dispatch_compute: GlDispatchCompute = unsafe { load(ctx, b"glDispatchCompute\0") };
         let gl_memory_barrier: GlMemoryBarrier = unsafe { load(ctx, b"glMemoryBarrier\0") };
         let gl_finish: GlFinish = unsafe { load(ctx, b"glFinish\0") };
         let gl_delete_buffers: GlDeleteBuffers = unsafe { load(ctx, b"glDeleteBuffers\0") };
@@ -331,7 +338,9 @@ mod desktop {
             );
         }
         if all_ok {
-            println!("  >> GPU EXECUTION CONFIRMED: SSBO contains values transformed by the compute shader running on the GPU.");
+            println!(
+                "  >> GPU EXECUTION CONFIRMED: SSBO contains values transformed by the compute shader running on the GPU."
+            );
         } else {
             println!("  >> GPU EXECUTION FAILED: SSBO does not match expected values.");
         }

@@ -1,6 +1,6 @@
-use crate::core::engine::rendering::raytracing::Vec3;
-use crate::core::engine::rendering::framebuffer::FrameBuffer;
 use super::blur::{gaussian_weights, horizontal_blur, vertical_blur};
+use crate::core::engine::rendering::framebuffer::FrameBuffer;
+use crate::core::engine::rendering::raytracing::Vec3;
 
 pub struct SvgfDenoiser {
     pub history_color: Vec<Vec3>,
@@ -89,8 +89,16 @@ impl SvgfDenoiser {
                 }
 
                 let c00 = self.history_color[fy * w + fx];
-                let c10 = if fx + 1 < w { self.history_color[fy * w + fx + 1] } else { c00 };
-                let c01 = if fy + 1 < h { self.history_color[(fy + 1) * w + fx] } else { c00 };
+                let c10 = if fx + 1 < w {
+                    self.history_color[fy * w + fx + 1]
+                } else {
+                    c00
+                };
+                let c01 = if fy + 1 < h {
+                    self.history_color[(fy + 1) * w + fx]
+                } else {
+                    c00
+                };
                 let c11 = if fx + 1 < w && fy + 1 < h {
                     self.history_color[(fy + 1) * w + fx + 1]
                 } else {
@@ -161,7 +169,11 @@ impl SvgfDenoiser {
                         sum_w += w;
                     }
                 }
-                out[idx] = if sum_w > 1e-9 { sum_c * (1.0 / sum_w) } else { c_c };
+                out[idx] = if sum_w > 1e-9 {
+                    sum_c * (1.0 / sum_w)
+                } else {
+                    c_c
+                };
             }
         }
         out
@@ -180,8 +192,8 @@ impl SvgfDenoiser {
             let lum = Self::luminance(fb.color[idx]);
             let cur_m = [lum, lum * lum];
             if valid[idx] {
-                integrated[idx] = reprojected[idx] * (1.0 - self.alpha_color)
-                    + fb.color[idx] * self.alpha_color;
+                integrated[idx] =
+                    reprojected[idx] * (1.0 - self.alpha_color) + fb.color[idx] * self.alpha_color;
                 int_moments[idx] = [
                     rep_moments[idx][0] * (1.0 - self.alpha_moments)
                         + cur_m[0] * self.alpha_moments,
@@ -209,8 +221,15 @@ impl SvgfDenoiser {
 
         let mut filtered = integrated.clone();
         for i in 0..self.atrous_iterations {
-            filtered =
-                Self::atrous_pass(&filtered, input.depth, input.normals, &filtered_var, w, h, 1 << i);
+            filtered = Self::atrous_pass(
+                &filtered,
+                input.depth,
+                input.normals,
+                &filtered_var,
+                w,
+                h,
+                1 << i,
+            );
         }
 
         for (idx, pixel) in fb.color.iter_mut().enumerate() {

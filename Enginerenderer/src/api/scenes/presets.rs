@@ -56,16 +56,12 @@ pub fn studio(eye: [f64; 3], target: [f64; 3]) -> SceneBuilder {
 
 /// Returns a bright high-key studio variant.
 pub fn studio_high_key(eye: [f64; 3], target: [f64; 3]) -> SceneBuilder {
-    studio(eye, target)
-        .sun_intensity(2.0)
-        .exposure(1.6)
+    studio(eye, target).sun_intensity(2.0).exposure(1.6)
 }
 
 /// Returns a darker low-key studio variant.
 pub fn studio_low_key(eye: [f64; 3], target: [f64; 3]) -> SceneBuilder {
-    studio(eye, target)
-        .sun_intensity(0.6)
-        .exposure(0.9)
+    studio(eye, target).sun_intensity(0.6).exposure(0.9)
 }
 
 // ---------------------------------------------------------------------------
@@ -130,7 +126,11 @@ pub fn volumetric(
         anisotropy,
         height_falloff,
         color: crate::core::engine::rendering::raytracing::Vec3::new(color[0], color[1], color[2]),
-        emission: crate::core::engine::rendering::raytracing::Vec3::new(emission[0], emission[1], emission[2]),
+        emission: crate::core::engine::rendering::raytracing::Vec3::new(
+            emission[0],
+            emission[1],
+            emission[2],
+        ),
         absorption: 0.0,
         noise_scale: 1.0,
         noise_octaves: 4,
@@ -166,11 +166,7 @@ pub fn deep_space() -> SceneBuilder {
 }
 
 /// Returns a nebula-themed volumetric preset.
-pub fn nebula(
-    density: f64,
-    color: [f64; 3],
-    emission: [f64; 3],
-) -> SceneBuilder {
+pub fn nebula(density: f64, color: [f64; 3], emission: [f64; 3]) -> SceneBuilder {
     volumetric(density, 0.42, 0.14, color, emission)
         .sky([0.015, 0.020, 0.050], [0.001, 0.001, 0.006])
         .exposure(1.45)
@@ -193,15 +189,15 @@ pub fn test_single_sphere() -> SceneBuilder {
 }
 
 /// Arranges materials as a side-by-side sphere lineup.
-pub fn material_lineup(materials: Vec<crate::core::engine::rendering::raytracing::Material>, spacing: f64) -> SceneBuilder {
+pub fn material_lineup(
+    materials: Vec<crate::core::engine::rendering::raytracing::Material>,
+    spacing: f64,
+) -> SceneBuilder {
     use crate::core::engine::rendering::raytracing::Vec3;
 
     let count = materials.len();
     let total_width = (count as f64 - 1.0) * spacing;
-    let mut builder = studio(
-        [0.0, 2.0, total_width * 0.6 + 4.0],
-        [0.0, 0.0, 0.0],
-    );
+    let mut builder = studio([0.0, 2.0, total_width * 0.6 + 4.0], [0.0, 0.0, 0.0]);
     for (i, mat) in materials.into_iter().enumerate() {
         let x = -total_width / 2.0 + i as f64 * spacing;
         builder = builder.add_sphere(Vec3::new(x, 0.0, 0.0), 0.8, mat);

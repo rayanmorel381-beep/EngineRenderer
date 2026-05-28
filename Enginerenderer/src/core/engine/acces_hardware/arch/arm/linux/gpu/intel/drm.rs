@@ -84,20 +84,16 @@ struct DrmI915GemWait {
 
 pub(crate) fn probe_i915_telemetry(card: &str) -> (u32, u32, u32, i32) {
     let base = format!("/sys/class/drm/{}/device", card);
-    let eu_count = read_sysfs_u64(&format!("{}/tile0/gt0/addr_range", base))
-        .unwrap_or(0) as u32;
+    let eu_count = read_sysfs_u64(&format!("{}/tile0/gt0/addr_range", base)).unwrap_or(0) as u32;
     let temp = fs::read_dir(format!("{}/hwmon", base))
         .ok()
         .and_then(|mut dir| dir.next())
         .and_then(|entry| entry.ok())
-        .and_then(|entry| {
-            read_sysfs_i32(entry.path().join("temp1_input").to_str()?)
-        })
+        .and_then(|entry| read_sysfs_i32(entry.path().join("temp1_input").to_str()?))
         .map(|milli| milli / 1000)
         .unwrap_or(0);
-    let rps_cur = read_sysfs_u64(
-        &format!("/sys/class/drm/{}/gt/gt0/rps_cur_freq_mhz", card),
-    ).unwrap_or(0) as u32;
+    let rps_cur = read_sysfs_u64(&format!("/sys/class/drm/{}/gt/gt0/rps_cur_freq_mhz", card))
+        .unwrap_or(0) as u32;
     (eu_count, 1, rps_cur, temp)
 }
 
@@ -112,10 +108,19 @@ pub(crate) fn drm_i915_alloc_gem(fd: RawFd, size_bytes: u64) -> Option<GemBuffer
         _pad: 0,
     };
     let ret = unsafe {
-        raw_ioctl(fd, DRM_IOCTL_I915_GEM_CREATE, core::ptr::addr_of_mut!(args).cast())
+        raw_ioctl(
+            fd,
+            DRM_IOCTL_I915_GEM_CREATE,
+            core::ptr::addr_of_mut!(args).cast(),
+        )
     };
     if ret == 0 && args.handle != 0 {
-        Some(GemBuffer { fd, handle: args.handle, size: aligned, mmap_offset: 0 })
+        Some(GemBuffer {
+            fd,
+            handle: args.handle,
+            size: aligned,
+            mmap_offset: 0,
+        })
     } else {
         None
     }
@@ -128,13 +133,13 @@ pub(crate) fn drm_i915_gem_mmap_gtt(fd: RawFd, handle: u32) -> Option<u64> {
         offset: 0,
     };
     let ret = unsafe {
-        raw_ioctl(fd, DRM_IOCTL_I915_GEM_MMAP_GTT, core::ptr::addr_of_mut!(args).cast())
+        raw_ioctl(
+            fd,
+            DRM_IOCTL_I915_GEM_MMAP_GTT,
+            core::ptr::addr_of_mut!(args).cast(),
+        )
     };
-    if ret == 0 {
-        Some(args.offset)
-    } else {
-        None
-    }
+    if ret == 0 { Some(args.offset) } else { None }
 }
 
 pub(crate) fn drm_i915_gem_wait(fd: RawFd, handle: u32, timeout_ns: i64) -> bool {
@@ -144,12 +149,20 @@ pub(crate) fn drm_i915_gem_wait(fd: RawFd, handle: u32, timeout_ns: i64) -> bool
         timeout_ns,
     };
     let ret = unsafe {
-        raw_ioctl(fd, DRM_IOCTL_I915_GEM_WAIT, core::ptr::addr_of_mut!(args).cast())
+        raw_ioctl(
+            fd,
+            DRM_IOCTL_I915_GEM_WAIT,
+            core::ptr::addr_of_mut!(args).cast(),
+        )
     };
     ret == 0
 }
 
-pub(crate) fn submit_i915_execbuf(fd: RawFd, gem_handle: u32, batch: &[u32]) -> Result<i64, &'static str> {
+pub(crate) fn submit_i915_execbuf(
+    fd: RawFd,
+    gem_handle: u32,
+    batch: &[u32],
+) -> Result<i64, &'static str> {
     let exec_obj = DrmI915GemExecObject2 {
         handle: gem_handle,
         relocation_count: 0,
@@ -174,7 +187,11 @@ pub(crate) fn submit_i915_execbuf(fd: RawFd, gem_handle: u32, batch: &[u32]) -> 
         rsvd2: 0,
     };
     let ret = unsafe {
-        raw_ioctl(fd, DRM_IOCTL_I915_GEM_EXECBUF2, core::ptr::addr_of_mut!(execbuf).cast())
+        raw_ioctl(
+            fd,
+            DRM_IOCTL_I915_GEM_EXECBUF2,
+            core::ptr::addr_of_mut!(execbuf).cast(),
+        )
     };
     if ret == 0 {
         crate::runtime_log!("gpu: i915 execbuffer2 submitted - {} dwords", batch.len());

@@ -11,7 +11,9 @@ pub struct EventLog {
 impl EventLog {
     /// Creates an empty event log.
     pub fn new() -> Self {
-        Self { snapshots: Vec::new() }
+        Self {
+            snapshots: Vec::new(),
+        }
     }
 
     /// Appends an event summary snapshot.

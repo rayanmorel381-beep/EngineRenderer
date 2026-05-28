@@ -35,7 +35,10 @@ fn detect_amd_ccx_topology() -> Option<u8> {
     let cpuinfo = std::fs::read_to_string("/proc/cpuinfo").ok()?;
     for line in cpuinfo.lines() {
         if line.starts_with("physical id")
-            && let Some(val) = line.split(':').nth(1).and_then(|v| v.trim().parse::<u32>().ok())
+            && let Some(val) = line
+                .split(':')
+                .nth(1)
+                .and_then(|v| v.trim().parse::<u32>().ok())
             && last_physical_id != Some(val)
         {
             last_physical_id = Some(val);

@@ -1,14 +1,15 @@
 use crate::core::engine::rendering::{
-    loader::content_loader::ContentLoader,
-    environment::procedural::ProceduralEnvironment,
-    loader::glb_loader::GlbLoader,
-    materials::material::MaterialLibrary,
-    mesh::{asset::MeshAsset, operations::{compute_tangents, recalculate_normals, subdivide}},
-    loader::obj_loader::ObjLoader,
-    raytracing::{
-        AreaLight, Camera, DirectionalLight, Material, Scene, Sphere, Vec3,
-    },
     effects::volumetric_effects::medium::VolumetricMedium,
+    environment::procedural::ProceduralEnvironment,
+    loader::content_loader::ContentLoader,
+    loader::glb_loader::GlbLoader,
+    loader::obj_loader::ObjLoader,
+    materials::material::MaterialLibrary,
+    mesh::{
+        asset::MeshAsset,
+        operations::{compute_tangents, recalculate_normals, subdivide},
+    },
+    raytracing::{AreaLight, Camera, DirectionalLight, Material, Scene, Sphere, Vec3},
 };
 use std::sync::OnceLock;
 
@@ -16,7 +17,7 @@ use super::{
     celestial::CelestialBodies,
     graph::SceneGraph,
     objects::{append_car, append_house, append_tree},
-    primitives::{append_box, append_ring, RingSpec},
+    primitives::{RingSpec, append_box, append_ring},
     world::{append_celestial_panorama, append_showcase_world},
 };
 
@@ -115,10 +116,11 @@ impl EngineScene {
         scene.sun.color = environment.sun_color;
         scene.sun.intensity = environment.sun_intensity * (1.0 + luminous_nodes * 0.03);
         scene.sun.angular_radius = environment.sun_angular_radius;
-        scene.exposure = environment.exposure * resource_manager.surface_detail_scale() / geometric_scale.powf(0.08);
-        scene.volume = scene
-            .volume
-            .with_density_multiplier(0.92 + luminous_nodes * 0.04 + resource_manager.surface_detail_scale() * 0.06);
+        scene.exposure = environment.exposure * resource_manager.surface_detail_scale()
+            / geometric_scale.powf(0.08);
+        scene.volume = scene.volume.with_density_multiplier(
+            0.92 + luminous_nodes * 0.04 + resource_manager.surface_detail_scale() * 0.06,
+        );
         scene.hdri = Some(ProceduralEnvironment::cinematic_space());
         scene.solar_elevation = environment.solar_elevation;
 
@@ -184,9 +186,14 @@ impl EngineScene {
         scene.sun.intensity *= 1.12;
         scene.exposure *= 1.04 + (scene.triangles.len() as f64).ln().max(0.0) * 0.010;
 
-        let camera = build_showcase_camera(camera_manager, &graph, showcase_anchor, aspect_ratio, time);
+        let camera =
+            build_showcase_camera(camera_manager, &graph, showcase_anchor, aspect_ratio, time);
 
-        Self { scene, camera, graph }
+        Self {
+            scene,
+            camera,
+            graph,
+        }
     }
 
     /// Builds the realtime camera corresponding to the current graph and time.
@@ -257,11 +264,8 @@ fn cached_showcase_meshes(refined: bool, proxy: bool) -> &'static [MeshAsset] {
 }
 
 fn showcase_proxy_mesh(mesh: &MeshAsset) -> MeshAsset {
-    let mut proxy = MeshAsset::procedural_asteroid(
-        &mesh.name,
-        mesh.descriptor.bounding_radius.max(0.12),
-        1,
-    );
+    let mut proxy =
+        MeshAsset::procedural_asteroid(&mesh.name, mesh.descriptor.bounding_radius.max(0.12), 1);
     proxy.preferred_material = mesh.preferred_material;
     proxy
 }
@@ -302,9 +306,8 @@ fn build_showcase_camera(
     aspect_ratio: f64,
     time: f64,
 ) -> Camera {
-    let hero_target = graph.focus_point() * 0.58
-        + showcase_anchor * 0.42
-        + Vec3::new(0.6, 0.9, -0.25);
+    let hero_target =
+        graph.focus_point() * 0.58 + showcase_anchor * 0.42 + Vec3::new(0.6, 0.9, -0.25);
     let scene_scale = graph.scene_radius().max(1.0);
     let orbit = (camera_manager.distance_to_focus() * 0.72)
         .max(scene_scale * 1.45)
@@ -376,7 +379,12 @@ fn build_car_showcase() -> ShowcaseShot {
         Vec3::new(3.8, 0.02, 1.1),
         MaterialLibrary::asphalt(),
     );
-    append_car(&mut scene, Vec3::new(0.0, 0.0, 0.0), 1.4, Vec3::new(0.86, 0.14, 0.10));
+    append_car(
+        &mut scene,
+        Vec3::new(0.0, 0.0, 0.0),
+        1.4,
+        Vec3::new(0.86, 0.14, 0.10),
+    );
     append_tree(&mut scene, Vec3::new(-2.6, 0.0, -1.4), 0.9);
     append_tree(&mut scene, Vec3::new(2.9, 0.0, -1.7), 1.0);
     let camera = Camera::look_at(
@@ -387,7 +395,11 @@ fn build_car_showcase() -> ShowcaseShot {
         16.0 / 9.0,
     )
     .with_physical_lens(0.022, 0.012, Vec3::ZERO);
-    ShowcaseShot { name: "car", scene, camera }
+    ShowcaseShot {
+        name: "car",
+        scene,
+        camera,
+    }
 }
 
 fn build_tree_showcase() -> ShowcaseShot {
@@ -413,7 +425,11 @@ fn build_tree_showcase() -> ShowcaseShot {
         16.0 / 9.0,
     )
     .with_physical_lens(0.020, 0.010, Vec3::ZERO);
-    ShowcaseShot { name: "tree", scene, camera }
+    ShowcaseShot {
+        name: "tree",
+        scene,
+        camera,
+    }
 }
 
 fn build_house_showcase() -> ShowcaseShot {
@@ -430,7 +446,12 @@ fn build_house_showcase() -> ShowcaseShot {
         MaterialLibrary::architectural_plaster(),
     );
     append_house(&mut scene, Vec3::new(0.0, 0.0, 0.0), 1.4);
-    append_car(&mut scene, Vec3::new(-1.8, 0.0, 1.2), 0.8, Vec3::new(0.18, 0.32, 0.80));
+    append_car(
+        &mut scene,
+        Vec3::new(-1.8, 0.0, 1.2),
+        0.8,
+        Vec3::new(0.18, 0.32, 0.80),
+    );
     append_tree(&mut scene, Vec3::new(2.6, 0.0, -0.8), 1.0);
     let camera = Camera::look_at(
         Vec3::new(-3.4, 2.1, 5.8),
@@ -440,7 +461,11 @@ fn build_house_showcase() -> ShowcaseShot {
         16.0 / 9.0,
     )
     .with_physical_lens(0.022, 0.014, Vec3::ZERO);
-    ShowcaseShot { name: "house", scene, camera }
+    ShowcaseShot {
+        name: "house",
+        scene,
+        camera,
+    }
 }
 
 fn build_world_showcase() -> ShowcaseShot {
@@ -466,7 +491,11 @@ fn build_world_showcase() -> ShowcaseShot {
         16.0 / 9.0,
     )
     .with_physical_lens(0.020, 0.016, Vec3::ZERO);
-    ShowcaseShot { name: "world", scene, camera }
+    ShowcaseShot {
+        name: "world",
+        scene,
+        camera,
+    }
 }
 
 fn build_planet_showcase() -> ShowcaseShot {
@@ -488,17 +517,20 @@ fn build_planet_showcase() -> ShowcaseShot {
         radius: 0.42,
         material: MaterialLibrary::metallic_moon(),
     });
-    append_ring(&mut scene.triangles, RingSpec {
-        center,
-        inner_radius: 2.6,
-        outer_radius: 3.8,
-        axis_u: Vec3::new(1.0, 0.0, 0.0),
-        axis_v: Vec3::new(0.0, 0.22, 1.0).normalize(),
-        segments: 28,
-        material: Material::new(Vec3::new(0.70, 0.66, 0.54), 0.76, 0.03, 0.05, Vec3::ZERO)
-            .with_layers(0.94, 0.02, Vec3::new(0.04, 0.04, 0.03))
-            .with_optics(0.08, 0.04, 0.02),
-    });
+    append_ring(
+        &mut scene.triangles,
+        RingSpec {
+            center,
+            inner_radius: 2.6,
+            outer_radius: 3.8,
+            axis_u: Vec3::new(1.0, 0.0, 0.0),
+            axis_v: Vec3::new(0.0, 0.22, 1.0).normalize(),
+            segments: 28,
+            material: Material::new(Vec3::new(0.70, 0.66, 0.54), 0.76, 0.03, 0.05, Vec3::ZERO)
+                .with_layers(0.94, 0.02, Vec3::new(0.04, 0.04, 0.03))
+                .with_optics(0.08, 0.04, 0.02),
+        },
+    );
     let camera = Camera::look_at(
         Vec3::new(-5.0, 2.0, 5.8),
         Vec3::new(0.0, 0.2, 0.0),
@@ -507,7 +539,11 @@ fn build_planet_showcase() -> ShowcaseShot {
         16.0 / 9.0,
     )
     .with_physical_lens(0.018, 0.020, Vec3::ZERO);
-    ShowcaseShot { name: "planet", scene, camera }
+    ShowcaseShot {
+        name: "planet",
+        scene,
+        camera,
+    }
 }
 
 fn build_sun_showcase() -> ShowcaseShot {
@@ -538,7 +574,11 @@ fn build_sun_showcase() -> ShowcaseShot {
         16.0 / 9.0,
     )
     .with_physical_lens(0.016, 0.018, Vec3::ZERO);
-    ShowcaseShot { name: "sun", scene, camera }
+    ShowcaseShot {
+        name: "sun",
+        scene,
+        camera,
+    }
 }
 
 fn build_black_hole_showcase() -> ShowcaseShot {
@@ -555,15 +595,18 @@ fn build_black_hole_showcase() -> ShowcaseShot {
         radius: 2.1,
         material: MaterialLibrary::event_horizon(),
     });
-    append_ring(&mut scene.triangles, RingSpec {
-        center,
-        inner_radius: 2.6,
-        outer_radius: 4.6,
-        axis_u: Vec3::new(1.0, 0.0, 0.0),
-        axis_v: Vec3::new(0.0, 0.34, 1.0).normalize(),
-        segments: 36,
-        material: MaterialLibrary::accretion_disk(),
-    });
+    append_ring(
+        &mut scene.triangles,
+        RingSpec {
+            center,
+            inner_radius: 2.6,
+            outer_radius: 4.6,
+            axis_u: Vec3::new(1.0, 0.0, 0.0),
+            axis_v: Vec3::new(0.0, 0.34, 1.0).normalize(),
+            segments: 36,
+            material: MaterialLibrary::accretion_disk(),
+        },
+    );
     scene.area_lights.push(AreaLight {
         position: Vec3::new(-1.4, 0.5, 1.3),
         u: Vec3::new(1.3, 0.0, 0.0),
@@ -579,5 +622,9 @@ fn build_black_hole_showcase() -> ShowcaseShot {
         16.0 / 9.0,
     )
     .with_physical_lens(0.018, 0.020, Vec3::ZERO);
-    ShowcaseShot { name: "black_hole", scene, camera }
+    ShowcaseShot {
+        name: "black_hole",
+        scene,
+        camera,
+    }
 }

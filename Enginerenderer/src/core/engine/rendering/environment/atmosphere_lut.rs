@@ -1,5 +1,5 @@
-use crate::core::engine::rendering::raytracing::Vec3;
 use super::scattering::AtmosphereParams;
+use crate::core::engine::rendering::raytracing::Vec3;
 
 #[derive(Debug, Clone)]
 pub struct TransmittanceLut {
@@ -13,13 +13,18 @@ impl TransmittanceLut {
         let mut data = vec![Vec3::ZERO; width * height];
         for j in 0..height {
             for i in 0..width {
-                let altitude = params.atmosphere_height * (j as f64 / height.saturating_sub(1).max(1) as f64);
+                let altitude =
+                    params.atmosphere_height * (j as f64 / height.saturating_sub(1).max(1) as f64);
                 let cos_theta = (i as f64 / width.saturating_sub(1).max(1) as f64) * 2.0 - 1.0;
                 let t = integrate_transmittance(params, altitude, cos_theta, 64);
                 data[j * width + i] = t;
             }
         }
-        Self { data, width, height }
+        Self {
+            data,
+            width,
+            height,
+        }
     }
 
     pub fn sample(&self, altitude: f64, cos_theta: f64) -> Vec3 {
@@ -39,12 +44,18 @@ pub struct MultiScatterLut {
 }
 
 impl MultiScatterLut {
-    pub fn precompute(params: &AtmosphereParams, r_size: usize, mu_s_size: usize, transmittance: &TransmittanceLut) -> Self {
+    pub fn precompute(
+        params: &AtmosphereParams,
+        r_size: usize,
+        mu_s_size: usize,
+        transmittance: &TransmittanceLut,
+    ) -> Self {
         let mut data = vec![Vec3::ZERO; r_size * mu_s_size];
         let dirs = 32;
         for j in 0..r_size {
             for i in 0..mu_s_size {
-                let altitude = params.atmosphere_height * (j as f64 / r_size.saturating_sub(1).max(1) as f64);
+                let altitude =
+                    params.atmosphere_height * (j as f64 / r_size.saturating_sub(1).max(1) as f64);
                 let cos_sun = (i as f64 / mu_s_size.saturating_sub(1).max(1) as f64) * 2.0 - 1.0;
                 let sun_dir = Vec3::new((1.0 - cos_sun * cos_sun).sqrt(), cos_sun, 0.0);
                 let mut ms = Vec3::ZERO;
@@ -64,7 +75,11 @@ impl MultiScatterLut {
                 data[j * mu_s_size + i] = ms;
             }
         }
-        Self { data, r_size, mu_s_size }
+        Self {
+            data,
+            r_size,
+            mu_s_size,
+        }
     }
 
     pub fn sample(&self, altitude_frac: f64, cos_sun: f64) -> Vec3 {
@@ -86,7 +101,11 @@ impl AtmosphereLut {
     pub fn precompute(params: AtmosphereParams, r_steps: usize, mu_steps: usize) -> Self {
         let transmittance = TransmittanceLut::precompute(&params, mu_steps, r_steps);
         let multi_scatter = MultiScatterLut::precompute(&params, r_steps, mu_steps, &transmittance);
-        Self { params, transmittance, multi_scatter }
+        Self {
+            params,
+            transmittance,
+            multi_scatter,
+        }
     }
 
     pub fn sample_sky(&self, view_dir: Vec3, sun_dir: Vec3) -> Vec3 {
@@ -94,11 +113,7 @@ impl AtmosphereLut {
         let altitude_frac = view_dir.y.max(0.0);
         let primary = self.params.compute_sky_color(view_dir, sun_dir, 16);
         let ms = self.multi_scatter.sample(altitude_frac, cos_theta);
-        Vec3::new(
-            primary.x + ms.x,
-            primary.y + ms.y,
-            primary.z + ms.z,
-        )
+        Vec3::new(primary.x + ms.x, primary.y + ms.y, primary.z + ms.z)
     }
 
     pub fn aerial_perspective(&self, world_pos: Vec3, camera_pos: Vec3, sun_dir: Vec3) -> Vec3 {
@@ -116,10 +131,21 @@ impl AtmosphereLut {
     }
 }
 
-fn integrate_transmittance(params: &AtmosphereParams, altitude: f64, cos_theta: f64, steps: usize) -> Vec3 {
+fn integrate_transmittance(
+    params: &AtmosphereParams,
+    altitude: f64,
+    cos_theta: f64,
+    steps: usize,
+) -> Vec3 {
     let r = params.planet_radius + altitude;
-    let ray_len = ray_atmosphere_intersect(r, cos_theta, params.planet_radius + params.atmosphere_height);
-    if ray_len <= 0.0 { return Vec3::new(1.0, 1.0, 1.0); }
+    let ray_len = ray_atmosphere_intersect(
+        r,
+        cos_theta,
+        params.planet_radius + params.atmosphere_height,
+    );
+    if ray_len <= 0.0 {
+        return Vec3::new(1.0, 1.0, 1.0);
+    }
 
     let dt = ray_len / steps as f64;
     let mut optical_depth_r = 0.0_f64;
@@ -144,6 +170,8 @@ fn integrate_transmittance(params: &AtmosphereParams, altitude: f64, cos_theta: 
 
 fn ray_atmosphere_intersect(r: f64, cos_theta: f64, r_atm: f64) -> f64 {
     let discriminant = r_atm * r_atm - r * r * (1.0 - cos_theta * cos_theta);
-    if discriminant < 0.0 { return 0.0; }
+    if discriminant < 0.0 {
+        return 0.0;
+    }
     -r * cos_theta + discriminant.sqrt()
 }

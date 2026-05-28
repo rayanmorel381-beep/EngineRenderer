@@ -1,11 +1,15 @@
-use std::{cmp::Ordering, io, io::{Read, Write}, path::Path, thread};
+use std::{
+    cmp::Ordering,
+    io,
+    io::{Read, Write},
+    path::Path,
+    thread,
+};
 
 use super::math::Vec3;
-use super::primitives::{HitRecord, Ray, EPSILON};
+use super::primitives::{EPSILON, HitRecord, Ray};
 use super::scene::Scene;
-use crate::core::engine::rendering::preprocessing::bvh_builder::{
-    Aabb as SahAabb, SahBvhBuilder,
-};
+use crate::core::engine::rendering::preprocessing::bvh_builder::{Aabb as SahAabb, SahBvhBuilder};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Aabb {
@@ -54,7 +58,6 @@ impl Aabb {
 
     #[inline(always)]
     fn hit(&self, ray: &Ray, t_min: f64, t_max: f64) -> bool {
-
         #[cfg(target_arch = "aarch64")]
         {
             unsafe { self.hit_neon(ray, t_min as f32, t_max as f32) }
@@ -66,21 +69,31 @@ impl Aabb {
             let mut t_max = t_max;
             let mut t0 = (self.min.x - ray.origin.x) * inv.x;
             let mut t1 = (self.max.x - ray.origin.x) * inv.x;
-            if inv.x < 0.0 { std::mem::swap(&mut t0, &mut t1); }
+            if inv.x < 0.0 {
+                std::mem::swap(&mut t0, &mut t1);
+            }
             t_min = t_min.max(t0);
             t_max = t_max.min(t1);
-            if t_max <= t_min { return false; }
+            if t_max <= t_min {
+                return false;
+            }
 
             t0 = (self.min.y - ray.origin.y) * inv.y;
             t1 = (self.max.y - ray.origin.y) * inv.y;
-            if inv.y < 0.0 { std::mem::swap(&mut t0, &mut t1); }
+            if inv.y < 0.0 {
+                std::mem::swap(&mut t0, &mut t1);
+            }
             t_min = t_min.max(t0);
             t_max = t_max.min(t1);
-            if t_max <= t_min { return false; }
+            if t_max <= t_min {
+                return false;
+            }
 
             t0 = (self.min.z - ray.origin.z) * inv.z;
             t1 = (self.max.z - ray.origin.z) * inv.z;
-            if inv.z < 0.0 { std::mem::swap(&mut t0, &mut t1); }
+            if inv.z < 0.0 {
+                std::mem::swap(&mut t0, &mut t1);
+            }
             t_min = t_min.max(t0);
             t_max = t_max.min(t1);
 
@@ -179,8 +192,15 @@ pub struct BvhStats {
 
 #[derive(Debug, Clone)]
 pub enum BvhNode {
-    Leaf { bbox: Aabb, primitives: Vec<PrimitiveRef> },
-    Branch { bbox: Aabb, left: Box<BvhNode>, right: Box<BvhNode> },
+    Leaf {
+        bbox: Aabb,
+        primitives: Vec<PrimitiveRef>,
+    },
+    Branch {
+        bbox: Aabb,
+        left: Box<BvhNode>,
+        right: Box<BvhNode>,
+    },
 }
 
 impl BvhNode {
@@ -219,7 +239,13 @@ impl BvhNode {
 
         let sah_bboxes: Vec<SahAabb> = primitives
             .iter()
-            .map(|p| { let b = p.bbox(scene); SahAabb { min: b.min, max: b.max } })
+            .map(|p| {
+                let b = p.bbox(scene);
+                SahAabb {
+                    min: b.min,
+                    max: b.max,
+                }
+            })
             .collect();
         let sah_centroids: Vec<Vec3> = primitives.iter().map(|p| p.center(scene)).collect();
         let sah = SahBvhBuilder::new(16).find_best_split(&sah_bboxes, &sah_centroids);
@@ -247,21 +273,39 @@ impl BvhNode {
 
         let right_prims = primitives.split_off(split_at);
         let next_axis = (split_axis + 1) % 3;
-        let should_parallelize = parallel_depth > 0 && right_prims.len().saturating_add(primitives.len()) >= 2048;
+        let should_parallelize =
+            parallel_depth > 0 && right_prims.len().saturating_add(primitives.len()) >= 2048;
         let (left, right) = if should_parallelize {
             thread::scope(|scope| {
                 let right_prims_fallback = right_prims.clone();
-                let handle = scope.spawn(move || Self::build_recursive(scene, right_prims, next_axis, parallel_depth - 1));
+                let handle = scope.spawn(move || {
+                    Self::build_recursive(scene, right_prims, next_axis, parallel_depth - 1)
+                });
                 let left = Self::build_recursive(scene, primitives, next_axis, parallel_depth - 1);
                 let right = match handle.join() {
                     Ok(right) => right,
-                    Err(_) => Self::build_recursive(scene, right_prims_fallback, next_axis, parallel_depth - 1),
+                    Err(_) => Self::build_recursive(
+                        scene,
+                        right_prims_fallback,
+                        next_axis,
+                        parallel_depth - 1,
+                    ),
                 };
                 (Box::new(left), Box::new(right))
             })
         } else {
-            let left = Box::new(Self::build_recursive(scene, primitives, next_axis, parallel_depth));
-            let right = Box::new(Self::build_recursive(scene, right_prims, next_axis, parallel_depth));
+            let left = Box::new(Self::build_recursive(
+                scene,
+                primitives,
+                next_axis,
+                parallel_depth,
+            ));
+            let right = Box::new(Self::build_recursive(
+                scene,
+                right_prims,
+                next_axis,
+                parallel_depth,
+            ));
             (left, right)
         };
         let bbox = left.bbox().union(right.bbox());
@@ -300,7 +344,13 @@ impl BvhNode {
         }
     }
 
-    pub fn hit_scene(scene: &Scene, ray: &Ray, t_min: f64, t_max: f64, bvh: Option<&Self>) -> Option<HitRecord> {
+    pub fn hit_scene(
+        scene: &Scene,
+        ray: &Ray,
+        t_min: f64,
+        t_max: f64,
+        bvh: Option<&Self>,
+    ) -> Option<HitRecord> {
         if let Some(node) = bvh {
             Self::hit_bvh(scene, ray, t_min, t_max, node)
         } else {
@@ -343,15 +393,25 @@ impl BvhNode {
                             let ld = (left.bbox().center() - ray.origin).length_squared();
                             let rd = (right.bbox().center() - ray.origin).length_squared();
                             if ld <= rd {
-                                stack[ptr] = Some(right); ptr += 1;
-                                stack[ptr] = Some(left); ptr += 1;
+                                stack[ptr] = Some(right);
+                                ptr += 1;
+                                stack[ptr] = Some(left);
+                                ptr += 1;
                             } else {
-                                stack[ptr] = Some(left); ptr += 1;
-                                stack[ptr] = Some(right); ptr += 1;
+                                stack[ptr] = Some(left);
+                                ptr += 1;
+                                stack[ptr] = Some(right);
+                                ptr += 1;
                             }
                         }
-                        (true, false) => { stack[ptr] = Some(left); ptr += 1; }
-                        (false, true) => { stack[ptr] = Some(right); ptr += 1; }
+                        (true, false) => {
+                            stack[ptr] = Some(left);
+                            ptr += 1;
+                        }
+                        (false, true) => {
+                            stack[ptr] = Some(right);
+                            ptr += 1;
+                        }
                         _ => {}
                     }
                 }
@@ -385,7 +445,10 @@ impl BvhNode {
         let mut magic = [0u8; 6];
         file.read_exact(&mut magic)?;
         if &magic != b"ERBVH1" {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid BVH cache header"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid BVH cache header",
+            ));
         }
         Self::read_node(&mut file, scene)
     }
@@ -439,7 +502,10 @@ impl BvhNode {
                         0 if index < scene.objects.len() => PrimitiveRef::Sphere(index),
                         1 if index < scene.triangles.len() => PrimitiveRef::Triangle(index),
                         _ => {
-                            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid BVH primitive index"));
+                            return Err(io::Error::new(
+                                io::ErrorKind::InvalidData,
+                                "invalid BVH primitive index",
+                            ));
                         }
                     };
                     primitives.push(primitive);
@@ -451,7 +517,10 @@ impl BvhNode {
                 let right = Box::new(Self::read_node(reader, scene)?);
                 Ok(Self::Branch { bbox, left, right })
             }
-            _ => Err(io::Error::new(io::ErrorKind::InvalidData, "invalid BVH node tag")),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid BVH node tag",
+            )),
         }
     }
 
@@ -480,8 +549,10 @@ impl BvhNode {
                     }
                 }
                 BvhNode::Branch { left, right, .. } => {
-                    stack[ptr] = Some(left); ptr += 1;
-                    stack[ptr] = Some(right); ptr += 1;
+                    stack[ptr] = Some(left);
+                    ptr += 1;
+                    stack[ptr] = Some(right);
+                    ptr += 1;
                 }
             }
         }

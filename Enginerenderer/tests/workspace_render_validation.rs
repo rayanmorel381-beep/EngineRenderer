@@ -6,9 +6,11 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use enginerenderer::api::engine::diagnostics::{ComputeArch, ComputeOs, ComputeVendor, DiagnosticOverrides, DiagnosticsOptions};
-use enginerenderer::api::engine::rendering::Vec3;
 use enginerenderer::api::EngineApi;
+use enginerenderer::api::engine::diagnostics::{
+    ComputeArch, ComputeOs, ComputeVendor, DiagnosticOverrides, DiagnosticsOptions,
+};
+use enginerenderer::api::engine::rendering::Vec3;
 use enginerenderer::api::types::core::RenderRequest;
 
 fn unique_dir(tag: &str) -> PathBuf {
@@ -26,9 +28,9 @@ fn percentile(sorted: &[u128], p: f64) -> u128 {
 
 fn build_scene_a(api: &EngineApi) -> enginerenderer::api::scenes::builder::SceneBuilder {
     api.scene()
-    .add_sphere_named(Vec3::new(0.0, 0.0, 0.0), 1.2, "plastic-red")
-    .add_sphere_named(Vec3::new(-2.0, 0.3, 1.5), 0.7, "glass")
-    .add_sphere_named(Vec3::new(2.2, -0.2, -1.4), 0.9, "metal-brushed")
+        .add_sphere_named(Vec3::new(0.0, 0.0, 0.0), 1.2, "plastic-red")
+        .add_sphere_named(Vec3::new(-2.0, 0.3, 1.5), 0.7, "glass")
+        .add_sphere_named(Vec3::new(2.2, -0.2, -1.4), 0.9, "metal-brushed")
         .camera_position([6.0, 3.0, 7.0], [0.0, 0.0, 0.0])
         .camera_fov(48.0)
         .auto_frame()
@@ -36,9 +38,9 @@ fn build_scene_a(api: &EngineApi) -> enginerenderer::api::scenes::builder::Scene
 
 fn build_scene_b(api: &EngineApi) -> enginerenderer::api::scenes::builder::SceneBuilder {
     api.scene()
-    .add_sphere_named(Vec3::new(-1.0, 0.0, 0.0), 1.0, "plastic-blue")
-    .add_sphere_named(Vec3::new(1.4, 0.1, 0.5), 0.55, "metal-gold")
-    .add_sphere_named(Vec3::new(0.6, 1.2, -1.0), 0.45, "emissive")
+        .add_sphere_named(Vec3::new(-1.0, 0.0, 0.0), 1.0, "plastic-blue")
+        .add_sphere_named(Vec3::new(1.4, 0.1, 0.5), 0.55, "metal-gold")
+        .add_sphere_named(Vec3::new(0.6, 1.2, -1.0), 0.45, "emissive")
         .camera_position([5.0, 4.0, 6.0], [0.0, 0.2, 0.0])
         .camera_fov(42.0)
         .auto_frame()
@@ -46,9 +48,9 @@ fn build_scene_b(api: &EngineApi) -> enginerenderer::api::scenes::builder::Scene
 
 fn build_scene_c(api: &EngineApi) -> enginerenderer::api::scenes::builder::SceneBuilder {
     api.scene()
-    .add_sphere_named(Vec3::new(-1.8, -0.1, 0.8), 0.8, "plastic-green")
-    .add_sphere_named(Vec3::new(0.0, 0.0, 0.0), 1.25, "metal-silver")
-    .add_sphere_named(Vec3::new(1.7, 0.4, -0.9), 0.65, "glass")
+        .add_sphere_named(Vec3::new(-1.8, -0.1, 0.8), 0.8, "plastic-green")
+        .add_sphere_named(Vec3::new(0.0, 0.0, 0.0), 1.25, "metal-silver")
+        .add_sphere_named(Vec3::new(1.7, 0.4, -0.9), 0.65, "glass")
         .camera_position([7.5, 3.4, 5.5], [0.0, 0.0, 0.0])
         .camera_fov(50.0)
         .auto_frame()
@@ -63,13 +65,17 @@ fn visual_regression_preview_is_deterministic() {
     let request_a = RenderRequest::preview()
         .with_resolution(96, 54)
         .with_output(out_dir.clone(), "visual_a.ppm");
-    let request_b = request_a.clone().with_output(out_dir.clone(), "visual_b.ppm");
+    let request_b = request_a
+        .clone()
+        .with_output(out_dir.clone(), "visual_b.ppm");
 
     let scene_a = build_scene_a(&api);
     let scene_b = build_scene_a(&api);
 
     let result_a = api.render(scene_a, &request_a).expect("render first frame");
-    let result_b = api.render(scene_b, &request_b).expect("render second frame");
+    let result_b = api
+        .render(scene_b, &request_b)
+        .expect("render second frame");
 
     let bytes_a = fs::read(&result_a.output_path).expect("read first frame");
     let bytes_b = fs::read(&result_b.output_path).expect("read second frame");
@@ -107,7 +113,10 @@ fn stress_parallel_preview_renders_complete() {
                     build_scene_c(&api)
                 };
                 if let Err(err) = api.render(scene, &request) {
-                    failures.lock().expect("lock failures").push(err.to_string());
+                    failures
+                        .lock()
+                        .expect("lock failures")
+                        .push(err.to_string());
                 }
             }
         }));
@@ -166,7 +175,10 @@ fn long_run_frame_pacing_campaign_has_controlled_tail() {
 
     assert!(p95 <= p50 * 2.2, "p95 too high: p50={p50:.2} p95={p95:.2}");
     assert!(p99 <= p50 * 3.0, "p99 too high: p50={p50:.2} p99={p99:.2}");
-    assert!(jitter <= mean * 0.95, "jitter too high: mean={mean:.2} jitter={jitter:.2}");
+    assert!(
+        jitter <= mean * 0.95,
+        "jitter too high: mean={mean:.2} jitter={jitter:.2}"
+    );
 
     let _ = fs::remove_dir_all(&out_dir);
 }

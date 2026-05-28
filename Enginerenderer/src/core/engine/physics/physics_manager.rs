@@ -39,7 +39,8 @@ impl PhysicsManager {
             .collect();
 
         let orbital = orbital_stability(self.total_kinetic_energy(), catalog.scene_radius());
-        let momentum_factor = (self.total_momentum() / (1.0 + self.average_orbital_radius())).sqrt();
+        let momentum_factor =
+            (self.total_momentum() / (1.0 + self.average_orbital_radius())).sqrt();
         let gravity_factor = self.net_gravity_measure().ln_1p();
         self.stability_score = (orbital * 0.68
             + (1.0 / (1.0 + momentum_factor)).clamp(0.0, 1.0) * 0.16
@@ -54,7 +55,10 @@ impl PhysicsManager {
 
     /// Returns total momentum magnitude across all bodies.
     pub fn total_momentum(&self) -> f64 {
-        self.bodies.iter().map(RigidBodyState::momentum_magnitude).sum()
+        self.bodies
+            .iter()
+            .map(RigidBodyState::momentum_magnitude)
+            .sum()
     }
 
     /// Returns average orbital radius estimate.
@@ -75,7 +79,9 @@ impl PhysicsManager {
         let mut measure = 0.0;
         for (index, body) in self.bodies.iter().enumerate() {
             for other in self.bodies.iter().skip(index + 1) {
-                measure += gravitational_force(body.mass, other.mass, other.position - body.position).length();
+                measure +=
+                    gravitational_force(body.mass, other.mass, other.position - body.position)
+                        .length();
             }
         }
         measure

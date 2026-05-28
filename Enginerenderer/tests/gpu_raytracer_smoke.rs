@@ -11,8 +11,8 @@
 #![cfg(target_os = "linux")]
 
 use enginerenderer::api::engine::rendering::{
-    gpu_try_new_desktop, DirectionalLight, GpuRenderConfig, Image, Material, RenderCamera,
-    Scene, Sphere, Vec3, VolumetricMedium,
+    DirectionalLight, GpuRenderConfig, Image, Material, RenderCamera, Scene, Sphere, Vec3,
+    VolumetricMedium, gpu_try_new_desktop,
 };
 
 #[test]
@@ -95,7 +95,9 @@ fn gpu_raytracer_renders_three_sphere_scene() {
         denoise: false,
     };
 
-    let fb = tracer.render(&scene, &camera, cfg).expect("GPU render failed");
+    let fb = tracer
+        .render(&scene, &camera, cfg)
+        .expect("GPU render failed");
 
     assert_eq!(fb.width, 64);
     assert_eq!(fb.height, 64);
@@ -125,7 +127,10 @@ fn gpu_raytracer_renders_three_sphere_scene() {
     );
 
     assert_eq!(nan_count, 0, "GPU produced NaN/inf pixels");
-    assert!(mean > 0.01, "image is essentially black, shader did not shade");
+    assert!(
+        mean > 0.01,
+        "image is essentially black, shader did not shade"
+    );
     assert!(
         max_lum - min_lum > 0.05,
         "image has no contrast (min={min_lum}, max={max_lum}), shader produced flat output"

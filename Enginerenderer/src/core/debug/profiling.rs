@@ -1,6 +1,5 @@
-
-use crate::core::scheduler::profiling::FrameSummary;
 use crate::core::debug::runtime::RuntimeAdaptationState;
+use crate::core::scheduler::profiling::FrameSummary;
 
 pub fn format_summary(summary: &FrameSummary) -> String {
     format!(

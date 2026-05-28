@@ -248,8 +248,7 @@ pub fn resolve_contact(a: &mut RigidBody, b: &mut RigidBody, contact: &ContactMa
     }
     let slop = 0.01;
     let correction_pct = 0.2;
-    let correction =
-        contact.normal * ((contact.depth - slop).max(0.0) / sum_inv * correction_pct);
+    let correction = contact.normal * ((contact.depth - slop).max(0.0) / sum_inv * correction_pct);
     if !a.is_static {
         a.position = a.position - correction * a.inv_mass;
     }
@@ -324,7 +323,8 @@ impl Joint {
                 } else {
                     Vec3::new(1.0, 0.0, 0.0)
                 };
-                let correction = perp_norm.cross(*axis).normalize() * ((clamped - angle) * 0.5 * dt);
+                let correction =
+                    perp_norm.cross(*axis).normalize() * ((clamped - angle) * 0.5 * dt);
                 if !bodies[*body_a].is_static {
                     bodies[*body_a].position = bodies[*body_a].position - correction;
                 }
@@ -382,7 +382,9 @@ impl PhysicsWorld {
             body.integrate(dt);
         }
 
-        let cell_size = self.bodies.iter()
+        let cell_size = self
+            .bodies
+            .iter()
             .map(|b| b.collider.aabb_half().length() * 2.0)
             .fold(1.0_f64, |a, b| a.max(b));
         let mut hash = crate::core::simulation::broadphase::SpatialHash::new(cell_size);
@@ -440,7 +442,9 @@ impl PhysicsWorld {
             vehicle.step(dt, gravity);
         }
 
-        let total_fractured: usize = self.fracture_bodies.iter()
+        let total_fractured: usize = self
+            .fracture_bodies
+            .iter()
             .filter(|fb| fb.is_fully_fractured())
             .count();
         if total_fractured > 0 {

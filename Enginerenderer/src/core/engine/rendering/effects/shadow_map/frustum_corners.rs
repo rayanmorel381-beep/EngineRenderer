@@ -1,4 +1,3 @@
-
 use crate::core::engine::rendering::raytracing::{Camera, Vec3};
 
 #[derive(Debug, Clone, Copy)]
@@ -28,13 +27,7 @@ impl FrustumCorners {
         max_r2.sqrt()
     }
 
-    pub fn from_camera(
-        camera: &Camera,
-        fov: f64,
-        aspect: f64,
-        near: f64,
-        far: f64,
-    ) -> Self {
+    pub fn from_camera(camera: &Camera, fov: f64, aspect: f64, near: f64, far: f64) -> Self {
         let forward = camera.direction.normalize();
         let world_up = if forward.y.abs() > 0.999 {
             Vec3::new(1.0, 0.0, 0.0)

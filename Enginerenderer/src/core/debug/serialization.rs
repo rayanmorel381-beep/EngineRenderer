@@ -39,5 +39,4 @@ impl SerializationManager {
             overlay.adaptation.under_budget_streak,
         )
     }
-
 }

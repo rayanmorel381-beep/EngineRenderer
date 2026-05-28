@@ -1,7 +1,7 @@
-use crate::core::engine::scene::graph::SceneGraph;
 use super::hrtf::HrtfProcessor;
-use super::reverb::{ReverbProcessor, RoomConfig};
 use super::mixer::{AudioChannel, AudioMixer};
+use super::reverb::{ReverbProcessor, RoomConfig};
+use crate::core::engine::scene::graph::SceneGraph;
 
 #[derive(Debug, Clone, Copy)]
 pub struct AudioMix {
@@ -38,20 +38,42 @@ impl AudioManager {
         }
     }
 
-    pub fn spatialize(&self, mono: &[f32], azimuth: f64, elevation: f64, sample_rate: u32) -> Vec<[f32; 2]> {
+    pub fn spatialize(
+        &self,
+        mono: &[f32],
+        azimuth: f64,
+        elevation: f64,
+        sample_rate: u32,
+    ) -> Vec<[f32; 2]> {
         let hrtf = HrtfProcessor::new(0.0875, sample_rate);
         hrtf.process(mono, azimuth, elevation)
     }
 
-    pub fn apply_reverb(&self, mono: &[f32], source: [f64; 3], listener: [f64; 3], room_size: f64, sample_rate: u32) -> Vec<[f32; 2]> {
+    pub fn apply_reverb(
+        &self,
+        mono: &[f32],
+        source: [f64; 3],
+        listener: [f64; 3],
+        room_size: f64,
+        sample_rate: u32,
+    ) -> Vec<[f32; 2]> {
         let reverb = ReverbProcessor::new(
-            RoomConfig { width: room_size, height: room_size * 0.6, depth: room_size, absorption: 0.3 },
+            RoomConfig {
+                width: room_size,
+                height: room_size * 0.6,
+                depth: room_size,
+                absorption: 0.3,
+            },
             sample_rate,
         );
         reverb.process(mono, source, listener)
     }
 
-    pub fn mix_sources(&self, sources: Vec<(Vec<f32>, f64, f64)>, sample_rate: u32) -> Vec<[f32; 2]> {
+    pub fn mix_sources(
+        &self,
+        sources: Vec<(Vec<f32>, f64, f64)>,
+        sample_rate: u32,
+    ) -> Vec<[f32; 2]> {
         let mut mixer = AudioMixer::new(sample_rate);
         for (buffer, gain, pan) in sources {
             mixer.add_channel(AudioChannel::new(buffer, gain * self.base_gain, pan));

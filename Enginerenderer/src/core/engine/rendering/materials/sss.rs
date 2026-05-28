@@ -1,5 +1,5 @@
-use crate::core::engine::rendering::raytracing::Vec3;
 use crate::core::engine::rendering::framebuffer::FrameBuffer;
+use crate::core::engine::rendering::raytracing::Vec3;
 
 const DIPOLE_BANDS: usize = 3;
 
@@ -65,8 +65,9 @@ impl SssProfile {
         let c_phi = 0.25 / std::f64::consts::PI;
         let c_e = 0.5 * (1.0 - 2.0 * c_phi / 3.0);
 
-        alpha_prime * (c_phi * (1.0 / r_real + sigma_tr) * f_real / (r_real)
-            - c_e * (1.0 / r_virt + sigma_tr) * f_virt / (r_virt))
+        alpha_prime
+            * (c_phi * (1.0 / r_real + sigma_tr) * f_real / (r_real)
+                - c_e * (1.0 / r_virt + sigma_tr) * f_virt / (r_virt))
     }
 }
 
@@ -78,7 +79,11 @@ pub struct SssPass {
 
 impl SssPass {
     pub fn new(profile: SssProfile, kernel_radius: usize, samples: u32) -> Self {
-        Self { profile, kernel_radius, samples }
+        Self {
+            profile,
+            kernel_radius,
+            samples,
+        }
     }
 
     pub fn apply(&self, fb: &FrameBuffer, normal_fb: &[Vec3], depth_fb: &[f64]) -> FrameBuffer {
@@ -92,7 +97,9 @@ impl SssPass {
             for x in 0..w {
                 let idx = y * w + x;
                 let center_depth = depth_fb[idx];
-                if center_depth >= 1.0 { continue; }
+                if center_depth >= 1.0 {
+                    continue;
+                }
                 let center_normal = normal_fb[idx];
 
                 let mut sum_r = 0.0_f64;
@@ -104,14 +111,21 @@ impl SssPass {
                     for dx in -r..=r {
                         let sx = x as i64 + dx;
                         let sy = y as i64 + dy;
-                        if sx < 0 || sx >= w as i64 || sy < 0 || sy >= h as i64 { continue; }
+                        if sx < 0 || sx >= w as i64 || sy < 0 || sy >= h as i64 {
+                            continue;
+                        }
                         let sidx = sy as usize * w + sx as usize;
                         let sample_depth = depth_fb[sidx];
-                        let depth_diff = ((center_depth - sample_depth) * self.profile.depth_scale).abs();
-                        if depth_diff > 0.1 { continue; }
+                        let depth_diff =
+                            ((center_depth - sample_depth) * self.profile.depth_scale).abs();
+                        if depth_diff > 0.1 {
+                            continue;
+                        }
 
                         let normal_sim = center_normal.dot(normal_fb[sidx]).max(0.0);
-                        if normal_sim < 0.3 { continue; }
+                        if normal_sim < 0.3 {
+                            continue;
+                        }
 
                         let r_sq = (dx * dx + dy * dy) as f64;
 
@@ -130,8 +144,16 @@ impl SssPass {
                     let quality_scale = (self.samples as f64 / 16.0).clamp(0.5, 1.0);
                     let blurred = Vec3::new(
                         sum_r / total_weight.x,
-                        if total_weight.y > 1e-6 { sum_g / total_weight.y } else { fb.color[idx].y },
-                        if total_weight.z > 1e-6 { sum_b / total_weight.z } else { fb.color[idx].z },
+                        if total_weight.y > 1e-6 {
+                            sum_g / total_weight.y
+                        } else {
+                            fb.color[idx].y
+                        },
+                        if total_weight.z > 1e-6 {
+                            sum_b / total_weight.z
+                        } else {
+                            fb.color[idx].z
+                        },
                     );
                     let sss_contrib = Vec3::new(
                         blurred.x * self.profile.albedo.x,

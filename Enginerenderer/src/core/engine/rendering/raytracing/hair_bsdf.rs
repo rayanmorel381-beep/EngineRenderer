@@ -1,5 +1,5 @@
-use std::f64::consts::PI;
 use super::math::Vec3;
+use std::f64::consts::PI;
 
 pub const HAIR_COMPONENTS: usize = 3;
 
@@ -30,15 +30,30 @@ impl Default for HairMaterial {
 
 impl HairMaterial {
     pub fn blonde() -> Self {
-        Self { melanin: 0.05, melanin_redness: 0.4, absorption: Vec3::new(0.014, 0.026, 0.06), ..Self::default() }
+        Self {
+            melanin: 0.05,
+            melanin_redness: 0.4,
+            absorption: Vec3::new(0.014, 0.026, 0.06),
+            ..Self::default()
+        }
     }
 
     pub fn brunette() -> Self {
-        Self { melanin: 0.4, melanin_redness: 0.55, absorption: Vec3::new(0.09, 0.15, 0.30), ..Self::default() }
+        Self {
+            melanin: 0.4,
+            melanin_redness: 0.55,
+            absorption: Vec3::new(0.09, 0.15, 0.30),
+            ..Self::default()
+        }
     }
 
     pub fn black() -> Self {
-        Self { melanin: 1.0, melanin_redness: 0.5, absorption: Vec3::new(0.60, 0.70, 0.85), ..Self::default() }
+        Self {
+            melanin: 1.0,
+            melanin_redness: 0.5,
+            absorption: Vec3::new(0.60, 0.70, 0.85),
+            ..Self::default()
+        }
     }
 
     pub fn effective_absorption(&self) -> Vec3 {
@@ -59,12 +74,7 @@ impl MarschnerBsdf {
         Self { material }
     }
 
-    pub fn evaluate(
-        &self,
-        wo: Vec3,
-        wi: Vec3,
-        hair_tangent: Vec3,
-    ) -> Vec3 {
+    pub fn evaluate(&self, wo: Vec3, wi: Vec3, hair_tangent: Vec3) -> Vec3 {
         let sin_theta_o = wo.dot(hair_tangent).clamp(-1.0, 1.0);
         let cos_theta_o = (1.0 - sin_theta_o * sin_theta_o).max(0.0).sqrt();
         let sin_theta_i = wi.dot(hair_tangent).clamp(-1.0, 1.0);
@@ -99,7 +109,14 @@ impl MarschnerBsdf {
         let alphas = [alpha_r, alpha_tt, alpha_trt];
         let beta_ns = [beta_n, beta_n * 0.5, beta_n * 2.0];
         let m_lobes: [f64; HAIR_COMPONENTS] = std::array::from_fn(|p| {
-            longitudinal_m(beta_ns[p], sin_theta_i, sin_theta_o, cos_theta_i, cos_theta_o, alphas[p])
+            longitudinal_m(
+                beta_ns[p],
+                sin_theta_i,
+                sin_theta_o,
+                cos_theta_i,
+                cos_theta_o,
+                alphas[p],
+            )
         });
 
         let fr = fresnel_dielectric(cos_theta_o, self.material.ior);
@@ -127,7 +144,14 @@ impl MarschnerBsdf {
         let cos_theta_o = (1.0 - sin_theta_o * sin_theta_o).max(0.0).sqrt();
         let beta_n = self.material.roughness_longitudinal;
         let alpha_r = (-self.material.scale_tilt_deg).to_radians();
-        let m_r = longitudinal_m(beta_n, sin_theta_i, sin_theta_o, cos_theta_i, cos_theta_o, alpha_r);
+        let m_r = longitudinal_m(
+            beta_n,
+            sin_theta_i,
+            sin_theta_o,
+            cos_theta_i,
+            cos_theta_o,
+            alpha_r,
+        );
         (m_r / (2.0 * PI)).max(0.0)
     }
 }
@@ -201,7 +225,9 @@ fn azimuthal_angle(v: Vec3, tangent: Vec3) -> f64 {
 
 fn fresnel_dielectric(cos_i: f64, eta: f64) -> f64 {
     let sin2_t = (1.0 - cos_i * cos_i) / (eta * eta);
-    if sin2_t >= 1.0 { return 1.0; }
+    if sin2_t >= 1.0 {
+        return 1.0;
+    }
     let cos_t = (1.0 - sin2_t).sqrt();
     let rs = (cos_i - eta * cos_t) / (cos_i + eta * cos_t);
     let rp = (eta * cos_i - cos_t) / (eta * cos_i + cos_t);

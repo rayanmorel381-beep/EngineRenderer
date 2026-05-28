@@ -147,10 +147,20 @@ impl WorldSdf {
         }
     }
 
-    pub fn march(&self, origin: Vec3, direction: Vec3, max_t: f64, max_steps: u32) -> Option<(f64, Vec3)> {
+    pub fn march(
+        &self,
+        origin: Vec3,
+        direction: Vec3,
+        max_t: f64,
+        max_steps: u32,
+    ) -> Option<(f64, Vec3)> {
         let dir = {
             let len = direction.length();
-            if len > f64::EPSILON { direction * (1.0 / len) } else { return None; }
+            if len > f64::EPSILON {
+                direction * (1.0 / len)
+            } else {
+                return None;
+            }
         };
         let mut t = 0.0_f64;
         for _ in 0..max_steps {

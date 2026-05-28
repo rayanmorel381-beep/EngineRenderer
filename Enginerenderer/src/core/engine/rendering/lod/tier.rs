@@ -1,4 +1,3 @@
-
 /// Level-of-detail tier selected from camera distance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LodTier {

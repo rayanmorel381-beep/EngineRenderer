@@ -1,4 +1,3 @@
-
 use crate::core::engine::rendering::raytracing::Vec3;
 
 // ── Phase functions ─────────────────────────────────────────────────────
@@ -11,8 +10,7 @@ pub fn rayleigh_phase(cos_theta: f64) -> f64 {
 pub fn mie_phase(cos_theta: f64, g: f64) -> f64 {
     let g2 = g * g;
     let denom = 1.0 + g2 - 2.0 * g * cos_theta;
-    (3.0 / (8.0 * std::f64::consts::PI))
-        * ((1.0 - g2) * (1.0 + cos_theta * cos_theta))
+    (3.0 / (8.0 * std::f64::consts::PI)) * ((1.0 - g2) * (1.0 + cos_theta * cos_theta))
         / ((2.0 + g2) * denom.powf(1.5).max(0.001))
 }
 
@@ -79,7 +77,7 @@ impl AtmosphereParams {
             let t = (i as f64 + 0.5) * step_scale;
             let alt = altitude_factor * t;
             rayleigh_accum += self.rayleigh_coeff
-                    * ((-alt * self.atmosphere_height / self.rayleigh_scale_height).exp());
+                * ((-alt * self.atmosphere_height / self.rayleigh_scale_height).exp());
             mie_accum +=
                 self.mie_coeff * (-alt * self.atmosphere_height / self.mie_scale_height).exp();
         }

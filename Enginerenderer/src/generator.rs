@@ -26,8 +26,10 @@ pub fn run(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let width = parse_u32_arg(args, "--width", defaults.width as u32).max(1);
     let height = parse_u32_arg(args, "--height", defaults.height as u32).max(1);
     let quality = parse_quality(args);
-    let output_dir = parse_path_arg(args, "--output-dir").unwrap_or_else(|| PathBuf::from("output/video"));
-    let output_mp4 = parse_path_arg(args, "--output-mp4").unwrap_or_else(|| output_dir.join("animation.mp4"));
+    let output_dir =
+        parse_path_arg(args, "--output-dir").unwrap_or_else(|| PathBuf::from("output/video"));
+    let output_mp4 =
+        parse_path_arg(args, "--output-mp4").unwrap_or_else(|| output_dir.join("animation.mp4"));
     let frame_prefix = parse_string_arg(args, "--prefix").unwrap_or_else(|| String::from("frame"));
 
     std::fs::create_dir_all(&output_dir)?;

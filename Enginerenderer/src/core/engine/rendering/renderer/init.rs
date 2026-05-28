@@ -2,29 +2,32 @@
 
 use std::sync::Mutex;
 
-use crate::core::engine::acces_hardware::{
-    self, DrmDriver, NativeHardwareBackend,
-};
+use crate::core::engine::acces_hardware::{self, DrmDriver, NativeHardwareBackend};
 use crate::core::engine::math::{Mat4, Vec3, Vec4};
 use crate::core::engine::rendering::{
     effects::{
         decals::decal_pass::Decal,
-        particles::gpu_particles::{ColorGradient, GpuParticleSystem, ParticleEmitter, MAX_PARTICLES},
+        particles::gpu_particles::{
+            ColorGradient, GpuParticleSystem, MAX_PARTICLES, ParticleEmitter,
+        },
     },
     lod::manager::LodManager,
     materials::sss::{SssPass, SssProfile},
-    mesh::skinning::{AnimationClip, BlendShape, BoneWeight, Mat4 as SkinMat4, Skeleton, SkinnedMesh, MAX_SKELETON_BONES},
+    mesh::skinning::{
+        AnimationClip, BlendShape, BoneWeight, MAX_SKELETON_BONES, Mat4 as SkinMat4, Skeleton,
+        SkinnedMesh,
+    },
     postprocessing::{
         ssr::{IblProbe, SsrConfig, SsrPass},
         svgf::SvgfDenoiser,
         taa::TaaAccumulator,
     },
-    sdf::WorldSdf,
     raytracing::{
         CpuRayTracer,
         caustics::{CausticPass, PhotonMap},
         rtao::RtaoConfig,
     },
+    sdf::WorldSdf,
     shader_dispatcher::AdaptiveComputeDispatcher,
     terrain::{
         cdlod::HeightMap,
@@ -36,7 +39,11 @@ use super::state::Renderer;
 use super::types::RenderPreset;
 
 impl Renderer {
-    fn with_resolution_from_backend(width: usize, height: usize, native_backend: &NativeHardwareBackend) -> Self {
+    fn with_resolution_from_backend(
+        width: usize,
+        height: usize,
+        native_backend: &NativeHardwareBackend,
+    ) -> Self {
         let hw_caps = native_backend.hw_caps().clone();
         hw_caps.log_summary();
 
@@ -72,7 +79,8 @@ impl Renderer {
         if pixel_bytes > max_bytes {
             crate::runtime_log!(
                 "renderer: WARNING {}×{} needs {}MB, only {}MB available — consider lower resolution",
-                width, height,
+                width,
+                height,
                 pixel_bytes / (1024 * 1024),
                 max_bytes / (1024 * 1024),
             );
@@ -118,13 +126,16 @@ impl Renderer {
                     g.has_gem_framebuffer(),
                 );
             } else {
-                crate::runtime_log!("renderer: GPU framebuffer alloc failed, GPU command path disabled");
+                crate::runtime_log!(
+                    "renderer: GPU framebuffer alloc failed, GPU command path disabled"
+                );
             }
         } else {
             crate::runtime_log!("hardware: no DRM GPU available, using CPU-only rendering");
         }
 
-        let native_gpu = acces_hardware::native_gpu_call(gpu.as_ref(), width.saturating_mul(height));
+        let native_gpu =
+            acces_hardware::native_gpu_call(gpu.as_ref(), width.saturating_mul(height));
         crate::runtime_log!(
             "native-gpu: init_ok={} dispatch_ok={} framebuffer_ok={}",
             native_gpu.init_ok,
@@ -155,9 +166,11 @@ impl Renderer {
         let sdf_march = world_sdf.march(
             crate::core::engine::rendering::raytracing::Vec3::new(0.0, 5.0, 0.0),
             crate::core::engine::rendering::raytracing::Vec3::new(0.0, -1.0, 0.0),
-            50.0, 64,
+            50.0,
+            64,
         );
-        let sdf_irr = world_sdf.sample_irradiance_hint(crate::core::engine::rendering::raytracing::Vec3::ZERO, 1.0);
+        let sdf_irr = world_sdf
+            .sample_irradiance_hint(crate::core::engine::rendering::raytracing::Vec3::ZERO, 1.0);
         crate::runtime_log!(
             "sdf: cells={} probe={:.4} grad_len={:.4} march_hit={} irr={:.4}",
             world_sdf.cell_count(),
@@ -207,34 +220,47 @@ impl Renderer {
             caustic_pass: CausticPass::new(0.5),
             sss_pass: SssPass::new(SssProfile::skin(), 8, 16),
             ssr_pass: SsrPass::new(SsrConfig::default()),
-            ibl_probe: IblProbe::new(
-                crate::core::engine::rendering::raytracing::Vec3::ZERO,
-                64,
-            ),
+            ibl_probe: IblProbe::new(crate::core::engine::rendering::raytracing::Vec3::ZERO, 64),
             fsr_config: None,
             particles: Mutex::new(GpuParticleSystem::new(MAX_PARTICLES / 16)),
             decals: empty_decals,
             skeletons: Mutex::new(empty_skeletons),
             skinned_meshes: Mutex::new(empty_meshes),
             animation_clips: empty_clips,
-            anim_state_machine: Mutex::new(crate::core::animation::state_machine::AnimStateMachine::new(Vec::new())),
-            texture_streamer: Mutex::new(crate::core::engine::rendering::texture::virtual_texture::TextureStreamer::new(64)),
+            anim_state_machine: Mutex::new(
+                crate::core::animation::state_machine::AnimStateMachine::new(Vec::new()),
+            ),
+            texture_streamer: Mutex::new(
+                crate::core::engine::rendering::texture::virtual_texture::TextureStreamer::new(64),
+            ),
             terrain: None,
             foliage_layer: FoliageLayer::new(64, 64),
             foliage_instances: Mutex::new(empty_foliage),
-            raster_pipeline: crate::core::engine::rendering::raster::pipeline::RasterPipeline::new(),
-            secondary_motion: Mutex::new(crate::core::animation::secondary_motion::SecondaryMotionSystem::new()),
-            render_thread: Some(crate::core::engine::rendering::renderer::render_thread::RenderThread::spawn(render_thread_cores as usize)),
-            job_system: crate::core::scheduler::job_system::JobSystem::new(job_system_cores as usize),
+            raster_pipeline: crate::core::engine::rendering::raster::pipeline::RasterPipeline::new(
+            ),
+            secondary_motion: Mutex::new(
+                crate::core::animation::secondary_motion::SecondaryMotionSystem::new(),
+            ),
+            render_thread: Some(
+                crate::core::engine::rendering::renderer::render_thread::RenderThread::spawn(
+                    render_thread_cores as usize,
+                ),
+            ),
+            job_system: crate::core::scheduler::job_system::JobSystem::new(
+                job_system_cores as usize,
+            ),
         };
 
         let hm_new = HeightMap::new(
-            vec![0.0_f32; 4], 2, 2,
+            vec![0.0_f32; 4],
+            2,
+            2,
             crate::core::engine::rendering::raytracing::Vec3::new(10.0, 5.0, 10.0),
         );
         let origin_wp = hm_new.world_position(0.0, 0.0);
         let hm_flat = HeightMap::flat(
-            64, 64,
+            64,
+            64,
             crate::core::engine::rendering::raytracing::Vec3::new(100.0, 10.0, 100.0),
         );
         crate::runtime_log!("terrain: probe_wp={:?}", origin_wp);
@@ -249,12 +275,22 @@ impl Renderer {
 
         let emitter = ParticleEmitter::new(crate::core::engine::rendering::raytracing::Vec3::ZERO);
         let gradient = ColorGradient::new(vec![
-            (0.0, crate::core::engine::rendering::raytracing::Vec3::new(1.0, 0.5, 0.0), 1.0_f64),
-            (1.0, crate::core::engine::rendering::raytracing::Vec3::ZERO, 0.0_f64),
+            (
+                0.0,
+                crate::core::engine::rendering::raytracing::Vec3::new(1.0, 0.5, 0.0),
+                1.0_f64,
+            ),
+            (
+                1.0,
+                crate::core::engine::rendering::raytracing::Vec3::ZERO,
+                0.0_f64,
+            ),
         ]);
         crate::runtime_log!(
             "particles: max={} drag={:.3} gradient_stops={}",
-            MAX_PARTICLES, emitter.drag, gradient.stops.len(),
+            MAX_PARTICLES,
+            emitter.drag,
+            gradient.stops.len(),
         );
         Self::lock_unpoisoned(&renderer.particles).add_emitter(emitter);
 
@@ -264,7 +300,10 @@ impl Renderer {
         let blended_mat = scale_mat.add_scaled(&SkinMat4::identity(), 0.0);
         crate::runtime_log!(
             "skinning: bw={:.3} sdiag={:.3} bdiag={:.3} max_bones={}",
-            bw.weights[0], scale_mat.cols[0][0], blended_mat.cols[0][0], MAX_SKELETON_BONES,
+            bw.weights[0],
+            scale_mat.cols[0][0],
+            blended_mat.cols[0][0],
+            MAX_SKELETON_BONES,
         );
 
         let skeleton = Skeleton::new(vec![]);
@@ -300,7 +339,11 @@ impl Renderer {
         renderer
     }
 
-    pub fn with_resolution_using_backend(width: usize, height: usize, backend: &NativeHardwareBackend) -> Self {
+    pub fn with_resolution_using_backend(
+        width: usize,
+        height: usize,
+        backend: &NativeHardwareBackend,
+    ) -> Self {
         Self::with_resolution_from_backend(width, height, backend)
     }
 

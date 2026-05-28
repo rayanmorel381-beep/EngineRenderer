@@ -538,7 +538,10 @@ pub fn assemble(is_es: bool) -> String {
     src.push_str(&format!("#define OUTPUT_BINDING {}\n", bindings::OUTPUT));
     src.push_str(&format!("#define FRAME_BINDING {}\n", bindings::FRAME));
     src.push_str(&format!("#define SPHERE_BINDING {}\n", bindings::SPHERES));
-    src.push_str(&format!("#define TRIANGLE_BINDING {}\n", bindings::TRIANGLES));
+    src.push_str(&format!(
+        "#define TRIANGLE_BINDING {}\n",
+        bindings::TRIANGLES
+    ));
     src.push_str(&format!(
         "#define AREA_LIGHT_BINDING {}\n",
         bindings::AREA_LIGHTS

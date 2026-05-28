@@ -1,4 +1,3 @@
-
 use crate::core::engine::rendering::raytracing::Vec3;
 use crate::core::engine::rendering::utils::{fbm_3d, smoothstep};
 
@@ -33,8 +32,7 @@ impl CloudLayer {
     }
 
     pub fn sample_density(&self, point: Vec3) -> f64 {
-        let height_in_layer =
-            ((point.y - self.altitude) / self.thickness.max(1.0)).clamp(0.0, 1.0);
+        let height_in_layer = ((point.y - self.altitude) / self.thickness.max(1.0)).clamp(0.0, 1.0);
         let height_profile =
             smoothstep(0.0, 0.3, height_in_layer) * (1.0 - smoothstep(0.7, 1.0, height_in_layer));
 
@@ -44,13 +42,7 @@ impl CloudLayer {
         shape * height_profile * self.density
     }
 
-    pub fn cloud_color(
-        &self,
-        point: Vec3,
-        sun_dir: Vec3,
-        sun_color: Vec3,
-        ambient: Vec3,
-    ) -> Vec3 {
+    pub fn cloud_color(&self, point: Vec3, sun_dir: Vec3, sun_color: Vec3, ambient: Vec3) -> Vec3 {
         let density = self.sample_density(point);
         if density < 0.001 {
             return Vec3::ZERO;

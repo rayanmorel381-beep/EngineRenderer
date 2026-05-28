@@ -1,13 +1,13 @@
-
 use std::{
     error::Error,
     path::{Path, PathBuf},
 };
 
 use crate::core::engine::acces_hardware::{
-    precise_timestamp_ns, elapsed_ms as hw_elapsed_ms, HwInstant,
+    HwInstant, elapsed_ms as hw_elapsed_ms, precise_timestamp_ns,
 };
 
+use super::super::scene_builder::build_realistic_scene;
 use crate::core::engine::rendering::{
     culling::helpers::sphere_occludes,
     culling::scene_culler::SceneCuller,
@@ -17,15 +17,14 @@ use crate::core::engine::rendering::{
     postprocessing::depth_of_field::DepthOfField,
     postprocessing::processor::{PostProcessor, reinhard_tonemap},
     preprocessing::scene_preprocessor::ScenePreprocessor,
-    raytracing::{Camera, Scene},
     raytracing::acceleration::BvhNode,
+    raytracing::{Camera, Scene},
     utils::{ev100_from_luminance, exposure_from_ev100},
 };
 use crate::core::scheduler::adaptive::TileScheduler;
-use super::super::scene_builder::build_realistic_scene;
 
-use super::super::types::{RenderPreset, RenderReport};
 use super::super::Renderer;
+use super::super::types::{RenderPreset, RenderReport};
 
 #[derive(Debug, Clone, Copy)]
 pub struct AnimationFramePressure {
@@ -83,9 +82,9 @@ impl Renderer {
             RenderPreset::UltraHdCpu => 8,
             RenderPreset::ProductionReference => 16,
         };
-        config.base_samples_per_pixel = ((config.base_samples_per_pixel as f64 * quality.sample_multiplier)
-            .round() as u32)
-            .max(minimum_spp);
+        config.base_samples_per_pixel =
+            ((config.base_samples_per_pixel as f64 * quality.sample_multiplier).round() as u32)
+                .max(minimum_spp);
         apply_runtime_sampling_pressure(&mut config, preset, sample_pressure_scale);
         config.max_bounces = config.max_bounces.min(quality.bounce_limit.max(2));
         let cam_near = preprocessed.camera_info.near_plane;
@@ -114,9 +113,8 @@ impl Renderer {
         );
 
         // ── Shadow cascade ──────────────────────────────────────────────
-        let total_cascade_bias = self.apply_shadow_cascade(
-            &mut render_scene, camera, cam_near, cam_far, &config,
-        );
+        let total_cascade_bias =
+            self.apply_shadow_cascade(&mut render_scene, camera, cam_near, cam_far, &config);
 
         // ── Atmospheric scattering ──────────────────────────────────────
         let rayleigh_blue = rayleigh_scatter(440.0);
@@ -154,10 +152,15 @@ impl Renderer {
         config.thread_count = pixel_threads.max(complexity_threads);
         crate::runtime_log!(
             "adaptive-threads: {} objects, {}x{} @{}spp → {} threads (max={})",
-            input_scene_objects, config.width, config.height,
-            config.base_samples_per_pixel, config.thread_count, max_threads,
+            input_scene_objects,
+            config.width,
+            config.height,
+            config.base_samples_per_pixel,
+            config.thread_count,
+            max_threads,
         );
-        let compute_submitted = self.submit_compute_workload(&render_scene, config.width, config.height);
+        let compute_submitted =
+            self.submit_compute_workload(&render_scene, config.width, config.height);
 
         // ── Ray trace (with precise per-phase timing) ───────────────────
         let t_frame = precise_timestamp_ns();
@@ -165,10 +168,17 @@ impl Renderer {
 
         let t_trace = precise_timestamp_ns();
         let (cached_bvh, cache_hit) = self.cached_bvh_for_scene(&render_scene);
-        crate::runtime_log!("tracer: BVH cache {}", if cache_hit { "hit" } else { "miss" });
-        let (image, bvh_stats) = self
-            .tracer
-            .render_with_bvh(&render_scene, camera, &config, &self.lod_manager, cached_bvh.as_deref());
+        crate::runtime_log!(
+            "tracer: BVH cache {}",
+            if cache_hit { "hit" } else { "miss" }
+        );
+        let (image, bvh_stats) = self.tracer.render_with_bvh(
+            &render_scene,
+            camera,
+            &config,
+            &self.lod_manager,
+            cached_bvh.as_deref(),
+        );
         let trace_ms = hw_elapsed_ms(t_trace, precise_timestamp_ns());
 
         if let Some(sync_ms) = self.gpu_fence_and_sync() {
@@ -205,7 +215,11 @@ impl Renderer {
         let post = PostProcessor::cinematic()
             .with_bloom_threshold(bloom_threshold)
             .with_bloom_radius(bloom_radius)
-            .with_bloom_intensity(if matches!(preset, RenderPreset::ProductionReference) { 0.16 } else { 0.10 })
+            .with_bloom_intensity(if matches!(preset, RenderPreset::ProductionReference) {
+                0.16
+            } else {
+                0.10
+            })
             .with_grain(0.0)
             .with_aberration(0.0)
             .with_sharpen(if is_preview { 0.0 } else { 0.14 })
@@ -261,34 +275,48 @@ impl Renderer {
         let scene_bounds_max = preprocessed.analysis.scene_bounds_max;
         let frust_hw = preprocessed.camera_info.frustum_half_width;
         let frust_hh = preprocessed.camera_info.frustum_half_height;
-        let point_inside = frustum.contains_point(camera.origin + camera.direction.normalize() * 5.0);
+        let point_inside =
+            frustum.contains_point(camera.origin + camera.direction.normalize() * 5.0);
         let aabb_vis = frustum.contains_aabb(scene_bounds_min, scene_bounds_max);
-        let tile_lights = preprocessed.light_tile_grid.query_sphere(camera.origin, frust_hw).len();
+        let tile_lights = preprocessed
+            .light_tile_grid
+            .query_sphere(camera.origin, frust_hw)
+            .len();
         crate::runtime_log!(
             "frustum: point_inside={} aabb={:?} frust_hw={:.2} frust_hh={:.2} visible_spheres={} tile_lights={}",
-            point_inside, aabb_vis, frust_hw, frust_hh,
-            preprocessed.frustum_visible_sphere_count, tile_lights,
+            point_inside,
+            aabb_vis,
+            frust_hw,
+            frust_hh,
+            preprocessed.frustum_visible_sphere_count,
+            tile_lights,
         );
 
         let ev100 = ev100_from_luminance(avg_luma.max(0.001));
         let exposure = exposure_from_ev100(ev100);
         crate::runtime_log!(
             "exposure: ev100={:.2} exposure={:.4} sorted_objects={} sorted_triangles={} sample_mult={:.2} bounce_lim={} vol_qual={:.2} dominant_light=({:.2},{:.2},{:.2}) avg_obj_r={:.2} total_cascade_bias={:.4}",
-            ev100, exposure,
+            ev100,
+            exposure,
             preprocessed.sorted_object_indices.len(),
             preprocessed.sorted_triangle_indices.len(),
-            quality.sample_multiplier, quality.bounce_limit, quality.volumetric_quality,
+            quality.sample_multiplier,
+            quality.bounce_limit,
+            quality.volumetric_quality,
             preprocessed.analysis.dominant_light_direction.x,
             preprocessed.analysis.dominant_light_direction.y,
             preprocessed.analysis.dominant_light_direction.z,
-            preprocessed.analysis.average_object_radius, total_cascade_bias
+            preprocessed.analysis.average_object_radius,
+            total_cascade_bias
         );
 
         // ── Per-phase timing summary ────────────────────────────────────
         let total_frame_ms = hw_elapsed_ms(t_frame, precise_timestamp_ns());
         crate::runtime_log!(
             "pipeline: total={:.1}ms trace={:.1} post={:.1} complexity={} | {} simd={} gpu_fb={}",
-            total_frame_ms, trace_ms, post_ms,
+            total_frame_ms,
+            trace_ms,
+            post_ms,
             scene_complexity,
             self.gpu_info_tag(),
             self.simd_tag(),
@@ -302,7 +330,9 @@ impl Renderer {
         let brightest_pixel = framebuffer.brightest_pixel();
         crate::runtime_log!(
             "luminance: avg={:.4} range=[{:.4},{:.4}]",
-            average_luminance, min_luminance, max_luminance,
+            average_luminance,
+            min_luminance,
+            max_luminance,
         );
 
         let image = framebuffer.into_image();
@@ -361,7 +391,10 @@ impl Renderer {
         let preset = pressure.preset;
         let sample_pressure_scale = pressure.sample_pressure_scale;
         let mut config = self.config_for(preset);
-        let is_preview = matches!(preset, RenderPreset::PreviewCpu | RenderPreset::AnimationFast);
+        let is_preview = matches!(
+            preset,
+            RenderPreset::PreviewCpu | RenderPreset::AnimationFast
+        );
 
         let preprocessed = ScenePreprocessor::analyze(scene, camera);
         let adaptive_budget_ms = match preset {
@@ -379,13 +412,13 @@ impl Renderer {
             RenderPreset::UltraHdCpu => 8,
             RenderPreset::ProductionReference => 16,
         };
-        config.base_samples_per_pixel = ((config.base_samples_per_pixel as f64 * quality.sample_multiplier)
-            .round() as u32)
-            .max(minimum_spp);
+        config.base_samples_per_pixel =
+            ((config.base_samples_per_pixel as f64 * quality.sample_multiplier).round() as u32)
+                .max(minimum_spp);
         apply_runtime_sampling_pressure(&mut config, preset, sample_pressure_scale);
         config.max_bounces = config.max_bounces.min(quality.bounce_limit.max(2));
         let cam_near = preprocessed.camera_info.near_plane;
-        let cam_far  = preprocessed.camera_info.far_plane;
+        let cam_far = preprocessed.camera_info.far_plane;
         let scene_radius = preprocessed.analysis.scene_radius;
 
         let frustum = self.build_frustum(camera, &config, cam_near, cam_far);
@@ -402,15 +435,15 @@ impl Renderer {
 
         let (distance_culled, cull_stats) = culler.cull_scene_with_stats(scene, camera);
         let mut render_scene = culler.cull_with_frustum(&distance_culled, &frustum);
-        let cull_energy = 1.0 - (cull_stats.sphere_ratio() * 0.02 + cull_stats.triangle_ratio() * 0.01);
+        let cull_energy =
+            1.0 - (cull_stats.sphere_ratio() * 0.02 + cull_stats.triangle_ratio() * 0.01);
         render_scene.exposure *= cull_energy.clamp(0.95, 1.0);
 
-        let total_cascade_bias = self.apply_shadow_cascade(
-            &mut render_scene, camera, cam_near, cam_far, &config,
-        );
+        let total_cascade_bias =
+            self.apply_shadow_cascade(&mut render_scene, camera, cam_near, cam_far, &config);
 
         let rayleigh_blue = rayleigh_scatter(440.0);
-        let rayleigh_red  = rayleigh_scatter(680.0);
+        let rayleigh_red = rayleigh_scatter(680.0);
         let scatter_ratio = rayleigh_blue / rayleigh_red.max(1.0);
         render_scene.exposure *= 1.0 + (scatter_ratio - 8.0).abs() * 0.001;
 
@@ -433,7 +466,8 @@ impl Renderer {
             render_scene.volume = render_scene.volume.with_density_multiplier(0.35);
         }
 
-        let compute_submitted = self.submit_compute_workload(&render_scene, config.width, config.height);
+        let compute_submitted =
+            self.submit_compute_workload(&render_scene, config.width, config.height);
 
         let t_frame = precise_timestamp_ns();
         let start = HwInstant::now();
@@ -448,19 +482,24 @@ impl Renderer {
             self.cached_bvh_for_scene(&render_scene)
         };
         if !reuse_input_bvh {
-            crate::runtime_log!("tracer: BVH cache {}", if cache_hit { "hit" } else { "miss" });
-        }
-        let selected_bvh = if reuse_input_bvh { bvh } else { cached_bvh.as_deref() };
-        let (image, bvh_stats) = self
-            .tracer
-            .render_with_scheduler(
-                &render_scene,
-                camera,
-                &config,
-                &self.lod_manager,
-                selected_bvh,
-                scheduler,
+            crate::runtime_log!(
+                "tracer: BVH cache {}",
+                if cache_hit { "hit" } else { "miss" }
             );
+        }
+        let selected_bvh = if reuse_input_bvh {
+            bvh
+        } else {
+            cached_bvh.as_deref()
+        };
+        let (image, bvh_stats) = self.tracer.render_with_scheduler(
+            &render_scene,
+            camera,
+            &config,
+            &self.lod_manager,
+            selected_bvh,
+            scheduler,
+        );
         let trace_ms = hw_elapsed_ms(t_trace, precise_timestamp_ns());
 
         let t_post = precise_timestamp_ns();
@@ -487,7 +526,11 @@ impl Renderer {
         let post = PostProcessor::cinematic()
             .with_bloom_threshold(bloom_threshold)
             .with_bloom_radius(bloom_radius)
-            .with_bloom_intensity(if matches!(preset, RenderPreset::ProductionReference) { 0.16 } else { 0.10 })
+            .with_bloom_intensity(if matches!(preset, RenderPreset::ProductionReference) {
+                0.16
+            } else {
+                0.10
+            })
             .with_grain(0.0)
             .with_aberration(0.0)
             .with_sharpen(if is_preview { 0.0 } else { 0.14 })
@@ -524,7 +567,12 @@ impl Renderer {
         let total_frame_ms = hw_elapsed_ms(t_frame, precise_timestamp_ns());
         crate::runtime_log!(
             "anim-frame: total={:.1}ms trace={:.1} post={:.1} threads={} cascade_bias={:.4} gpu_fb={}",
-            total_frame_ms, trace_ms, post_ms, scheduler.worker_count(), total_cascade_bias, uploaded_to_gpu,
+            total_frame_ms,
+            trace_ms,
+            post_ms,
+            scheduler.worker_count(),
+            total_cascade_bias,
+            uploaded_to_gpu,
         );
         crate::runtime_log!("compute: submitted={}", compute_submitted);
 
@@ -561,7 +609,13 @@ impl Renderer {
         bvh: Option<&BvhNode>,
         scheduler: &TileScheduler,
         preset: RenderPreset,
-    ) -> Result<(Vec<crate::core::engine::rendering::raytracing::Vec3>, RenderReport), Box<dyn Error>> {
+    ) -> Result<
+        (
+            Vec<crate::core::engine::rendering::raytracing::Vec3>,
+            RenderReport,
+        ),
+        Box<dyn Error>,
+    > {
         self.render_animation_frame_to_buffer_impl(scene, camera, bvh, scheduler, preset, 1.0)
     }
 
@@ -573,7 +627,13 @@ impl Renderer {
         scheduler: &TileScheduler,
         preset: RenderPreset,
         sample_pressure_scale: f64,
-    ) -> Result<(Vec<crate::core::engine::rendering::raytracing::Vec3>, RenderReport), Box<dyn Error>> {
+    ) -> Result<
+        (
+            Vec<crate::core::engine::rendering::raytracing::Vec3>,
+            RenderReport,
+        ),
+        Box<dyn Error>,
+    > {
         if (sample_pressure_scale - 1.0).abs() <= 0.000_001 {
             return self.render_animation_frame_to_buffer(scene, camera, bvh, scheduler, preset);
         }
@@ -596,25 +656,43 @@ impl Renderer {
         scheduler: &TileScheduler,
         preset: RenderPreset,
         sample_pressure_scale: f64,
-    ) -> Result<(Vec<crate::core::engine::rendering::raytracing::Vec3>, RenderReport), Box<dyn Error>> {
+    ) -> Result<
+        (
+            Vec<crate::core::engine::rendering::raytracing::Vec3>,
+            RenderReport,
+        ),
+        Box<dyn Error>,
+    > {
         let mut config = self.config_for(preset);
-        let is_preview = matches!(preset, RenderPreset::PreviewCpu | RenderPreset::AnimationFast);
+        let is_preview = matches!(
+            preset,
+            RenderPreset::PreviewCpu | RenderPreset::AnimationFast
+        );
         let start = HwInstant::now();
 
         apply_runtime_sampling_pressure(&mut config, preset, sample_pressure_scale);
 
         if matches!(preset, RenderPreset::AnimationFast) {
-            let compute_submitted = self.submit_compute_workload(scene, config.width, config.height);
+            let compute_submitted =
+                self.submit_compute_workload(scene, config.width, config.height);
             let cached_bvh = if bvh.is_none() {
                 let (cached_bvh, cache_hit) = self.cached_bvh_for_scene(scene);
-                crate::runtime_log!("tracer: BVH cache {}", if cache_hit { "hit" } else { "miss" });
+                crate::runtime_log!(
+                    "tracer: BVH cache {}",
+                    if cache_hit { "hit" } else { "miss" }
+                );
                 cached_bvh
             } else {
                 None
             };
-            let (image, bvh_stats) = self
-                .tracer
-                .render_with_scheduler(scene, camera, &config, &self.lod_manager, bvh.or(cached_bvh.as_deref()), scheduler);
+            let (image, bvh_stats) = self.tracer.render_with_scheduler(
+                scene,
+                camera,
+                &config,
+                &self.lod_manager,
+                bvh.or(cached_bvh.as_deref()),
+                scheduler,
+            );
             let framebuffer = FrameBuffer::from(image);
             let _ = self.upload_framebuffer_to_gpu(&framebuffer);
             let average_luminance = framebuffer.average_luminance();
@@ -661,13 +739,13 @@ impl Renderer {
             RenderPreset::UltraHdCpu => 8,
             RenderPreset::ProductionReference => 16,
         };
-        config.base_samples_per_pixel = ((config.base_samples_per_pixel as f64 * quality.sample_multiplier)
-            .round() as u32)
-            .max(minimum_spp);
+        config.base_samples_per_pixel =
+            ((config.base_samples_per_pixel as f64 * quality.sample_multiplier).round() as u32)
+                .max(minimum_spp);
         apply_runtime_sampling_pressure(&mut config, preset, sample_pressure_scale);
         config.max_bounces = config.max_bounces.min(quality.bounce_limit.max(2));
         let cam_near = preprocessed.camera_info.near_plane;
-        let cam_far  = preprocessed.camera_info.far_plane;
+        let cam_far = preprocessed.camera_info.far_plane;
         let scene_radius = preprocessed.analysis.scene_radius;
 
         let frustum = self.build_frustum(camera, &config, cam_near, cam_far);
@@ -684,15 +762,15 @@ impl Renderer {
 
         let (distance_culled, cull_stats) = culler.cull_scene_with_stats(scene, camera);
         let mut render_scene = culler.cull_with_frustum(&distance_culled, &frustum);
-        let cull_energy = 1.0 - (cull_stats.sphere_ratio() * 0.02 + cull_stats.triangle_ratio() * 0.01);
+        let cull_energy =
+            1.0 - (cull_stats.sphere_ratio() * 0.02 + cull_stats.triangle_ratio() * 0.01);
         render_scene.exposure *= cull_energy.clamp(0.95, 1.0);
 
-        let total_cascade_bias = self.apply_shadow_cascade(
-            &mut render_scene, camera, cam_near, cam_far, &config,
-        );
+        let total_cascade_bias =
+            self.apply_shadow_cascade(&mut render_scene, camera, cam_near, cam_far, &config);
 
         let rayleigh_blue = rayleigh_scatter(440.0);
-        let rayleigh_red  = rayleigh_scatter(680.0);
+        let rayleigh_red = rayleigh_scatter(680.0);
         let scatter_ratio = rayleigh_blue / rayleigh_red.max(1.0);
         render_scene.exposure *= 1.0 + (scatter_ratio - 8.0).abs() * 0.001;
 
@@ -715,23 +793,25 @@ impl Renderer {
             render_scene.volume = render_scene.volume.with_density_multiplier(0.35);
         }
 
-        let compute_submitted = self.submit_compute_workload(&render_scene, config.width, config.height);
+        let compute_submitted =
+            self.submit_compute_workload(&render_scene, config.width, config.height);
 
         let t_frame = precise_timestamp_ns();
 
         let t_trace = precise_timestamp_ns();
         let (cached_bvh, cache_hit) = self.cached_bvh_for_scene(&render_scene);
-        crate::runtime_log!("tracer: BVH cache {}", if cache_hit { "hit" } else { "miss" });
-        let (image, bvh_stats) = self
-            .tracer
-            .render_with_scheduler(
-                &render_scene,
-                camera,
-                &config,
-                &self.lod_manager,
-                cached_bvh.as_deref(),
-                scheduler,
-            );
+        crate::runtime_log!(
+            "tracer: BVH cache {}",
+            if cache_hit { "hit" } else { "miss" }
+        );
+        let (image, bvh_stats) = self.tracer.render_with_scheduler(
+            &render_scene,
+            camera,
+            &config,
+            &self.lod_manager,
+            cached_bvh.as_deref(),
+            scheduler,
+        );
         let trace_ms = hw_elapsed_ms(t_trace, precise_timestamp_ns());
 
         let t_post = precise_timestamp_ns();
@@ -749,7 +829,11 @@ impl Renderer {
         let post = PostProcessor::cinematic()
             .with_bloom_threshold(bloom_threshold)
             .with_bloom_radius(bloom_radius)
-            .with_bloom_intensity(if matches!(preset, RenderPreset::ProductionReference) { 0.16 } else { 0.10 })
+            .with_bloom_intensity(if matches!(preset, RenderPreset::ProductionReference) {
+                0.16
+            } else {
+                0.10
+            })
             .with_grain(0.0)
             .with_aberration(0.0)
             .with_sharpen(if is_preview { 0.0 } else { 0.14 })
@@ -786,7 +870,12 @@ impl Renderer {
         let total_frame_ms = hw_elapsed_ms(t_frame, precise_timestamp_ns());
         crate::runtime_log!(
             "anim-frame-buf: total={:.1}ms trace={:.1} post={:.1} threads={} cascade_bias={:.4} gpu_fb={}",
-            total_frame_ms, trace_ms, post_ms, scheduler.worker_count(), total_cascade_bias, uploaded_to_gpu,
+            total_frame_ms,
+            trace_ms,
+            post_ms,
+            scheduler.worker_count(),
+            total_cascade_bias,
+            uploaded_to_gpu,
         );
         crate::runtime_log!("compute: submitted={}", compute_submitted);
 
@@ -823,7 +912,13 @@ impl Renderer {
         self.render_with_pressure(scene, camera, preset, 1.0)
     }
 
-    pub fn render_with_pressure(&self, scene: &Scene, camera: &Camera, preset: RenderPreset, sample_pressure_scale: f64) -> RenderReport {
+    pub fn render_with_pressure(
+        &self,
+        scene: &Scene,
+        camera: &Camera,
+        preset: RenderPreset,
+        sample_pressure_scale: f64,
+    ) -> RenderReport {
         let mut config = self.config_for(preset);
         let is_preview = matches!(preset, RenderPreset::PreviewCpu);
         let input_scene_objects = scene.objects.len() + scene.triangles.len();
@@ -841,9 +936,9 @@ impl Renderer {
             RenderPreset::UltraHdCpu => 8,
             RenderPreset::ProductionReference => 16,
         };
-        config.base_samples_per_pixel = ((config.base_samples_per_pixel as f64 * quality.sample_multiplier)
-            .round() as u32)
-            .max(minimum_spp);
+        config.base_samples_per_pixel =
+            ((config.base_samples_per_pixel as f64 * quality.sample_multiplier).round() as u32)
+                .max(minimum_spp);
         apply_runtime_sampling_pressure(&mut config, preset, sample_pressure_scale);
         config.max_bounces = config.max_bounces.min(quality.bounce_limit.max(2));
         let cam_near = preprocessed.camera_info.near_plane;
@@ -876,8 +971,8 @@ impl Renderer {
             cam_far.min(config.max_distance),
             4,
         );
-        render_scene.sun.intensity *= 1.0
-            - shadow_cascade.occlusion_estimate * shadow_cascade.shadow_strength * 0.26;
+        render_scene.sun.intensity *=
+            1.0 - shadow_cascade.occlusion_estimate * shadow_cascade.shadow_strength * 0.26;
         render_scene.exposure *= 1.0 + shadow_cascade.occlusion_estimate * 0.06;
 
         let pixel_work = config.width * config.height * config.base_samples_per_pixel as usize;
@@ -887,18 +982,30 @@ impl Renderer {
         config.thread_count = pixel_threads.max(complexity_threads);
         crate::runtime_log!(
             "adaptive-threads: {} objects, {}x{} @{}spp → {} threads (max={})",
-            input_scene_objects, config.width, config.height,
-            config.base_samples_per_pixel, config.thread_count, max_threads,
+            input_scene_objects,
+            config.width,
+            config.height,
+            config.base_samples_per_pixel,
+            config.thread_count,
+            max_threads,
         );
-        let compute_submitted = self.submit_compute_workload(&render_scene, config.width, config.height);
+        let compute_submitted =
+            self.submit_compute_workload(&render_scene, config.width, config.height);
 
         let start = HwInstant::now();
         let t_trace = precise_timestamp_ns();
         let (cached_bvh, cache_hit) = self.cached_bvh_for_scene(&render_scene);
-        crate::runtime_log!("tracer: BVH cache {}", if cache_hit { "hit" } else { "miss" });
-        let (image, bvh_stats) = self
-            .tracer
-            .render_with_bvh(&render_scene, camera, &config, &self.lod_manager, cached_bvh.as_deref());
+        crate::runtime_log!(
+            "tracer: BVH cache {}",
+            if cache_hit { "hit" } else { "miss" }
+        );
+        let (image, bvh_stats) = self.tracer.render_with_bvh(
+            &render_scene,
+            camera,
+            &config,
+            &self.lod_manager,
+            cached_bvh.as_deref(),
+        );
         let trace_ms = hw_elapsed_ms(t_trace, precise_timestamp_ns());
 
         let t_post = precise_timestamp_ns();
@@ -923,7 +1030,11 @@ impl Renderer {
         let post_ms = hw_elapsed_ms(t_post, precise_timestamp_ns());
         crate::runtime_log!(
             "render: trace={:.1}ms post={:.1}ms | {} simd={} gpu_fb={}",
-            trace_ms, post_ms, self.gpu_info_tag(), self.simd_tag(), uploaded_to_gpu,
+            trace_ms,
+            post_ms,
+            self.gpu_info_tag(),
+            self.simd_tag(),
+            uploaded_to_gpu,
         );
         crate::runtime_log!("compute: submitted={}", compute_submitted);
 
@@ -948,7 +1059,6 @@ impl Renderer {
             bvh: bvh_stats,
         }
     }
-
 }
 
 fn apply_runtime_sampling_pressure(
@@ -963,6 +1073,7 @@ fn apply_runtime_sampling_pressure(
         RenderPreset::ProductionReference => 16,
     };
 
-    let scaled = ((config.base_samples_per_pixel as f64) * sample_pressure_scale.clamp(0.50, 1.25)).round() as u32;
+    let scaled = ((config.base_samples_per_pixel as f64) * sample_pressure_scale.clamp(0.50, 1.25))
+        .round() as u32;
     config.base_samples_per_pixel = scaled.max(minimum_spp);
 }

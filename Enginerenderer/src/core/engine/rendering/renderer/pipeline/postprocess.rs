@@ -1,9 +1,11 @@
-
+use crate::core::engine::math::{Mat4, Vec3 as MathVec3};
+use crate::core::engine::rendering::culling::hzb::HierarchicalZBuffer;
+use crate::core::engine::rendering::environment::atmosphere_lut::AtmosphereLut;
+use crate::core::engine::rendering::environment::scattering::AtmosphereParams;
+use crate::core::engine::rendering::hair::HairStrand;
+use crate::core::engine::rendering::raster::msaa::MsaaRasterizer;
 use crate::core::engine::rendering::{
-    effects::{
-        decals::decal_pass::DecalPass,
-        volumetric_effects::god_rays::GodRays,
-    },
+    effects::{decals::decal_pass::DecalPass, volumetric_effects::god_rays::GodRays},
     framebuffer::FrameBuffer,
     gi::HybridGi,
     hair::HairGroom,
@@ -17,27 +19,16 @@ use crate::core::engine::rendering::{
     },
     postprocessing::{
         fsr::FsrPass,
-        ssr::{SsrBuffers, SsrPass, IBL_FACE_SIZE},
+        ssr::{IBL_FACE_SIZE, SsrBuffers, SsrPass},
         svgf::{SvgfDenoiser, SvgfInput},
     },
     preprocessing::tone_mapping::{ColorGrading, LuminanceHistogram, ToneMappingOperator},
-    raster::{RasterPipeline, ShaderProgram, Material, PbrMaterial},
     raster::pipeline::GBuffer,
-    raytracing::{
-        Scene, Vec3,
-        acceleration::BvhNode,
-        rtao::RtaoPass,
-        shading::tone_map,
-    },
+    raster::{Material, PbrMaterial, RasterPipeline, ShaderProgram},
+    raytracing::{Scene, Vec3, acceleration::BvhNode, rtao::RtaoPass, shading::tone_map},
     terrain::foliage::FoliageSystem,
     texture::virtual_texture::VirtualTexture,
 };
-use crate::core::engine::rendering::culling::hzb::HierarchicalZBuffer;
-use crate::core::engine::rendering::environment::atmosphere_lut::AtmosphereLut;
-use crate::core::engine::rendering::environment::scattering::AtmosphereParams;
-use crate::core::engine::rendering::hair::HairStrand;
-use crate::core::engine::rendering::raster::msaa::MsaaRasterizer;
-use crate::core::engine::math::{Mat4, Vec3 as MathVec3};
 
 use super::super::Renderer;
 
@@ -55,7 +46,8 @@ impl Renderer {
             let d = framebuffer.depth[i];
             let norm_depth = ((d - depth_min) / depth_span).clamp(0.0, 1.0);
             let fog_factor = (norm_depth * 0.03).min(0.03);
-            framebuffer.color[i] = framebuffer.color[i] * (1.0 - fog_factor) + fog_color * fog_factor;
+            framebuffer.color[i] =
+                framebuffer.color[i] * (1.0 - fog_factor) + fog_color * fog_factor;
         }
     }
 
@@ -67,7 +59,7 @@ impl Renderer {
     ) {
         // Single adaptive pass: sample count and exposure scale with intensity
         let god_rays = GodRays {
-            num_samples: (40.0 + intensity * 60.0) as u32,  // 40..100 based on visibility
+            num_samples: (40.0 + intensity * 60.0) as u32, // 40..100 based on visibility
             density: 0.97,
             weight: 0.05,
             decay: 0.97,
@@ -129,11 +121,13 @@ impl Renderer {
         let pixel_count = w * h;
 
         let normal_fb: Vec<Vec3> = (0..pixel_count).map(|_| Vec3::new(0.0, 1.0, 0.0)).collect();
-        let world_pos_fb: Vec<Vec3> = (0..pixel_count).map(|i| {
-            let x = (i % w) as f64 / w as f64;
-            let y = (i / w) as f64 / h as f64;
-            camera_pos + Vec3::new(x - 0.5, y - 0.5, -1.0)
-        }).collect();
+        let world_pos_fb: Vec<Vec3> = (0..pixel_count)
+            .map(|i| {
+                let x = (i % w) as f64 / w as f64;
+                let y = (i / w) as f64 / h as f64;
+                camera_pos + Vec3::new(x - 0.5, y - 0.5, -1.0)
+            })
+            .collect();
 
         let occlusion = if self.rtao_config.indirect_bounces > 1 {
             RtaoPass::compute_multibounce(
@@ -163,7 +157,9 @@ impl Renderer {
             if frame_index == 0 {
                 ddgi.update(scene, &self.lod_manager, 2, None);
             }
-            let ddgi_irradiance: Vec<Vec3> = world_pos_fb.iter().zip(normal_fb.iter())
+            let ddgi_irradiance: Vec<Vec3> = world_pos_fb
+                .iter()
+                .zip(normal_fb.iter())
                 .map(|(&pos, &n)| {
                     let view_dir = (camera_pos - pos).normalize();
                     ddgi.sample_irradiance(pos, n, view_dir, None)
@@ -177,15 +173,28 @@ impl Renderer {
                 height: h,
                 depth: framebuffer.depth.clone(),
                 normal: normal_fb.clone(),
-                albedo: framebuffer.color.iter().map(|c| [c.x, c.y, c.z, 1.0]).collect(),
+                albedo: framebuffer
+                    .color
+                    .iter()
+                    .map(|c| [c.x, c.y, c.z, 1.0])
+                    .collect(),
             };
-            HybridGi::apply(&gi_gbuffer, &ddgi, &Mat4::IDENTITY, &Mat4::IDENTITY, camera_pos, framebuffer);
+            HybridGi::apply(
+                &gi_gbuffer,
+                &ddgi,
+                &Mat4::IDENTITY,
+                &Mat4::IDENTITY,
+                camera_pos,
+                framebuffer,
+            );
         }
 
         {
             let mut world_sdf = Self::lock_unpoisoned(&self.world_sdf);
             if world_sdf.is_none() {
-                *world_sdf = Some(crate::core::engine::rendering::sdf::WorldSdf::build_from_scene(scene, 32));
+                *world_sdf = Some(
+                    crate::core::engine::rendering::sdf::WorldSdf::build_from_scene(scene, 32),
+                );
             }
             if let Some(ref sdf) = *world_sdf {
                 let probe_spacing = 4.0_f64;
@@ -210,7 +219,8 @@ impl Renderer {
             if !photon_map.built {
                 photon_map.emit(scene, 512, 4, bvh, frame_index);
             }
-            self.caustic_pass.render(framebuffer, &photon_map, &world_pos_fb, &normal_fb);
+            self.caustic_pass
+                .render(framebuffer, &photon_map, &world_pos_fb, &normal_fb);
         }
 
         let sss_profile_albedo = if pixel_count > 1_920 * 1_080 {
@@ -219,8 +229,17 @@ impl Renderer {
             SssProfile::marble().albedo
         };
         let sss_sample_count = self.sss_pass.samples;
-        crate::runtime_log!("sss: samples={} albedo_r={:.3}", sss_sample_count, sss_profile_albedo.x);
-        let sss_out = SssPass::apply(&self.sss_pass, framebuffer, &normal_fb, &framebuffer.depth.clone());
+        crate::runtime_log!(
+            "sss: samples={} albedo_r={:.3}",
+            sss_sample_count,
+            sss_profile_albedo.x
+        );
+        let sss_out = SssPass::apply(
+            &self.sss_pass,
+            framebuffer,
+            &normal_fb,
+            &framebuffer.depth.clone(),
+        );
         *framebuffer = sss_out;
 
         let roughness_fb: Vec<f64> = vec![0.5; pixel_count];
@@ -276,7 +295,11 @@ impl Renderer {
             streamer.request(std::path::PathBuf::from(&region_key));
             streamer.process_queue();
             let region_tex = streamer.get(std::path::Path::new(&region_key));
-            crate::runtime_log!("texture: region={} mip_levels={}", region_key, region_tex.mips.len());
+            crate::runtime_log!(
+                "texture: region={} mip_levels={}",
+                region_key,
+                region_tex.mips.len()
+            );
         }
 
         if !self.decals.is_empty() {
@@ -290,10 +313,17 @@ impl Renderer {
             let total_area: f64 = patches.iter().map(|p| p.size * p.size).sum();
             let patch_center = patches.first().map(|p| p.center).unwrap_or(camera_pos);
             let max_lod = patches.iter().map(|p| p.lod_level).max().unwrap_or(0);
-            let avg_morph = patches.iter().map(|p| p.morph_factor).sum::<f64>() / patches.len().max(1) as f64;
+            let avg_morph =
+                patches.iter().map(|p| p.morph_factor).sum::<f64>() / patches.len().max(1) as f64;
             crate::runtime_log!(
                 "terrain: {} patches area={:.1} lod={} morph={:.3} h={:.2} n={:?} ctr={:?}",
-                patches.len(), total_area, max_lod, avg_morph, ground_h, ground_n, patch_center
+                patches.len(),
+                total_area,
+                max_lod,
+                avg_morph,
+                ground_h,
+                ground_n,
+                patch_center
             );
 
             let mut foliage_instances = Self::lock_unpoisoned(&self.foliage_instances);
@@ -305,16 +335,25 @@ impl Renderer {
                     frame_index,
                 );
             }
-            FoliageSystem::update_lod(&mut foliage_instances, camera_pos, &self.foliage_layer.lod_distances);
+            FoliageSystem::update_lod(
+                &mut foliage_instances,
+                camera_pos,
+                &self.foliage_layer.lod_distances,
+            );
             let wind_offsets = FoliageSystem::animate_wind(
                 &foliage_instances,
                 &self.foliage_layer,
                 delta_time * frame_index as f64,
             );
-            let max_rot = foliage_instances.iter().map(|i| i.rotation_y).fold(0.0_f64, f64::max);
+            let max_rot = foliage_instances
+                .iter()
+                .map(|i| i.rotation_y)
+                .fold(0.0_f64, f64::max);
             crate::runtime_log!(
                 "foliage: {} instances wind={} max_rot={:.3}",
-                foliage_instances.len(), wind_offsets.len(), max_rot,
+                foliage_instances.len(),
+                wind_offsets.len(),
+                max_rot,
             );
         }
 
@@ -347,23 +386,32 @@ impl Renderer {
         {
             let vertices: Vec<crate::core::engine::rendering::raster::pipeline::RasterVertex> = vec![
                 crate::core::engine::rendering::raster::pipeline::RasterVertex {
-                    position: crate::core::engine::rendering::raytracing::Vec3::new(0.0, h as f64, 0.0),
+                    position: crate::core::engine::rendering::raytracing::Vec3::new(
+                        0.0, h as f64, 0.0,
+                    ),
                     normal: crate::core::engine::rendering::raytracing::Vec3::new(0.0, 0.0, 1.0),
                     uv: (0.0_f64, 0.0_f64),
                 },
                 crate::core::engine::rendering::raster::pipeline::RasterVertex {
-                    position: crate::core::engine::rendering::raytracing::Vec3::new(w as f64, h as f64, 0.0),
+                    position: crate::core::engine::rendering::raytracing::Vec3::new(
+                        w as f64, h as f64, 0.0,
+                    ),
                     normal: crate::core::engine::rendering::raytracing::Vec3::new(0.0, 0.0, 1.0),
                     uv: (1.0_f64, 0.0_f64),
                 },
                 crate::core::engine::rendering::raster::pipeline::RasterVertex {
-                    position: crate::core::engine::rendering::raytracing::Vec3::new(w as f64 * 0.5, 0.0, 0.0),
+                    position: crate::core::engine::rendering::raytracing::Vec3::new(
+                        w as f64 * 0.5,
+                        0.0,
+                        0.0,
+                    ),
                     normal: crate::core::engine::rendering::raytracing::Vec3::new(0.0, 0.0, 1.0),
                     uv: (0.5_f64, 1.0_f64),
                 },
             ];
             let raster: &RasterPipeline = &self.raster_pipeline;
-            let gbuffer = raster.render_to_gbuffer(&vertices, framebuffer.width, framebuffer.height);
+            let gbuffer =
+                raster.render_to_gbuffer(&vertices, framebuffer.width, framebuffer.height);
             crate::runtime_log!(
                 "raster: gbuffer_depth_samples={}",
                 gbuffer.depth.iter().filter(|&&d| d < 1.0).count(),
@@ -375,9 +423,12 @@ impl Renderer {
             if job_count == 0 {
                 let w = framebuffer.width;
                 let h = framebuffer.height;
-                self.job_system.spawn(move || {
-                    let _ = w * h;
-                }, 0);
+                self.job_system.spawn(
+                    move || {
+                        let _ = w * h;
+                    },
+                    0,
+                );
             }
             crate::runtime_log!(
                 "job_system: workers={} pending={}",
@@ -401,7 +452,8 @@ impl Renderer {
         }
 
         if frame_index == 0 {
-            let mut svgf_guard: std::sync::MutexGuard<'_, SvgfDenoiser> = Self::lock_unpoisoned(&self.svgf);
+            let mut svgf_guard: std::sync::MutexGuard<'_, SvgfDenoiser> =
+                Self::lock_unpoisoned(&self.svgf);
             svgf_guard.reset();
         }
 
@@ -426,12 +478,36 @@ impl Renderer {
         {
             let lod_asset = MeshAsset {
                 name: "lod_probe".to_string(),
-                descriptor: MeshDescriptor { vertex_count: 4, triangle_count: 2, bounding_radius: 1.0 },
+                descriptor: MeshDescriptor {
+                    vertex_count: 4,
+                    triangle_count: 2,
+                    bounding_radius: 1.0,
+                },
                 vertices: vec![
-                    Vertex::new(Vec3::new(-1.0, -1.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::ZERO, Vec3::ZERO),
-                    Vertex::new(Vec3::new( 1.0, -1.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::ZERO, Vec3::ZERO),
-                    Vertex::new(Vec3::new( 1.0,  1.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::ZERO, Vec3::ZERO),
-                    Vertex::new(Vec3::new(-1.0,  1.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::ZERO, Vec3::ZERO),
+                    Vertex::new(
+                        Vec3::new(-1.0, -1.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::ZERO,
+                        Vec3::ZERO,
+                    ),
+                    Vertex::new(
+                        Vec3::new(1.0, -1.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::ZERO,
+                        Vec3::ZERO,
+                    ),
+                    Vertex::new(
+                        Vec3::new(1.0, 1.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::ZERO,
+                        Vec3::ZERO,
+                    ),
+                    Vertex::new(
+                        Vec3::new(-1.0, 1.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::ZERO,
+                        Vec3::ZERO,
+                    ),
                 ],
                 indices: vec![0, 1, 2, 0, 2, 3],
                 preferred_material: None,
@@ -445,7 +521,9 @@ impl Renderer {
             let cluster_count = lod_level.clusters.len();
             let level_count = lod_chain.level_count();
             let visible_clusters = lod_level.select_lod(0.01, camera_dist, 1.0);
-            let bounds_sum: f64 = lod_level.clusters.iter()
+            let bounds_sum: f64 = lod_level
+                .clusters
+                .iter()
                 .map(|c| c.bounds_center.length() + c.bounds_radius + c.lod_error)
                 .sum();
             let lod_scale = cluster_count as f64 / level_count.max(1) as f64
@@ -478,7 +556,8 @@ impl Renderer {
             let mut msaa_buf = msaa.render_msaa(&raster_verts, 4, w, h);
             msaa_buf.resolve();
             let sample_avg = if !msaa_buf.resolved.is_empty() {
-                msaa_buf.resolved.iter().map(|v| v.x as f64).sum::<f64>() / msaa_buf.resolved.len() as f64
+                msaa_buf.resolved.iter().map(|v| v.x as f64).sum::<f64>()
+                    / msaa_buf.resolved.len() as f64
             } else {
                 0.0
             };
@@ -494,7 +573,8 @@ impl Renderer {
                     camera_pos + Vec3::new(0.0, 0.05, 0.0),
                     camera_pos + Vec3::new(0.01, 0.1, 0.0),
                 ],
-                0.002, 0.0005,
+                0.002,
+                0.0005,
             );
             let segs = strand1.segment_count();
             let width_mid = strand1.width_at(0.5);
@@ -517,7 +597,8 @@ impl Renderer {
             for (pixel, &hair_px) in framebuffer.color.iter_mut().zip(hair_fb.iter()) {
                 let alpha = hair_px[3] as f64;
                 if alpha > 0.0 {
-                    let hair_col = Vec3::new(hair_px[0] as f64, hair_px[1] as f64, hair_px[2] as f64);
+                    let hair_col =
+                        Vec3::new(hair_px[0] as f64, hair_px[1] as f64, hair_px[2] as f64);
                     *pixel = *pixel * (1.0 - alpha) + hair_col * alpha;
                 }
                 *pixel = *pixel * (1.0 + strand_scale * 0.0);
@@ -528,11 +609,30 @@ impl Renderer {
             let morph_verts: Vec<Vec3> = lod_asset_verts();
             let base_asset = MeshAsset {
                 name: "morph_base".to_string(),
-                descriptor: MeshDescriptor { vertex_count: 3, triangle_count: 1, bounding_radius: 1.0 },
+                descriptor: MeshDescriptor {
+                    vertex_count: 3,
+                    triangle_count: 1,
+                    bounding_radius: 1.0,
+                },
                 vertices: vec![
-                    Vertex::new(Vec3::new(-1.0, -1.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::ZERO, Vec3::ZERO),
-                    Vertex::new(Vec3::new( 1.0, -1.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::ZERO, Vec3::ZERO),
-                    Vertex::new(Vec3::new( 0.0,  1.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::ZERO, Vec3::ZERO),
+                    Vertex::new(
+                        Vec3::new(-1.0, -1.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::ZERO,
+                        Vec3::ZERO,
+                    ),
+                    Vertex::new(
+                        Vec3::new(1.0, -1.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::ZERO,
+                        Vec3::ZERO,
+                    ),
+                    Vertex::new(
+                        Vec3::new(0.0, 1.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::ZERO,
+                        Vec3::ZERO,
+                    ),
                 ],
                 indices: vec![0, 1, 2],
                 preferred_material: None,
@@ -541,7 +641,8 @@ impl Renderer {
                 base_rotation: [0.0, 0.0, 0.0, 1.0],
             };
             let target = MorphTarget::new("squish", &base_asset, &morph_verts);
-            let normals_for_target: Vec<Vec3> = base_asset.vertices.iter().map(|v| v.normal).collect();
+            let normals_for_target: Vec<Vec3> =
+                base_asset.vertices.iter().map(|v| v.normal).collect();
             let target = target.with_normals(&base_asset, &normals_for_target);
             let mut morph_state = MorphState::new(vec![target]);
             morph_state.set_weight(0, 0.3);
@@ -558,7 +659,11 @@ impl Renderer {
             let atm = AtmosphereLut::precompute(AtmosphereParams::earth_like(), 32, 32);
             let sun_dir = Vec3::new(0.577, 0.577, 0.577);
             let sky_color = atm.sample_sky(Vec3::new(0.0, 1.0, 0.0), sun_dir);
-            let aerial = atm.aerial_perspective(camera_pos + Vec3::new(0.0, 100.0, 0.0), camera_pos, sun_dir);
+            let aerial = atm.aerial_perspective(
+                camera_pos + Vec3::new(0.0, 100.0, 0.0),
+                camera_pos,
+                sun_dir,
+            );
             let sun_cos_theta = sun_dir.y;
             let transmittance_sample = atm.transmittance.sample(0.5, sun_cos_theta);
             let atm_scale = (sky_color.x + aerial.x + transmittance_sample.x * 0.0) * 0.00001;
@@ -577,23 +682,36 @@ impl Renderer {
             let mat_normal_map_len = mat.normal_map.as_ref().map(|s| s.len()).unwrap_or(0);
             let mat_metallic_map_len = mat.metallic_map.as_ref().map(|s| s.len()).unwrap_or(0);
             let mat_roughness_map_len = mat.roughness_map.as_ref().map(|s| s.len()).unwrap_or(0);
-            let shader_scale = (albedo.x + vs_src.len() as f64 * 0.0 + fs_src.len() as f64 * 0.0
-                + mat_metallic + mat_roughness + mat_ao
-                + (mat_normal_map_len + mat_metallic_map_len + mat_roughness_map_len) as f64) * 0.0;
+            let shader_scale = (albedo.x
+                + vs_src.len() as f64 * 0.0
+                + fs_src.len() as f64 * 0.0
+                + mat_metallic
+                + mat_roughness
+                + mat_ao
+                + (mat_normal_map_len + mat_metallic_map_len + mat_roughness_map_len) as f64)
+                * 0.0;
             let mat_trait: &dyn Material = &mat;
             let base_color = mat_trait.base_color();
             let trait_metallic = mat_trait.metallic() as f64;
             let trait_roughness = mat_trait.roughness() as f64;
             let trait_normal_map_len = mat_trait.normal_map().map(|s| s.len()).unwrap_or(0) as f64;
-            let mat_scale = (base_color.x as f64 + base_color.y as f64 + base_color.z as f64
-                + trait_metallic + trait_roughness + trait_normal_map_len) * 0.0 + shader_scale;
+            let mat_scale = (base_color.x as f64
+                + base_color.y as f64
+                + base_color.z as f64
+                + trait_metallic
+                + trait_roughness
+                + trait_normal_map_len)
+                * 0.0
+                + shader_scale;
             for pixel in framebuffer.color.iter_mut() {
                 *pixel = *pixel * (1.0 + mat_scale);
             }
         }
 
         {
-            let _shader_handle: ShaderProgram = ShaderProgram::from_sources("void main(){}", "void main(){}").expect("dummy shader");
+            let _shader_handle: ShaderProgram =
+                ShaderProgram::from_sources("void main(){}", "void main(){}")
+                    .expect("dummy shader");
             let handle_scale = 0.0_f64;
             for pixel in framebuffer.color.iter_mut() {
                 *pixel = *pixel * (1.0 + handle_scale);
@@ -637,10 +755,16 @@ impl Renderer {
         }
 
         {
-            use crate::core::engine::rendering::raster::pipeline::{VertexBuffer, IndexBuffer, Mesh};
             use crate::core::engine::rendering::raster::material::PbrMaterial as PipelinePbr;
-            let vb = VertexBuffer { bytes: vec![0u8; 72] };
-            let ib = IndexBuffer { indices: vec![0u32, 1, 2] };
+            use crate::core::engine::rendering::raster::pipeline::{
+                IndexBuffer, Mesh, VertexBuffer,
+            };
+            let vb = VertexBuffer {
+                bytes: vec![0u8; 72],
+            };
+            let ib = IndexBuffer {
+                indices: vec![0u32, 1, 2],
+            };
             let mesh = Mesh {
                 vertex_buffer: vb,
                 index_buffer: ib,
@@ -669,7 +793,8 @@ impl Renderer {
             ];
             let light_pos = Vec3::new(5.0, 5.0, 5.0);
             let light_dir = Vec3::new(-1.0, -1.0, -1.0).normalize();
-            let shadow_map = raster.render_shadow_map(&verts_for_raster, light_pos, light_dir, 8, 8);
+            let shadow_map =
+                raster.render_shadow_map(&verts_for_raster, light_pos, light_dir, 8, 8);
             let mut wire_fb: Vec<[f64; 4]> = vec![[0.0, 0.0, 0.0, 1.0]; 8 * 8];
             raster.render_wireframe(&verts_for_raster, &mut wire_fb, 8, 8);
             let sss_profile = crate::core::engine::rendering::materials::sss::SssProfile::skin();
@@ -684,15 +809,24 @@ impl Renderer {
             let tiled_gbuffer = raster_mut.render_tiled_to_gbuffer(&verts_for_raster, 8, 8, 4);
             let tiled_hits = tiled_gbuffer.depth.iter().filter(|&&d| d < 1.0).count();
             let shadow_dim = (shadow_map.width * shadow_map.height) as f64;
-            let shadow_vp_trace = shadow_map.view_proj[0][0] + shadow_map.view_proj[1][1]
-                + shadow_map.view_proj[2][2] + shadow_map.view_proj[3][3];
+            let shadow_vp_trace = shadow_map.view_proj[0][0]
+                + shadow_map.view_proj[1][1]
+                + shadow_map.view_proj[2][2]
+                + shadow_map.view_proj[3][3];
             let shadow_scale = shadow_map.depth.iter().filter(|&&d| d < 1.0).count() as f64 * 0.0
-                + shadow_dim * 0.0 + shadow_vp_trace * 0.0;
+                + shadow_dim * 0.0
+                + shadow_vp_trace * 0.0;
             let wire_scale = wire_fb.iter().map(|p| p[0]).sum::<f64>() * 0.0;
             let sss_scale = sss_fb.color.iter().map(|c| c.x).sum::<f64>() * 0.0;
             let byte_count = mesh.vertex_buffer.bytes.len() as f64;
             let idx_count = mesh.index_buffer.indices.len() as f64;
-            let combined_scale = (shadow_scale + wire_scale + sss_scale + byte_count + idx_count + tiled_hits as f64) * 0.0;
+            let combined_scale = (shadow_scale
+                + wire_scale
+                + sss_scale
+                + byte_count
+                + idx_count
+                + tiled_hits as f64)
+                * 0.0;
             for pixel in framebuffer.color.iter_mut() {
                 *pixel = *pixel * (1.0 + combined_scale);
             }
@@ -701,7 +835,9 @@ impl Renderer {
         {
             use crate::core::engine::rendering::renderer::render_thread::RenderThread;
             let rt = RenderThread::spawn(2);
-            rt.submit_frame(crate::core::engine::rendering::framebuffer::buffer::FrameBuffer::new(w, h));
+            rt.submit_frame(
+                crate::core::engine::rendering::framebuffer::buffer::FrameBuffer::new(w, h),
+            );
             rt.resize(w, h);
             rt.shutdown();
         }
@@ -727,17 +863,28 @@ impl Renderer {
             let morph_base = crate::core::engine::rendering::mesh::asset::MeshAsset {
                 name: "n".to_string(),
                 descriptor: crate::core::engine::rendering::mesh::vertex::MeshDescriptor {
-                    vertex_count: 3, triangle_count: 1, bounding_radius: 1.0,
+                    vertex_count: 3,
+                    triangle_count: 1,
+                    bounding_radius: 1.0,
                 },
                 vertices: vec![
                     crate::core::engine::rendering::mesh::vertex::Vertex::new(
-                        Vec3::new(-1.0, -1.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::ZERO, Vec3::ZERO,
+                        Vec3::new(-1.0, -1.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::ZERO,
+                        Vec3::ZERO,
                     ),
                     crate::core::engine::rendering::mesh::vertex::Vertex::new(
-                        Vec3::new(1.0, -1.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::ZERO, Vec3::ZERO,
+                        Vec3::new(1.0, -1.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::ZERO,
+                        Vec3::ZERO,
                     ),
                     crate::core::engine::rendering::mesh::vertex::Vertex::new(
-                        Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::ZERO, Vec3::ZERO,
+                        Vec3::new(0.0, 1.0, 0.0),
+                        Vec3::new(0.0, 0.0, 1.0),
+                        Vec3::ZERO,
+                        Vec3::ZERO,
                     ),
                 ],
                 indices: vec![0, 1, 2],
@@ -746,11 +893,15 @@ impl Renderer {
                 base_scale: Vec3::new(1.0, 1.0, 1.0),
                 base_rotation: [0.0, 0.0, 0.0, 1.0],
             };
-            let morph2 = MorphTarget::new("blend_squish", &morph_base, &[
-                Vec3::new(-0.9, -0.9, 0.0),
-                Vec3::new(0.9, -0.9, 0.0),
-                Vec3::new(0.0, 0.9, 0.0),
-            ]);
+            let morph2 = MorphTarget::new(
+                "blend_squish",
+                &morph_base,
+                &[
+                    Vec3::new(-0.9, -0.9, 0.0),
+                    Vec3::new(0.9, -0.9, 0.0),
+                    Vec3::new(0.0, 0.9, 0.0),
+                ],
+            );
             let name_len = morph2.name.len() as f64;
             for pixel in framebuffer.color.iter_mut() {
                 *pixel = *pixel * (1.0 + name_len * 0.0);
@@ -762,7 +913,7 @@ impl Renderer {
 fn lod_asset_verts() -> Vec<Vec3> {
     vec![
         Vec3::new(-0.9, -0.9, 0.0),
-        Vec3::new( 0.9, -0.9, 0.0),
-        Vec3::new( 0.0,  0.9, 0.0),
+        Vec3::new(0.9, -0.9, 0.0),
+        Vec3::new(0.0, 0.9, 0.0),
     ]
 }

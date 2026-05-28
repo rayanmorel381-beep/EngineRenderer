@@ -1,6 +1,5 @@
-
-use crate::core::engine::rendering::raytracing::Vec3;
 use crate::core::engine::rendering::framebuffer::FrameBuffer;
+use crate::core::engine::rendering::raytracing::Vec3;
 
 use super::blur::separable_blur;
 use super::effects::{chromatic_aberration_sample, extract_bright, film_grain, sharpen_pixel};
@@ -150,11 +149,7 @@ impl PostProcessor {
 }
 
 pub fn reinhard_tonemap(c: Vec3) -> Vec3 {
-    Vec3::new(
-        c.x / (1.0 + c.x),
-        c.y / (1.0 + c.y),
-        c.z / (1.0 + c.z),
-    )
+    Vec3::new(c.x / (1.0 + c.x), c.y / (1.0 + c.y), c.z / (1.0 + c.z))
 }
 
 fn pseudo_noise(seed: f64) -> f64 {

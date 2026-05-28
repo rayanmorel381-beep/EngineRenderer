@@ -1,9 +1,7 @@
 //! ARM64 CPU detection on Windows via `GetSystemInfo` +
 //! `CentralProcessor\0\ProcessorNameString`.
 
-use super::registry::{
-    PROCESSOR_ARCHITECTURE_ARM64, get_system_info, registry_string,
-};
+use super::registry::{PROCESSOR_ARCHITECTURE_ARM64, get_system_info, registry_string};
 
 const CPU_KEY: &str = r"HARDWARE\DESCRIPTION\System\CentralProcessor\0";
 

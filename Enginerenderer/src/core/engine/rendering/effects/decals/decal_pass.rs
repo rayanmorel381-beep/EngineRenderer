@@ -1,5 +1,5 @@
-use crate::core::engine::rendering::raytracing::Vec3;
 use crate::core::engine::rendering::framebuffer::FrameBuffer;
+use crate::core::engine::rendering::raytracing::Vec3;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Decal {
@@ -16,7 +16,11 @@ pub struct Decal {
 
 impl Decal {
     pub fn new(position: Vec3, normal: Vec3, size: Vec3, albedo: Vec3) -> Self {
-        let up = if normal.y.abs() < 0.99 { Vec3::new(0.0, 1.0, 0.0) } else { Vec3::new(1.0, 0.0, 0.0) };
+        let up = if normal.y.abs() < 0.99 {
+            Vec3::new(0.0, 1.0, 0.0)
+        } else {
+            Vec3::new(1.0, 0.0, 0.0)
+        };
         let tangent = normal.cross(up).normalize();
         Self {
             position,
@@ -58,7 +62,9 @@ impl DecalPass {
     ) -> Vec<(usize, f64, f64, f64)> {
         let mut hits = Vec::new();
         for (idx, &world_pos) in world_pos_fb.iter().enumerate() {
-            if idx >= fb.width * fb.height { break; }
+            if idx >= fb.width * fb.height {
+                break;
+            }
             if let Some((u, v, depth)) = decal.project(world_pos) {
                 hits.push((idx, u, v, depth));
             }
@@ -66,11 +72,7 @@ impl DecalPass {
         hits
     }
 
-    pub fn apply_all(
-        decals: &[Decal],
-        fb: &mut FrameBuffer,
-        world_pos_fb: &[Vec3],
-    ) {
+    pub fn apply_all(decals: &[Decal], fb: &mut FrameBuffer, world_pos_fb: &[Vec3]) {
         for decal in decals {
             let hits = Self::project_pixels(decal, fb, world_pos_fb);
             for (idx, u, v, depth) in hits {
@@ -78,7 +80,9 @@ impl DecalPass {
                     * smoothstep(0.0, 0.15, v.min(1.0 - v))
                     * smoothstep(0.0, 0.2, 1.0 - depth);
                 let alpha = decal.opacity * decal.normal_strength * edge_fade;
-                if alpha < 1e-4 { continue; }
+                if alpha < 1e-4 {
+                    continue;
+                }
                 let roughness_mod = 1.0 - decal.roughness * 0.1;
                 let metalness_tint = decal.metallic * 0.2;
                 let blend_color = decal.albedo * roughness_mod * (1.0 - metalness_tint)

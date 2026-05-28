@@ -1,5 +1,5 @@
-use crate::core::engine::rendering::raytracing::Vec3;
 use crate::core::engine::rendering::mesh::skinning::Skeleton;
+use crate::core::engine::rendering::raytracing::Vec3;
 
 #[derive(Debug, Clone)]
 pub struct SpringBone {
@@ -45,8 +45,17 @@ pub struct JiggleBone {
 }
 
 impl JiggleBone {
-    pub fn new(rest_position: Vec3, stiffness: f64, damping: f64, mass: f64, max_angle_rad: f64) -> Self {
-        Self { spring: SpringBone::new(rest_position, stiffness, damping, mass), max_angle_rad }
+    pub fn new(
+        rest_position: Vec3,
+        stiffness: f64,
+        damping: f64,
+        mass: f64,
+        max_angle_rad: f64,
+    ) -> Self {
+        Self {
+            spring: SpringBone::new(rest_position, stiffness, damping, mass),
+            max_angle_rad,
+        }
     }
 
     pub fn update(&mut self, parent_world_pos: Vec3, dt: f64) {
@@ -54,7 +63,8 @@ impl JiggleBone {
         let disp = self.spring.displacement();
         let len = disp.length();
         if len > f64::EPSILON {
-            let max_disp = self.max_angle_rad.tan() * self.spring.rest_position.length().max(f64::EPSILON);
+            let max_disp =
+                self.max_angle_rad.tan() * self.spring.rest_position.length().max(f64::EPSILON);
             if len > max_disp {
                 let clamped = disp * (max_disp / len);
                 self.spring.position = self.spring.rest_position + clamped;

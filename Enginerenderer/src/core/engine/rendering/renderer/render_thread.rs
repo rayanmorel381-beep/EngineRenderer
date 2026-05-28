@@ -1,6 +1,6 @@
+use crate::core::engine::rendering::framebuffer::buffer::FrameBuffer;
 use std::sync::mpsc;
 use std::thread;
-use crate::core::engine::rendering::framebuffer::buffer::FrameBuffer;
 
 pub enum RenderCommand {
     SubmitFrame(FrameBuffer),
@@ -17,7 +17,10 @@ impl RenderThread {
     pub fn spawn(channel_capacity: usize) -> Self {
         let (sender, receiver) = mpsc::sync_channel(channel_capacity);
         let handle = thread::spawn(move || render_loop(receiver));
-        Self { sender, handle: Some(handle) }
+        Self {
+            sender,
+            handle: Some(handle),
+        }
     }
 
     pub fn submit_frame(&self, fb: FrameBuffer) {

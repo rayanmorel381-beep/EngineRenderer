@@ -2,8 +2,8 @@ use std::error::Error;
 
 use crate::api::scenes::builder::SceneBuilder;
 use crate::api::types::{Quality, RenderRequest, RenderResult};
-use crate::core::engine::rendering::renderer::types::RenderPreset;
 use crate::core::engine::rendering::renderer::Renderer;
+use crate::core::engine::rendering::renderer::types::RenderPreset;
 
 use super::capabilities;
 use super::prompt;

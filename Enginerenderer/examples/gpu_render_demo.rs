@@ -11,8 +11,8 @@ fn main() {
 #[cfg(target_os = "linux")]
 fn main() {
     use enginerenderer::api::engine::rendering::{
-        gpu_try_new_desktop, AreaLight, DirectionalLight, GpuRenderConfig, Image, Material,
-        ProceduralEnvironment, RenderCamera, Scene, Sphere, Vec3, VolumetricMedium,
+        AreaLight, DirectionalLight, GpuRenderConfig, Image, Material, ProceduralEnvironment,
+        RenderCamera, Scene, Sphere, Vec3, VolumetricMedium, gpu_try_new_desktop,
     };
     use std::time::Instant;
 

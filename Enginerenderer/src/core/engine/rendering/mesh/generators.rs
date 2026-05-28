@@ -1,10 +1,9 @@
-
 use std::collections::HashMap;
 
 use crate::core::engine::rendering::raytracing::Vec3;
 
-use super::vertex::{MeshDescriptor, Vertex};
 use super::asset::MeshAsset;
+use super::vertex::{MeshDescriptor, Vertex};
 
 impl MeshAsset {
     /// Builds a procedurally displaced asteroid mesh from an icosphere base.
@@ -32,21 +31,65 @@ pub fn unit_cube() -> MeshAsset {
     let mut indices = Vec::with_capacity(36);
 
     let faces: &[(Vec3, Vec3, Vec3)] = &[
-        (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)),
-        (Vec3::new(0.0, 0.0, -1.0), Vec3::new(-1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)),
-        (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0)),
-        (Vec3::new(-1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 1.0, 0.0)),
-        (Vec3::new(0.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, -1.0)),
-        (Vec3::new(0.0, -1.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
+        (
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
+        (
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec3::new(-1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
+        (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
+        (
+            Vec3::new(-1.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
+        (
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, -1.0),
+        ),
+        (
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ),
     ];
 
     for &(normal, right, up) in faces {
         let base = vertices.len();
         let center = normal * 0.5;
-        vertices.push(Vertex::new(center - right * 0.5 - up * 0.5, normal, Vec3::new(0.0, 0.0, 0.0), Vec3::ZERO));
-        vertices.push(Vertex::new(center + right * 0.5 - up * 0.5, normal, Vec3::new(1.0, 0.0, 0.0), Vec3::ZERO));
-        vertices.push(Vertex::new(center + right * 0.5 + up * 0.5, normal, Vec3::new(1.0, 1.0, 0.0), Vec3::ZERO));
-        vertices.push(Vertex::new(center - right * 0.5 + up * 0.5, normal, Vec3::new(0.0, 1.0, 0.0), Vec3::ZERO));
+        vertices.push(Vertex::new(
+            center - right * 0.5 - up * 0.5,
+            normal,
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::ZERO,
+        ));
+        vertices.push(Vertex::new(
+            center + right * 0.5 - up * 0.5,
+            normal,
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::ZERO,
+        ));
+        vertices.push(Vertex::new(
+            center + right * 0.5 + up * 0.5,
+            normal,
+            Vec3::new(1.0, 1.0, 0.0),
+            Vec3::ZERO,
+        ));
+        vertices.push(Vertex::new(
+            center - right * 0.5 + up * 0.5,
+            normal,
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::ZERO,
+        ));
         indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
     }
 
@@ -195,10 +238,26 @@ pub fn icosphere(subdivisions: u32, radius: f64) -> MeshAsset {
 
     let mut positions: Vec<Vec3> = raw.iter().map(|p| p.normalize()).collect();
     let mut tris: Vec<[usize; 3]> = vec![
-        [0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11],
-        [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
-        [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9],
-        [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1],
+        [0, 11, 5],
+        [0, 5, 1],
+        [0, 1, 7],
+        [0, 7, 10],
+        [0, 10, 11],
+        [1, 5, 9],
+        [5, 11, 4],
+        [11, 10, 2],
+        [10, 7, 6],
+        [7, 1, 8],
+        [3, 9, 4],
+        [3, 4, 2],
+        [3, 2, 6],
+        [3, 6, 8],
+        [3, 8, 9],
+        [4, 9, 5],
+        [2, 4, 11],
+        [6, 2, 10],
+        [8, 6, 7],
+        [9, 8, 1],
     ];
 
     let mut midpoint_cache: HashMap<(usize, usize), usize> = HashMap::new();

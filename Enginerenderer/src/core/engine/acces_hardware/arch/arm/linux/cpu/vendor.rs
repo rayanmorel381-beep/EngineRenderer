@@ -64,11 +64,21 @@ pub(crate) fn default_config() -> CpuConfig {
     let (worker_hint, render_workers, frame_budget_us, low_power) = match vendor {
         Vendor::Amd => {
             let c = amd::backend::default_backend_config();
-            (c.worker_hint, c.render_workers, c.frame_budget_us, c.low_power || !has_neon)
+            (
+                c.worker_hint,
+                c.render_workers,
+                c.frame_budget_us,
+                c.low_power || !has_neon,
+            )
         }
         Vendor::Intel => {
             let c = intel::backend::default_backend_config();
-            (c.worker_hint, c.render_workers, c.frame_budget_us, c.low_power || !has_neon)
+            (
+                c.worker_hint,
+                c.render_workers,
+                c.frame_budget_us,
+                c.low_power || !has_neon,
+            )
         }
         Vendor::Apple => {
             let c = apple::backend::default_backend_config();
@@ -93,15 +103,26 @@ pub(crate) fn default_config() -> CpuConfig {
             )
         }
     };
-    CpuConfig { vendor, worker_hint, render_workers, frame_budget_us, low_power }
+    CpuConfig {
+        vendor,
+        worker_hint,
+        render_workers,
+        frame_budget_us,
+        low_power,
+    }
 }
 
 pub(crate) fn clamp_workers(requested: usize) -> usize {
     match detect_vendor() {
-        Vendor::Amd   => amd::backend::clamp_workers(requested),
+        Vendor::Amd => amd::backend::clamp_workers(requested),
         Vendor::Intel => intel::backend::clamp_workers(requested),
         Vendor::Apple => apple::backend::clamp_workers(requested),
-        Vendor::Unknown => requested.max(1).min(std::thread::available_parallelism().map(|v| v.get()).unwrap_or(1).max(1)),
+        Vendor::Unknown => requested.max(1).min(
+            std::thread::available_parallelism()
+                .map(|v| v.get())
+                .unwrap_or(1)
+                .max(1),
+        ),
     }
 }
 
@@ -121,10 +142,22 @@ pub(crate) fn build_schedule(work_items: usize) -> CpuSchedule {
             (s.chunks, s.chunk_size, s.frame_budget_us)
         }
         Vendor::Unknown => {
-            let chunk_size = if work_items == 0 { 32 } else { work_items.div_ceil(32).max(32) };
-            let chunks = if work_items == 0 { 1 } else { work_items.div_ceil(chunk_size) };
+            let chunk_size = if work_items == 0 {
+                32
+            } else {
+                work_items.div_ceil(32).max(32)
+            };
+            let chunks = if work_items == 0 {
+                1
+            } else {
+                work_items.div_ceil(chunk_size)
+            };
             (chunks, chunk_size, 8_333)
         }
     };
-    CpuSchedule { chunks, chunk_size, frame_budget_us }
+    CpuSchedule {
+        chunks,
+        chunk_size,
+        frame_budget_us,
+    }
 }

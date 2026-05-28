@@ -1,5 +1,5 @@
-use crate::core::engine::rendering::raytracing::Vec3;
 use super::rigidbody::RigidBody;
+use crate::core::engine::rendering::raytracing::Vec3;
 
 #[derive(Debug, Clone)]
 pub struct Wheel {
@@ -14,7 +14,13 @@ pub struct Wheel {
 }
 
 impl Wheel {
-    pub fn new(offset: Vec3, radius: f64, suspension_rest: f64, stiffness: f64, damping: f64) -> Self {
+    pub fn new(
+        offset: Vec3,
+        radius: f64,
+        suspension_rest: f64,
+        stiffness: f64,
+        damping: f64,
+    ) -> Self {
         Self {
             offset,
             radius,
@@ -70,7 +76,9 @@ impl Vehicle {
     }
 
     pub fn step(&mut self, dt: f64, gravity: Vec3) {
-        if self.body.is_static { return; }
+        if self.body.is_static {
+            return;
+        }
 
         let ground_y = 0.0_f64;
         let total_suspension_force = {
@@ -98,7 +106,11 @@ impl Vehicle {
         let gravity_force = gravity * self.body.mass;
         let suspension_vec = Vec3::new(0.0, total_suspension_force, 0.0);
 
-        let drive_wheels: usize = self.wheels.iter().filter(|w| w.contact_point.is_some()).count();
+        let drive_wheels: usize = self
+            .wheels
+            .iter()
+            .filter(|w| w.contact_point.is_some())
+            .count();
         let drive_force = if drive_wheels > 0 {
             let torque = self.engine_torque * self.throttle;
             let wheel_radius = self.wheels.first().map(|w| w.radius).unwrap_or(0.3);

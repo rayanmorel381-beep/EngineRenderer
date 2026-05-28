@@ -25,16 +25,8 @@ impl ShaderProgram {
 
     pub fn compile(&mut self, gl_procs: &GlProcs) -> Result<(), String> {
         unsafe {
-            let vs = self.compile_shader(
-                &self.vertex_src,
-                0x8B31,
-                gl_procs,
-            )?;
-            let fs = self.compile_shader(
-                &self.fragment_src,
-                0x8B30,
-                gl_procs,
-            )?;
+            let vs = self.compile_shader(&self.vertex_src, 0x8B31, gl_procs)?;
+            let fs = self.compile_shader(&self.fragment_src, 0x8B30, gl_procs)?;
 
             let program = (gl_procs.gl_create_program)();
             (gl_procs.gl_attach_shader)(program, vs);
@@ -62,7 +54,8 @@ impl ShaderProgram {
         gl_procs: &GlProcs,
     ) -> Result<u32, String> {
         let shader = unsafe { (gl_procs.gl_create_shader)(shader_type) };
-        let c_src = CString::new(src).map_err(|_| "Shader source contains interior NUL byte".to_string())?;
+        let c_src = CString::new(src)
+            .map_err(|_| "Shader source contains interior NUL byte".to_string())?;
         let src_ptr = c_src.as_ptr();
         unsafe { (gl_procs.gl_shader_source)(shader, 1, &src_ptr, std::ptr::null()) };
         unsafe { (gl_procs.gl_compile_shader)(shader) };
@@ -115,7 +108,8 @@ impl ShaderProgram {
         if let Some(&cached) = self.uniforms.get(name) {
             return Ok(cached);
         }
-        let c_name = CString::new(name).map_err(|_| "Uniform name contains interior NUL byte".to_string())?;
+        let c_name = CString::new(name)
+            .map_err(|_| "Uniform name contains interior NUL byte".to_string())?;
         Ok(unsafe { (gl_procs.gl_get_uniform_location)(self.handle, c_name.as_ptr()) })
     }
 
@@ -150,25 +144,47 @@ pub struct GlProcs {
 
 impl GlProcs {
     pub fn null_stubs() -> Self {
-        extern "C" fn stub_create_shader(_type: u32) -> u32 { 1 }
-        extern "C" fn stub_shader_source(_shader: u32, _count: i32, _src: *const *const i8, _len: *const i32) {}
+        extern "C" fn stub_create_shader(_type: u32) -> u32 {
+            1
+        }
+        extern "C" fn stub_shader_source(
+            _shader: u32,
+            _count: i32,
+            _src: *const *const i8,
+            _len: *const i32,
+        ) {
+        }
         extern "C" fn stub_compile_shader(_shader: u32) {}
         unsafe extern "C" fn stub_get_shaderiv(_shader: u32, _pname: u32, params: *mut i32) {
-            unsafe { *params = 1; }
+            unsafe {
+                *params = 1;
+            }
         }
-        extern "C" fn stub_create_program() -> u32 { 2 }
+        extern "C" fn stub_create_program() -> u32 {
+            2
+        }
         extern "C" fn stub_attach_shader(_program: u32, _shader: u32) {}
         extern "C" fn stub_link_program(_program: u32) {}
         unsafe extern "C" fn stub_get_programiv(_program: u32, _pname: u32, params: *mut i32) {
-            unsafe { *params = 1; }
+            unsafe {
+                *params = 1;
+            }
         }
         extern "C" fn stub_delete_shader(_shader: u32) {}
         extern "C" fn stub_use_program(_program: u32) {}
-        extern "C" fn stub_get_uniform_location(_program: u32, _name: *const i8) -> i32 { 0 }
+        extern "C" fn stub_get_uniform_location(_program: u32, _name: *const i8) -> i32 {
+            0
+        }
         extern "C" fn stub_uniform1f(_loc: i32, _v0: f32) {}
         extern "C" fn stub_uniform3f(_loc: i32, _v0: f32, _v1: f32, _v2: f32) {}
         extern "C" fn stub_uniform4f(_loc: i32, _v0: f32, _v1: f32, _v2: f32, _v3: f32) {}
-        extern "C" fn stub_uniform_matrix4fv(_loc: i32, _count: i32, _transpose: u8, _value: *const f32) {}
+        extern "C" fn stub_uniform_matrix4fv(
+            _loc: i32,
+            _count: i32,
+            _transpose: u8,
+            _value: *const f32,
+        ) {
+        }
         Self {
             gl_create_shader: stub_create_shader,
             gl_shader_source: stub_shader_source,
@@ -196,7 +212,12 @@ impl ShaderCache {
         }
     }
 
-    pub fn get_or_create(&mut self, key: &str, vertex: &str, fragment: &str) -> Result<&ShaderProgram, String> {
+    pub fn get_or_create(
+        &mut self,
+        key: &str,
+        vertex: &str,
+        fragment: &str,
+    ) -> Result<&ShaderProgram, String> {
         if !self.programs.contains_key(key) {
             let mut program = ShaderProgram::from_sources(vertex, fragment)?;
             let gl = GlProcs::null_stubs();
@@ -207,9 +228,20 @@ impl ShaderCache {
             program.set_uniform_1f("time", 0.0, &gl);
             program.set_uniform_3f("light_pos", 1.0, 1.0, 1.0, &gl);
             program.set_uniform_4f("color", 1.0, 1.0, 1.0, 1.0, &gl);
-            program.set_uniform_matrix4f("mvp", &[1.0_f32,0.0,0.0,0.0, 0.0,1.0,0.0,0.0, 0.0,0.0,1.0,0.0, 0.0,0.0,0.0,1.0], &gl);
+            program.set_uniform_matrix4f(
+                "mvp",
+                &[
+                    1.0_f32, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+                    1.0,
+                ],
+                &gl,
+            );
             let compiled_handle = program.handle();
-            crate::runtime_log!("shader_cache: compiled '{}' handle={}", key, compiled_handle);
+            crate::runtime_log!(
+                "shader_cache: compiled '{}' handle={}",
+                key,
+                compiled_handle
+            );
             self.programs.insert(key.to_string(), program);
         }
         self.programs

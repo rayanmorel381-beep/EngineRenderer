@@ -4,10 +4,7 @@ use std::path::{Path, PathBuf};
 use super::ui;
 
 pub fn print_docs(args: &[&str], current_module: Option<&str>) {
-    let section_from_first = args
-        .first()
-        .copied()
-        .filter(|value| is_doc_section(value));
+    let section_from_first = args.first().copied().filter(|value| is_doc_section(value));
     let target = if section_from_first.is_some() {
         current_module
     } else {
@@ -16,10 +13,7 @@ pub fn print_docs(args: &[&str], current_module: Option<&str>) {
     let section = if section_from_first.is_some() {
         section_from_first
     } else {
-        args
-            .get(1)
-            .copied()
-            .filter(|value| is_doc_section(value))
+        args.get(1).copied().filter(|value| is_doc_section(value))
     };
 
     if args.is_empty() && current_module.is_none() {
@@ -34,7 +28,11 @@ pub fn print_docs(args: &[&str], current_module: Option<&str>) {
                 print_doc_excerpt("README", include_str!("../../../ReadMe.md"), 220);
             }
             "tree" | "arborescence" => {
-                print_doc_excerpt("ARBORESCENCE", include_str!("../../../arborescence.md"), 260);
+                print_doc_excerpt(
+                    "ARBORESCENCE",
+                    include_str!("../../../arborescence.md"),
+                    260,
+                );
             }
             "changelog" => {
                 print_doc_excerpt("CHANGELOG", include_str!("../../../ChangeLog.md"), 220);
@@ -123,7 +121,9 @@ fn print_rendering_docs(section: Option<&str>) {
         _ => {
             eprintln!("rendering overview:");
             eprintln!("  layers: api -> coremanager -> rendering -> raytracing -> postprocess");
-            eprintln!("  key dirs: src/core/engine/rendering, src/core/engine/rendering/raytracing");
+            eprintln!(
+                "  key dirs: src/core/engine/rendering, src/core/engine/rendering/raytracing"
+            );
         }
     }
 }

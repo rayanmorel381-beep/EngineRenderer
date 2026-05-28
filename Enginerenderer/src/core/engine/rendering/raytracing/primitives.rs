@@ -1,7 +1,6 @@
 use super::math::Vec3;
 use crate::core::engine::rendering::{
-    lod::selection::LodSelection,
-    texture::procedural_texture::ProceduralTexture,
+    lod::selection::LodSelection, texture::procedural_texture::ProceduralTexture,
 };
 
 pub const EPSILON: f64 = 0.001;
@@ -23,11 +22,7 @@ impl Ray {
         Self {
             origin,
             direction,
-            inv_direction: Vec3::new(
-                1.0 / direction.x,
-                1.0 / direction.y,
-                1.0 / direction.z,
-            ),
+            inv_direction: Vec3::new(1.0 / direction.x, 1.0 / direction.y, 1.0 / direction.z),
         }
     }
 
@@ -127,7 +122,12 @@ impl Material {
     }
 
     /// Applies procedural texturing controls.
-    pub fn with_texturing(mut self, texture_weight: f64, normal_map_strength: f64, uv_scale: f64) -> Self {
+    pub fn with_texturing(
+        mut self,
+        texture_weight: f64,
+        normal_map_strength: f64,
+        uv_scale: f64,
+    ) -> Self {
         self.texture_weight = texture_weight.clamp(0.0, 1.0);
         self.normal_map_strength = normal_map_strength.clamp(0.0, 3.0);
         self.uv_scale = uv_scale.max(0.05);
@@ -155,7 +155,8 @@ impl Material {
         let modulation = 0.82 + marble * 0.08 + vein * 0.06 * lod.normal_intensity;
         let texture = self.surface_texture();
         let textured = texture.sample_uv(point * (0.35 + freq * 0.08), uv, self.uv_scale);
-        ((self.albedo * modulation).lerp(textured, self.texture_weight + self.clearcoat * 0.10) + self.sheen * 0.03)
+        ((self.albedo * modulation).lerp(textured, self.texture_weight + self.clearcoat * 0.10)
+            + self.sheen * 0.03)
             .clamp(0.0, 2.2)
     }
 }

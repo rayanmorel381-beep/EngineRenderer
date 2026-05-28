@@ -19,9 +19,8 @@ pub(crate) fn detect_intel() -> Option<IntelCpuInfo> {
     let turbo_mhz = read_sysfs_u64("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq")
         .map(|khz| khz / 1000);
 
-    let epp = read_sysfs_string(
-        "/sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference",
-    );
+    let epp =
+        read_sysfs_string("/sys/devices/system/cpu/cpu0/cpufreq/energy_performance_preference");
 
     Some(IntelCpuInfo {
         cpu_family: info.cpu_family.unwrap_or(0),
