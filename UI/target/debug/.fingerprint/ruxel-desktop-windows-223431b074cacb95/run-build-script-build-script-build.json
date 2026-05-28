@@ -1,1 +1,0 @@
-{"rustc":5391851738765093524,"features":"","declared_features":"","target":0,"profile":0,"path":0,"deps":[[8333965805411891463,"build_script_build",false,10609288235796983147]],"local":[{"RerunIfChanged":{"output":"debug/build/ruxel-desktop-windows-223431b074cacb95/output","paths":["resources/app.rc","build.rs"]}}],"rustflags":[],"config":0,"compile_kind":0}
