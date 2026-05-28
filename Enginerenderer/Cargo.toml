@@ -14,12 +14,17 @@ keywords = ["rendering", "path-tracing", "3d", "animation", "ray-tracing"]
 categories = ["graphics", "multimedia", "simulation", "science"]
 include = [
     "src/**/*.rs",
+    "benches/**/*.rs",
+    "tests/**/*.rs",
+    "examples/**/*.rs",
+    "fpstests/**/*.md",
     "Cargo.toml",
     "ReadMe.md",
     "License",
     "ChangeLog.md",
     "CONTRIBUTING.md",
     "arborescence.md",
+    "quickstart.md",
 ]
 
 [workspace]
