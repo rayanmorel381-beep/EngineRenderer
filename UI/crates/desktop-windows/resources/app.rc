@@ -1,0 +1,33 @@
+#include <winver.h>
+
+#define APP_VERSION 0,0,1,0
+#define APP_VERSION_STR "0.0.1.0\0"
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION    APP_VERSION
+PRODUCTVERSION APP_VERSION
+FILEFLAGSMASK  0x3fL
+FILEFLAGS      0x0L
+FILEOS         VOS__WINDOWS32
+FILETYPE       VFT_APP
+FILESUBTYPE    VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName",      "Rayan Morel\0"
+            VALUE "FileDescription",  "RUXEL desktop editor\0"
+            VALUE "FileVersion",      APP_VERSION_STR
+            VALUE "InternalName",     "ruxel\0"
+            VALUE "LegalCopyright",   "MIT License\0"
+            VALUE "OriginalFilename", "ruxel.exe\0"
+            VALUE "ProductName",      "RUXEL\0"
+            VALUE "ProductVersion",   APP_VERSION_STR
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 0x04b0
+    END
+END

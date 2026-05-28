@@ -1,0 +1,14 @@
+[workspace]
+members = [
+    "./crates/core",
+    "./crates/desktop-linux",
+    "./crates/desktop-windows",
+    "./crates/desktop-macos",
+    "./crates/mobile-android",
+    "./crates/mobile-ios",
+]
+resolver = "3"
+
+[profile.dev]
+opt-level = 3
+debug = 1

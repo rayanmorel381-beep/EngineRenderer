@@ -1,0 +1,17 @@
+[package]
+name = "ruxel-mobile-ios"
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.85"
+authors = ["Rayan Morel"]
+license = "MIT"
+description = "iOS shell for RUXEL (staticlib linked by Xcode IPA build)."
+
+[lib]
+name = "ruxel_mobile_ios"
+path = "src/lib.rs"
+crate-type = ["staticlib"]
+
+[dependencies]
+ruxel-core = { path = "../core" }
+enginerenderer = { path = "../../../EngineRenderer" }

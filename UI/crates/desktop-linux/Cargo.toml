@@ -1,0 +1,16 @@
+[package]
+name = "ruxel-desktop-linux"
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.85"
+authors = ["Rayan Morel"]
+license = "MIT"
+description = "Linux desktop shell for RUXEL (Snap, AppImage, native binary)."
+
+[[bin]]
+name = "ruxel"
+path = "src/main.rs"
+
+[dependencies]
+ruxel-core = { path = "../core" }
+enginerenderer = { path = "../../../EngineRenderer" }

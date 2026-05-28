@@ -1,0 +1,2 @@
+cargo:rerun-if-changed=resources/app.rc
+cargo:rerun-if-changed=build.rs

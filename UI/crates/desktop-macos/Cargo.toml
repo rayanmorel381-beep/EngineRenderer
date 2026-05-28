@@ -1,0 +1,16 @@
+[package]
+name = "ruxel-desktop-macos"
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.85"
+authors = ["Rayan Morel"]
+license = "MIT"
+description = "macOS desktop shell for RUXEL (.app bundle, .dmg)."
+
+[[bin]]
+name = "ruxel"
+path = "src/main.rs"
+
+[dependencies]
+ruxel-core = { path = "../core" }
+enginerenderer = { path = "../../../EngineRenderer" }

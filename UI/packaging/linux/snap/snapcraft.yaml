@@ -1,0 +1,54 @@
+name: ruxel
+base: core22
+version: "0.0.1"
+summary: RUXEL — Real-time Unobtained Xenom Engine Layer
+description: |
+  RUXEL is a zero-dependency real-time renderer and editor built on the
+  EngineRenderer core. It bundles the desktop Linux shell with the
+  shared engine library.
+
+grade: stable
+confinement: strict
+
+apps:
+  ruxel:
+    command: bin/ruxel
+    desktop: share/applications/ruxel.desktop
+    extensions:
+      - gnome
+    plugs:
+      - opengl
+      - wayland
+      - x11
+      - desktop
+      - desktop-legacy
+      - home
+
+parts:
+  ruxel:
+    plugin: rust
+    source: ..
+    rust-path:
+      - crates/desktop-linux
+    build-packages:
+      - libx11-dev
+      - libxext-dev
+      - libxi-dev
+      - libxcursor-dev
+      - libxrandr-dev
+      - libxinerama-dev
+      - libgl1-mesa-dev
+    stage-packages:
+      - libx11-6
+      - libxext6
+      - libxi6
+      - libxcursor1
+      - libxrandr2
+      - libxinerama1
+      - libgl1
+
+  desktop-file:
+    plugin: dump
+    source: ../packaging/linux
+    organize:
+      ruxel.desktop: share/applications/ruxel.desktop

@@ -1,0 +1,17 @@
+[package]
+name = "ruxel-core"
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.85"
+authors = ["Rayan Morel"]
+license = "MIT"
+description = "Shared application core for the RUXEL distributable shells."
+
+[lib]
+name = "ruxel_core"
+path = "src/lib.rs"
+
+[dependencies]
+enginerenderer = { path = "../../../EngineRenderer" }
+fontdue = "0.9"
+rhai = { version = "1", features = ["sync"] }

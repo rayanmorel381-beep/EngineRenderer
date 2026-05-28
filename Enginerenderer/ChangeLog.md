@@ -1,0 +1,140 @@
+<div align="center">
+
+# 📋 Changelog
+
+All notable changes to **EngineRenderer** are documented here.
+
+Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
+
+</div>
+
+---
+
+## `0.0.1` — 2026-05-28
+
+> Initial release — full rendering pipeline, animation system, multi-platform HAL.
+
+### 🎨 Rendering
+
+- CPU path-tracing renderer with BVH acceleration structure
+- 16-band spectral rendering with CIE 1931 XYZ conversion
+- PBR material system — albedo · roughness · metallic · emission · IOR · subsurface · anisotropy · iridescence · clearcoat · transmission
+- 17 built-in material presets — stellar · planetary · manufactured · celestial · natural
+- 4 render presets — `AnimationFast` · `PreviewCpu` · `UltraHdCpu` · `ProductionReference`
+- Adaptive sampling with firefly rejection and denoising
+- Cascaded shadow maps — PCF filtering · contact shadows
+- Volumetrics — god rays · participating media · atmospheric scattering · procedural clouds
+- Post-processing — bloom · Gaussian blur · depth-of-field · tone mapping
+- Motion blur via time-sampled primitives
+- Frustum culling and LOD management with hysteresis
+
+### 🎬 Animation
+
+- Timeline-based keyframe system with 18 interpolation methods
+- Frame sequencer for batch rendering with caching
+- MP4 video export via FFmpeg
+
+### 🏗️ Scene
+
+- Fluent builder API — `SceneBuilder` · `MaterialBuilder` · `CameraController`
+- Text-based `.scene` format with serialization and parsing
+- OBJ and glTF/GLB mesh import
+- Procedural geometry generators and mesh operations
+- Composite objects with hierarchical scene graphs
+
+### ⚛️ Physics & Simulation
+
+- Rigid body dynamics · collision detection · raycasting
+- N-body gravitational simulation for celestial mechanics
+
+### 🤖 AI
+
+- Capability introspection · prompt-to-scene parsing · AI-friendly camera presets
+
+### 🖥️ Hardware Abstraction
+
+- Per-OS CPU/GPU/display detection — Linux · macOS · Windows · Android
+- Runtime SIMD — SSE4.2 · AVX · AVX-512 (x86) — NEON · SVE (ARM)
+- GPU drivers — `amdgpu` `radeon` `i915` `xe` `nouveau` `mali` `msm` — D3D12/DXGI — AppleGPU
+- Automatic CPU fallback
+- Cross-compilation for 9+ targets
+- Compilation successful on all listed architectures
+
+### 🛠️ Tools & CLI
+
+- Interactive terminal REPL — module navigation · documentation browser · framed UI panels
+- CLI mode — `render` · `gallery` · `test` · `video` · `run` · `detect` · `help`
+- 7 render examples — spheres · cubes · house · city · car · world · blackhole
+- `video` mode — animation MP4 générique avec chargement de scène `.scene` via `--scene-file`
+- `run` mode — prévisualisation realtime paramétrable (`--seconds`, `--fps`, `--width`, `--height`)
+
+### ⚙️ Infrastructure
+
+- Engine logging — circular buffer · 3 severity levels
+- Adaptive tile-based work scheduler with profiling
+- Output formats — PPM · EXR · PNG · MP4
+
+### ⚡ Realtime Performance
+
+- Unified ultra-constrained 120 FPS profile across architectures
+- Realtime scene complexity budget with proxy geometry and light budget controls
+- Showcase mesh caching and BVH reuse moved outside the realtime frame loop
+- Deadline-based frame pacing with drift compensation for stable high-frequency loops
+- Ultra-constrained presentation path tuned to reduce per-frame overhead
+
+### 🎯 Runtime Adaptation
+
+- Smoothed runtime adaptation in engine loops using frame timing distribution (`p50`, `p95`, `p99`, jitter)
+- Runtime sample pressure integrated into scene and animation rendering entry points
+- Hysteresis/cooldown based internal resolution scaling for realtime and animation window paths
+- Scheduler granularity tuning via `SchedulerTuning` and runtime pressure mapping
+
+### 🔍 Observability & Debug
+
+- `RuntimeAdaptationState` propagated through debug overlay, serialization, and event summaries
+- Adaptation reporting added in engine loop and realtime manager logs
+- Overlay payload extended with adaptation metrics (pressure, scale, streaks, cooldown)
+
+### 📊 Runtime Validation
+
+- Linux x86_64 release realtime benchmark (3s, target 120 FPS): achieved target cadence
+- Android ARM64 release realtime benchmark (3s, target 120 FPS): constrained-device adaptation validated
+- Runtime tuning scales internal resolution and scene cost to preserve target cadence
+
+### 🪟 Windows Target Quality
+
+- Windows x86_64 vendor paths wired so CPU/GPU detection code is actively used
+- Dead-code warning sources on Windows vendor modules eliminated through integration
+- Clippy warning categories fixed on `x86_64-pc-windows-gnu`:
+	- collapsed nested `if`
+	- replaced manual `div_ceil` patterns
+	- replaced manual clamp patterns with `clamp`
+	- renamed acronym aliases (`HKEY` → `Hkey`) to satisfy lint rules
+
+### ✅ Validation & Quality Gates
+
+- Added `tests/workspace_render_validation.rs` with deterministic visual regression and parallel stress rendering
+- Added ignored long-run pacing campaign and diagnostics benchmark matrix campaign
+- Verified workspace gates:
+	- `cargo check --all-targets`
+	- `cargo clippy --all-targets`
+
+### 🧠 Scripting VM
+
+- Stack-based bytecode VM with `Push` · `Add/Sub/Mul/Div` · `Jmp/JmpIf` · `Eq/Ne/Lt/Gt/Le/Ge` · `Call/Ret` · `Load/Store` · `Neg/Not` · `Halt` · `PushFloat`
+- `Opcode::CallNative` wired through bytecode encoding/decoding and the dispatch loop
+- `ScriptRunner` compiles source expressions, loads scripts from files, and dispatches to the VM
+- Native function registration via `Vm::register_native` and runtime dispatch via `Vm::call_native`
+- `VmError::UnknownNative(id)` surfaced when a native id is missing, with `impl Display for VmError`
+
+### 🧩 ECS
+
+- Sparse-set `TypedStorage<T>` with type-erased `AnyStorage` trait
+- `ComponentRegistry` for cross-type component storage, query, and per-entity removal
+- `AnyStorage::component_count` for `TypedStorage<T>` delegates to the inherent method
+
+### 🔁 Hot Reload
+
+- `HotReloader` watches asset paths and polls modification timestamps
+- Engine runtime log reports `watched_paths()`, `watch_count()`, and per-script `ScriptRunner::is_loaded(...)`
+- Hot-reload trigger reloads scripts through `ScriptRunner::load_from_file` on change
